@@ -62,6 +62,7 @@ func Defs() []*game.Def {
 			ID: "smuta", Kind: game.KindEffect, Name: "Внезапный ДЭБ",
 			Concept:       "Заменяешь выпавшую игру на «Смуту». Очки за неё считаются по обычным правилам.",
 			OncePerPlayer: true,
+			SpecialGames:  []game.SpecialGame{{Key: "smuta", Title: "Смута"}},
 			Impl:          replaceGame{key: "smuta"},
 		}, nil),
 

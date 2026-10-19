@@ -13,19 +13,21 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/api"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/config"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/events"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store"
 )
 
 type Server struct {
-	cfg   config.Config
-	store *store.Store
-	auth  *auth.Service
-	log   *slog.Logger
-	web   fs.FS
+	cfg    config.Config
+	store  *store.Store
+	auth   *auth.Service
+	events *events.Service
+	log    *slog.Logger
+	web    fs.FS
 }
 
-func New(cfg config.Config, st *store.Store, a *auth.Service, log *slog.Logger, web fs.FS) *Server {
-	return &Server{cfg: cfg, store: st, auth: a, log: log, web: web}
+func New(cfg config.Config, st *store.Store, a *auth.Service, ev *events.Service, log *slog.Logger, web fs.FS) *Server {
+	return &Server{cfg: cfg, store: st, auth: a, events: ev, log: log, web: web}
 }
 
 // Handler returns the root HTTP handler.
@@ -34,6 +36,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/health", s.health)
 	api.HandleFunc("GET /api/config", s.appConfig)
 	api.HandleFunc("GET /api/me", s.me)
+	s.routeEvents(api)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})

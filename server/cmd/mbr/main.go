@@ -14,6 +14,8 @@ import (
 
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/config"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/events"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/game/items"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/httpapi"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/webui"
@@ -48,12 +50,16 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	catalog, err := items.NewCatalog()
+	if err != nil {
+		return err
+	}
 	authSvc := auth.New(st, cfg, log)
 	go cleanupSessions(ctx, authSvc, log)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpapi.New(cfg, st, authSvc, log, webui.FS()).Handler(),
+		Handler:           httpapi.New(cfg, st, authSvc, events.New(st, catalog), log, webui.FS()).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	errc := make(chan error, 1)

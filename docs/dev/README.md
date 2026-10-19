@@ -84,11 +84,12 @@ MBR_DOMAIN=<домен> docker compose --profile app --profile prod up -d --buil
 - `server/internal/store` — подключение к PostgreSQL, миграции (`goose`, встроены в бинарник), запросы (`sqlc`).
 - `server/internal/auth` — вход через Discord, dev-вход, сессии. В cookie лежит случайный токен, в базе — только его SHA-256.
 - `server/internal/httpapi` — маршруты `/api/*` и `/auth/*`, всё остальное отдаёт SPA.
+- `server/internal/events` — ивенты, участники, роли, игры и фильмы: права и проверки. HTTP-хендлеры только переводят ошибки сервиса в коды ответа (400/401/403/404/409).
 - `server/internal/api` — типы запросов и ответов, из них генерируются TS-типы.
 - `server/internal/webui` — встроенная сборка фронтенда.
 - `server/internal/game` — движок правил (подробнее ниже).
 - `server/internal/game/items` — каталог предметов: описание, тексты из `docs/rules`, механики.
-- `web/src` — React-приложение: `api/` (клиент, хуки, типы), `pages/`, `components/`.
+- `web/src` — React-приложение: `api/` (клиент, хуки, типы), `pages/` (страница ивента со вкладками — в `pages/event/`), `components/`. Тесты страниц используют фейковый бэкенд из `src/test/fakeBackend.ts`.
 
 ## Движок правил (`server/internal/game`)
 

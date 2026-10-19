@@ -8,6 +8,46 @@ import (
 	"time"
 )
 
+type Event struct {
+	ID        int64
+	Slug      string
+	Title     string
+	Status    string
+	Settings  []byte
+	CreatedBy int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type EventMember struct {
+	EventID       int64
+	UserID        int64
+	IsParticipant bool
+	IsJudge       bool
+	JoinedAt      time.Time
+}
+
+type Game struct {
+	ID         int64
+	EventID    int64
+	AddedBy    int64
+	Title      string
+	HltbHours  int32
+	Rating     int32
+	Year       int32
+	SpecialKey *string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type Movie struct {
+	ID        int64
+	EventID   int64
+	AddedBy   int64
+	Title     string
+	CreatedAt time.Time
+}
+
 type Session struct {
 	TokenHash []byte
 	UserID    int64

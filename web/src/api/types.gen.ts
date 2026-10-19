@@ -32,3 +32,136 @@ export interface Me {
 export interface DevLoginRequest {
   name: string;
 }
+/**
+ * EventSummary is one row of the events list.
+ */
+export interface EventSummary {
+  slug: string;
+  title: string;
+  status: string; // "active" | "finished"
+  participants: number /* int */;
+  isParticipant: boolean;
+  isJudge: boolean;
+}
+export interface CreateEventRequest {
+  title: string;
+  slug: string;
+}
+/**
+ * EventSettings are the rule parameters of an event.
+ */
+export interface EventSettings {
+  /**
+   * Spins of the effects-and-bonuses wheel at the start of the event.
+   */
+  startSpins: number /* int */;
+  /**
+   * Spins after a completed game by its HLTB hours; the last row with
+   * minHours <= hours wins. Empty means 1 spin.
+   */
+  spinsByHours: SpinsRow[];
+  /**
+   * Item weight overrides by item id.
+   */
+  weights: { [key: string]: number /* int */};
+  /**
+   * Items switched off for this event.
+   */
+  disabled: string[];
+  /**
+   * Discord webhook for notifications; visible to judges only.
+   */
+  webhookUrl?: string;
+}
+export interface SpinsRow {
+  minHours: number /* int */;
+  spins: number /* int */;
+}
+export interface Member {
+  userId: number /* int64 */;
+  name: string;
+  avatarUrl: string;
+  isParticipant: boolean;
+  isJudge: boolean;
+}
+/**
+ * Membership is the current user's roles in an event.
+ */
+export interface Membership {
+  isParticipant: boolean;
+  isJudge: boolean;
+}
+export interface EventDetail {
+  slug: string;
+  title: string;
+  status: string;
+  settings: EventSettings;
+  members: Member[];
+  /**
+   * Me is null when the current user is not a member (or not logged in).
+   */
+  me: Membership | null;
+}
+/**
+ * UpdateEventRequest changes only the fields that are set.
+ */
+export interface UpdateEventRequest {
+  title?: string;
+  settings?: EventSettings;
+}
+/**
+ * UpdateMemberRequest changes only the roles that are set. A member without
+ * any role is removed from the event.
+ */
+export interface UpdateMemberRequest {
+  isParticipant?: boolean;
+  isJudge?: boolean;
+}
+/**
+ * ItemDef is an item of the catalog with the event's settings.
+ */
+export interface ItemDef {
+  id: string;
+  name: string;
+  concept: string;
+  kind: string; // "effect" | "bonus" | "drop"
+  defaultWeight: number /* int */;
+  weight: number /* int */;
+  enabled: boolean;
+  specialGames: SpecialGame[];
+}
+export interface SpecialGame {
+  key: string;
+  title: string;
+}
+export interface GameInput {
+  title: string;
+  hltbHours: number /* int */;
+  rating: number /* int */;
+  year: number /* int */;
+  /**
+   * SpecialKey marks a game provided by an item; judges only. Empty for
+   * regular games.
+   */
+  specialKey: string;
+}
+export interface Game {
+  id: number /* int64 */;
+  title: string;
+  hltbHours: number /* int */;
+  rating: number /* int */;
+  year: number /* int */;
+  specialKey: string;
+  basePoints: number /* int */;
+  addedBy: number /* int64 */;
+  addedByName: string;
+}
+export interface MovieInput {
+  title: string;
+}
+export interface Movie {
+  id: number /* int64 */;
+  title: string;
+  addedBy: number /* int64 */;
+  addedByName: string;
+}

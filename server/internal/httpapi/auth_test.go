@@ -15,6 +15,8 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/api"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/config"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/events"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/game/items"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store/storetest"
 )
 
@@ -27,7 +29,11 @@ func newTestServer(t *testing.T) (*httptest.Server, *http.Client) {
 		AdminDiscordIDs: map[string]bool{"dev:alice": true},
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := httptest.NewServer(New(cfg, st, auth.New(st, cfg, log), log, fstest.MapFS{}).Handler())
+	cat, err := items.NewCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(New(cfg, st, auth.New(st, cfg, log), events.New(st, cat), log, fstest.MapFS{}).Handler())
 	t.Cleanup(srv.Close)
 
 	jar, _ := cookiejar.New(nil)

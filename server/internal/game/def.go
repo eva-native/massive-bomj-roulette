@@ -77,8 +77,17 @@ type Def struct {
 	Proof         bool // needs a proof link
 	NeedsConfirm  bool // its points count only after the judge confirms
 	Input         []Field
+	// SpecialGames are games outside the regular wheel the item needs
+	// («Смута» for «Внезапный ДЭБ»). The judge adds them to the pool.
+	SpecialGames []SpecialGame
 
 	Impl any
+}
+
+// SpecialGame names a game an item swaps in by its key.
+type SpecialGame struct {
+	Key   string
+	Title string
 }
 
 func (d *Def) lifetime() int {
