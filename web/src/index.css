@@ -8,6 +8,12 @@ body {
   @apply min-h-screen bg-stone-50 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
 }
 
+/* The OBS overlay draws over the stream. */
+html.overlay,
+html.overlay body {
+  background: transparent;
+}
+
 /* The wheel turns to the angle the component puts in --wheel-to. */
 @keyframes wheel-spin {
   from {

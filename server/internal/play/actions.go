@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -60,6 +61,7 @@ func (s *Service) Spin(ctx context.Context, slug string, viewer *auth.User, step
 		}
 		res.Result, res.Label = sp.Result, sp.Picked().Label
 		ss.log("spin", "%s крутит %s: %s", ss.name(me), wheelNames[sp.Wheel], res.Label)
+		ss.acts[len(ss.acts)-1].spin = &api.SpinInfo{Player: ss.name(me), Wheel: res.Wheel, Result: res.Result, Label: res.Label}
 		return nil
 	})
 	res.View = view
@@ -221,9 +223,14 @@ func (s *Service) Activity(ctx context.Context, slug string, limit int) ([]api.A
 	}
 	out := make([]api.ActivityEntry, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, api.ActivityEntry{
+		e := api.ActivityEntry{
 			ID: r.ID, Kind: r.Kind, Message: r.Message, ActorName: r.ActorName, CreatedAt: r.CreatedAt.Format(time.RFC3339),
-		})
+		}
+		var p activityPayload
+		if json.Unmarshal(r.Payload, &p) == nil {
+			e.Spin = p.Spin
+		}
+		out = append(out, e)
 	}
 	return out, nil
 }

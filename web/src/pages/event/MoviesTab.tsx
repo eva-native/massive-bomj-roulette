@@ -53,7 +53,7 @@ export function MoviesTab() {
           >
             {editing?.id === m.id ? (
               <form
-                className="flex w-full gap-2"
+                className="flex w-full flex-wrap gap-2"
                 onSubmit={(e) => {
                   e.preventDefault()
                   update.mutate({ id: m.id, input: { title: editing.title.trim() } }, { onSuccess: () => setEditing(null) })

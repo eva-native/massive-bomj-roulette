@@ -1,7 +1,9 @@
-import { NavLink, Outlet, useParams } from 'react-router'
+import { Link, NavLink, Outlet, useParams } from 'react-router'
 import { useEvent, useJoinEvent } from '@/api/events'
+import { useMe } from '@/api/hooks'
 import { useEventStream } from '@/api/play'
 import { Button } from '@/components/Button'
+import { buttonClass } from '@/components/buttonClass'
 import { Badge, ErrorText, Loading } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import type { EventContext } from './context'
@@ -10,6 +12,7 @@ export function EventLayout() {
   const { slug = '' } = useParams()
   const event = useEvent(slug)
   const join = useJoinEvent(slug)
+  const { data: me } = useMe()
   useEventStream(slug)
 
   if (event.isPending) return <Loading />
@@ -37,11 +40,17 @@ export function EventLayout() {
           {isJudge && <Badge tone="amber">Судья</Badge>}
           {ev.me?.isParticipant && <Badge tone="green">Участник</Badge>}
         </div>
-        {!ev.me?.isParticipant && ev.status === 'active' && (
-          <Button onClick={() => join.mutate()} disabled={join.isPending}>
-            Участвовать
-          </Button>
-        )}
+        {!ev.me?.isParticipant &&
+          ev.status === 'active' &&
+          (me ? (
+            <Button onClick={() => join.mutate()} disabled={join.isPending}>
+              Участвовать
+            </Button>
+          ) : (
+            <Link to={`/login?next=/e/${ev.slug}`} className={buttonClass('primary')}>
+              Войти, чтобы участвовать
+            </Link>
+          ))}
       </div>
       <ErrorText error={join.error} />
 

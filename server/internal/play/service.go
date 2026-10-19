@@ -21,14 +21,26 @@ import (
 )
 
 type Service struct {
-	st   *store.Store
-	eng  *game.Engine
-	live *live.Broker
+	st     *store.Store
+	eng    *game.Engine
+	live   *live.Broker
+	notify Sender
+}
+
+// Sender posts a message to an event's Discord webhook (notify.Notifier).
+type Sender interface {
+	Send(webhook, text string)
 }
 
 func New(st *store.Store, eng *game.Engine, broker *live.Broker) *Service {
 	return &Service{st: st, eng: eng, live: broker}
 }
+
+// SetNotifier plugs in Discord notifications.
+func (s *Service) SetNotifier(n Sender) { s.notify = n }
+
+// quietKinds are journal entries not worth a Discord message.
+var quietKinds = map[string]bool{"input": true}
 
 // stateDoc is the part of game.State that is stored as a document.
 type stateDoc struct {
@@ -41,6 +53,11 @@ type stateDoc struct {
 	NextSeq      int64               `json:"nextSeq"`
 }
 
+// activityPayload is stored with a journal entry.
+type activityPayload struct {
+	Spin *api.SpinInfo `json:"spin,omitempty"`
+}
+
 // session is one loaded event with the viewer.
 type session struct {
 	ev      db.Event
@@ -49,6 +66,7 @@ type session struct {
 	st      *game.State
 	names   map[game.PlayerID]api.PlayerRef
 	members map[game.PlayerID]db.ListMembersRow
+	webhook string
 	q       *db.Queries
 	acts    []activity
 	dirty   bool // the snapshot changed while loading (new players got turns)
@@ -58,6 +76,7 @@ type activity struct {
 	actor   *int64
 	kind    string
 	message string
+	spin    *api.SpinInfo
 }
 
 func (ss *session) log(kind, format string, args ...any) {
@@ -100,7 +119,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, slug string, viewer *
 		}
 	}
 	st := &game.State{Settings: toGameSettings(settings)}
-	ss := &session{ev: ev, viewer: viewer, st: st, q: q,
+	ss := &session{ev: ev, viewer: viewer, st: st, q: q, webhook: settings.WebhookURL,
 		names: map[game.PlayerID]api.PlayerRef{}, members: map[game.PlayerID]db.ListMembersRow{}}
 
 	members, err := q.ListMembers(ctx, ev.ID)
@@ -252,8 +271,14 @@ func (s *Service) write(ctx context.Context, slug string, viewer *auth.User, fn 
 		return err
 	}
 	for _, a := range ss.acts {
+		payload := []byte("{}")
+		if a.spin != nil {
+			if payload, err = json.Marshal(activityPayload{Spin: a.spin}); err != nil {
+				return err
+			}
+		}
 		if _, err := q.AddActivity(ctx, db.AddActivityParams{
-			EventID: ss.ev.ID, ActorID: a.actor, Kind: a.kind, Message: a.message, Payload: []byte("{}"),
+			EventID: ss.ev.ID, ActorID: a.actor, Kind: a.kind, Message: a.message, Payload: payload,
 		}); err != nil {
 			return err
 		}
@@ -263,6 +288,9 @@ func (s *Service) write(ctx context.Context, slug string, viewer *auth.User, fn 
 	}
 	for _, a := range ss.acts {
 		s.live.Publish(ss.ev.ID, live.Message{Kind: a.kind, Message: a.message})
+		if s.notify != nil && ss.webhook != "" && !quietKinds[a.kind] {
+			s.notify.Send(ss.webhook, a.message)
+		}
 	}
 	if len(ss.acts) == 0 && ss.dirty {
 		s.live.Publish(ss.ev.ID, live.Message{Kind: "update"})

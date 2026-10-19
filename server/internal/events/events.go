@@ -18,6 +18,7 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/api"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/notify"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store/db"
 )
@@ -385,8 +386,8 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 		}
 	}
 	slices.Sort(out.Disabled)
-	if out.WebhookURL != "" && !strings.HasPrefix(out.WebhookURL, "https://") {
-		return out, invalid("вебхук должен начинаться с https://")
+	if out.WebhookURL != "" && !notify.AllowedWebhook(out.WebhookURL) {
+		return out, invalid("вебхук должен быть адресом вебхука Discord: https://discord.com/api/webhooks/…")
 	}
 	return out, nil
 }

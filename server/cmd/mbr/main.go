@@ -19,6 +19,7 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game/items"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/httpapi"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/live"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/notify"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/play"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/webui"
@@ -62,6 +63,9 @@ func run(log *slog.Logger) error {
 
 	broker := live.NewBroker()
 	playSvc := play.New(st, game.NewEngine(catalog, nil), broker)
+	notifier := notify.New(log)
+	go notifier.Run(ctx)
+	playSvc.SetNotifier(notifier)
 	eventsSvc := events.New(st, catalog)
 	eventsSvc.SetGameUsage(playSvc)
 

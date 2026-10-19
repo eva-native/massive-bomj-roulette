@@ -365,4 +365,17 @@ export interface ActivityEntry {
   message: string;
   actorName: string;
   createdAt: string;
+  /**
+   * Spin is set for spins, so viewers (the OBS overlay) can replay the wheel.
+   */
+  spin: SpinInfo | null;
+}
+/**
+ * SpinInfo is the snapshot of a spin in the journal.
+ */
+export interface SpinInfo {
+  player: string;
+  wheel: WheelView;
+  result: number /* int */;
+  label: string;
 }

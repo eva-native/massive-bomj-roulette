@@ -284,3 +284,56 @@ func TestLiveNotification(t *testing.T) {
 		t.Fatalf("live message = %+v", m)
 	}
 }
+
+type fakeSender struct {
+	mu   sync.Mutex
+	sent []string
+}
+
+func (f *fakeSender) Send(webhook, text string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sent = append(f.sent, webhook+" "+text)
+}
+
+func TestSpinSnapshotAndDiscord(t *testing.T) {
+	f := newFixture(t)
+	sender := &fakeSender{}
+	f.play.SetNotifier(sender)
+	f.addGame(f.alice, "G", 10, 80, 2015)
+
+	// No webhook yet: nothing is sent.
+	f.spin(f.alice, "reflex")
+	if len(sender.sent) != 0 {
+		t.Fatalf("sent without a webhook: %v", sender.sent)
+	}
+
+	d, err := f.events.Get(f.ctx, "lbr", f.admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := d.Settings
+	s.WebhookURL = "https://discord.com/api/webhooks/1/x"
+	if _, err := f.events.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); err != nil {
+		t.Fatal(err)
+	}
+	s.WebhookURL = "https://evil.example/hook"
+	var ie *events.InvalidError
+	if _, err := f.events.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); !errors.As(err, &ie) {
+		t.Fatalf("a non-Discord webhook was accepted: %v", err)
+	}
+
+	f.spin(f.alice, "opaaa")
+	if len(sender.sent) != 1 || sender.sent[0] != "https://discord.com/api/webhooks/1/x Алиса крутит колесо эффектов и бонусов: ОПАААА" {
+		t.Fatalf("sent = %v", sender.sent)
+	}
+
+	acts, err := f.play.Activity(f.ctx, "lbr", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp := acts[0].Spin
+	if sp == nil || sp.Player != "Алиса" || sp.Label != "ОПАААА" || sp.Wheel.Sectors[sp.Result].Label != "ОПАААА" {
+		t.Fatalf("spin snapshot = %+v", sp)
+	}
+}

@@ -7,10 +7,11 @@ import { routes } from '@/routes'
 /** Renders the whole app at the given path with a fresh query cache. */
 export function renderApp(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
+  const queryClient = newQueryClient()
   render(
-    <QueryClientProvider client={newQueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
-  return router
+  return { router, queryClient }
 }

@@ -57,7 +57,18 @@ function finalAngle(parts: Slice[], i: number) {
  * The animation is pure CSS (see .wheel-spin in index.css); reduced motion
  * makes it instant.
  */
-export function Wheel({ sectors, target, onStop }: { sectors: Sector[]; target: number | null; onStop?: () => void }) {
+export function Wheel({
+  sectors,
+  target,
+  onStop,
+  legend = true,
+}: {
+  sectors: Sector[]
+  target: number | null
+  onStop?: () => void
+  /** List the sectors under the wheel when their labels do not fit on it. */
+  legend?: boolean
+}) {
   const parts = useMemo(() => slices(sectors), [sectors])
   const spinning = target !== null && parts[target] !== undefined
   const style = spinning ? ({ '--wheel-to': `${finalAngle(parts, target)}deg` } as CSSProperties) : undefined
@@ -65,38 +76,59 @@ export function Wheel({ sectors, target, onStop }: { sectors: Sector[]; target: 
   const showLabels = parts.length <= MAX_LABELS
 
   return (
-    <div className="relative mx-auto w-full max-w-80" role="img" aria-label={`Колесо: ${sectors.length} секторов`}>
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full drop-shadow">
-        <g className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
-          {parts.map((p, i) => (
-            <path key={i} d={arc(p.start, p.end)} fill={p.color} stroke="#1c1917" strokeWidth={1} />
-          ))}
-          {showLabels &&
-            parts.map((p, i) => {
-              const mid = (p.start + p.end) / 2
-              const [x, y] = point(mid, R * 0.6)
-              const label = p.sector.label.length > 16 ? p.sector.label.slice(0, 15) + '…' : p.sector.label
-              return (
-                <text
-                  key={i}
-                  x={x}
-                  y={y}
-                  fontSize={parts.length > 16 ? 9 : 11}
-                  fontWeight={600}
-                  fill="#1c1917"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  transform={`rotate(${mid - 90} ${x} ${y})`}
-                >
-                  {label}
-                </text>
-              )
-            })}
-        </g>
-        <circle cx={SIZE / 2} cy={SIZE / 2} r={14} fill="#1c1917" />
-      </svg>
-      {/* The pointer at the top. */}
-      <div className="absolute top-0 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[22px] border-x-transparent border-t-stone-900 dark:border-t-stone-100" />
+    <div className="mx-auto w-full max-w-80">
+      <div className="relative" role="img" aria-label={`Колесо: ${sectors.length} секторов`}>
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full drop-shadow">
+          <g className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
+            {parts.map((p, i) => (
+              <path key={i} d={arc(p.start, p.end)} fill={p.color} stroke="#1c1917" strokeWidth={1} />
+            ))}
+            {showLabels &&
+              parts.map((p, i) => {
+                const mid = (p.start + p.end) / 2
+                const [x, y] = point(mid, R * 0.6)
+                const label = p.sector.label.length > 16 ? p.sector.label.slice(0, 15) + '…' : p.sector.label
+                return (
+                  <text
+                    key={i}
+                    x={x}
+                    y={y}
+                    fontSize={parts.length > 16 ? 9 : 11}
+                    fontWeight={600}
+                    fill="#1c1917"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    transform={`rotate(${mid - 90} ${x} ${y})`}
+                  >
+                    {label}
+                  </text>
+                )
+              })}
+          </g>
+          <circle cx={SIZE / 2} cy={SIZE / 2} r={14} fill="#1c1917" />
+        </svg>
+        {/* The pointer at the top. */}
+        <div className="absolute top-0 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[22px] border-x-transparent border-t-stone-900 dark:border-t-stone-100" />
+      </div>
+      {legend && !showLabels && <Legend parts={parts} />}
     </div>
+  )
+}
+
+/** The list of sectors with their chance, for wheels too dense to label. */
+function Legend({ parts }: { parts: Slice[] }) {
+  return (
+    <details className="mt-2 text-sm">
+      <summary className="cursor-pointer text-center text-stone-500">Что на колесе ({parts.length})</summary>
+      <ul className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+        {parts.map((p, i) => (
+          <li key={i} className="flex items-center gap-2">
+            <span className="size-3 shrink-0 rounded-full border border-stone-900" style={{ background: p.color }} />
+            <span className="flex-1 truncate">{p.sector.label}</span>
+            <span className="text-xs text-stone-500">{Math.round(((p.end - p.start) / 360) * 100)}%</span>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }

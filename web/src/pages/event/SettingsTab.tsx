@@ -74,7 +74,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
           <p className="font-medium">После пройденной игры, по часам HLTB</p>
           <p className="text-xs text-stone-500">Работает последняя строка, где «от часов» не больше часов игры. Без строк — 1 крутка.</p>
           {rows.map((r, i) => (
-            <div key={i} className="flex items-end gap-2">
+            <div key={i} className="flex flex-wrap items-end gap-2">
               <Field label="От часов" className="w-32">
                 <Input type="number" min={0} value={r.minHours} onChange={(e) => setRow(i, { minHours: num(e.target.value) })} />
               </Field>

@@ -1,12 +1,14 @@
-import { Link, Outlet } from 'react-router'
+import { Link, Outlet, useLocation } from 'react-router'
 import { useLogout, useMe } from '@/api/hooks'
 import { Button } from './Button'
+import { buttonClass } from './buttonClass'
 import { Avatar } from './ui'
 
-/** The page frame for logged-in users: header with the user and logout. */
+/** The page frame: header with the user and logout, or a login link. */
 export function AppShell() {
-  const { data: me } = useMe()
+  const { data: me, isPending } = useMe()
   const logout = useLogout()
+  const location = useLocation()
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -14,14 +16,20 @@ export function AppShell() {
         <Link to="/" className="text-xl font-bold">
           MBR
         </Link>
-        {me && (
-          <div className="flex items-center gap-3">
+        {me ? (
+          <div className="flex min-w-0 items-center gap-3">
             <Avatar name={me.name} url={me.avatarUrl} size="sm" />
-            <span className="text-sm font-medium">{me.name}</span>
+            <span className="hidden truncate text-sm font-medium sm:inline">{me.name}</span>
             <Button variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
               Выйти
             </Button>
           </div>
+        ) : (
+          !isPending && (
+            <Link to={`/login?next=${encodeURIComponent(location.pathname)}`} className={buttonClass('primary')}>
+              Войти
+            </Link>
+          )
         )}
       </header>
       <Outlet />

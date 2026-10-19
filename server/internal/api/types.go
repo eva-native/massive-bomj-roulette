@@ -329,4 +329,14 @@ type ActivityEntry struct {
 	Message   string `json:"message"`
 	ActorName string `json:"actorName"`
 	CreatedAt string `json:"createdAt"`
+	// Spin is set for spins, so viewers (the OBS overlay) can replay the wheel.
+	Spin *SpinInfo `json:"spin" tstype:"SpinInfo | null,required"`
+}
+
+// SpinInfo is the snapshot of a spin in the journal.
+type SpinInfo struct {
+	Player string    `json:"player"`
+	Wheel  WheelView `json:"wheel"`
+	Result int       `json:"result"`
+	Label  string    `json:"label"`
 }

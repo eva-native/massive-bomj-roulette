@@ -116,7 +116,7 @@ function FieldControl({
       )
     case 'int':
       return (
-        <label className="flex items-center gap-2">
+        <label className="flex flex-wrap items-center gap-2">
           <span className="min-w-32">{label}</span>
           <Input
             type="number"
@@ -130,7 +130,7 @@ function FieldControl({
       )
     case 'player':
       return (
-        <label className="flex items-center gap-2">
+        <label className="flex flex-wrap items-center gap-2">
           <span className="min-w-32">{label}</span>
           <Select value={typeof value === 'number' ? value : ''} disabled={disabled} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}>
             <option value="">—</option>
@@ -167,7 +167,7 @@ function FieldControl({
     }
     default:
       return (
-        <label className="flex items-center gap-2">
+        <label className="flex flex-wrap items-center gap-2">
           <span className="min-w-32">{label}</span>
           <Input
             type={field.type === 'url' ? 'url' : 'text'}
