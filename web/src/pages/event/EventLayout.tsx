@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useParams } from 'react-router'
 import { useEvent, useJoinEvent } from '@/api/events'
+import { useEventStream } from '@/api/play'
 import { Button } from '@/components/Button'
 import { Badge, ErrorText, Loading } from '@/components/ui'
 import { cn } from '@/lib/cn'
@@ -9,6 +10,7 @@ export function EventLayout() {
   const { slug = '' } = useParams()
   const event = useEvent(slug)
   const join = useJoinEvent(slug)
+  useEventStream(slug)
 
   if (event.isPending) return <Loading />
   if (event.isError) return <ErrorText error={event.error} />
@@ -16,7 +18,10 @@ export function EventLayout() {
   const ev = event.data
   const isJudge = ev.me?.isJudge ?? false
   const tabs = [
-    { to: '', label: 'Участники', end: true },
+    { to: '', label: 'Таблица', end: true },
+    ...(ev.me?.isParticipant ? [{ to: 'play', label: 'Мой ход' }] : []),
+    ...(isJudge ? [{ to: 'judge', label: 'Судья' }] : []),
+    { to: 'members', label: 'Участники' },
     { to: 'games', label: 'Игры' },
     { to: 'movies', label: 'Фильмы' },
     { to: 'rules', label: 'Предметы' },

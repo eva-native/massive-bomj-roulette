@@ -150,3 +150,181 @@ type Movie struct {
 	AddedBy     int64  `json:"addedBy"`
 	AddedByName string `json:"addedByName"`
 }
+
+// --- play ---------------------------------------------------------------------
+
+// PlayerView is everything about one player's game in an event: the current
+// turn, items, pocket, history and points. The UI draws the turn from it
+// without knowing the rules.
+type PlayerView struct {
+	Player PlayerRef `json:"player"`
+	// CanAct is true when the viewer is this player and may take the
+	// current step.
+	CanAct bool      `json:"canAct"`
+	Turn   *TurnView `json:"turn" tstype:"TurnView | null,required"`
+	// Pocket holds bonuses kept for later.
+	Pocket  []ItemView        `json:"pocket"`
+	History []PlaythroughView `json:"history"`
+	Points  int               `json:"points"`
+	Entries []PointEntry      `json:"entries"`
+}
+
+type PlayerRef struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatarUrl"`
+}
+
+type TurnView struct {
+	ID     int64      `json:"id"`
+	Number int        `json:"number"`
+	Reason string     `json:"reason"` // "start" | "completed" | "dropped"
+	Steps  []StepView `json:"steps"`
+	// Current is the step to take now; null while waiting for the judge.
+	Current *StepView `json:"current" tstype:"StepView | null,required"`
+	// Wheel is set when the current step is a spin.
+	Wheel       *WheelView       `json:"wheel" tstype:"WheelView | null,required"`
+	Playthrough *PlaythroughView `json:"playthrough" tstype:"PlaythroughView | null,required"`
+	// Items work on this turn's game: rolled effects, the drop debuff,
+	// bonuses used on it and multi-game items still running.
+	Items []ItemView `json:"items"`
+	// Waiting explains why nothing can be done right now, if so.
+	Waiting string `json:"waiting"`
+}
+
+type StepView struct {
+	ID   int64  `json:"id"`
+	Kind string `json:"kind"` // spin_items | spin_drop | choose_player | spin_game | choose_game | spin_movie | play
+	Done bool   `json:"done"`
+	// Result is a short label of what happened ("ОПАААА", a game title…).
+	Result string `json:"result"`
+	// AddedBy names the item that added the step, if any.
+	AddedBy string `json:"addedBy"`
+	// Options for choose_game and choose_player.
+	Options []Option `json:"options"`
+}
+
+type Option struct {
+	ID    int64  `json:"id"`
+	Label string `json:"label"`
+}
+
+type WheelView struct {
+	Kind    string   `json:"kind"` // items | drops | games | movies
+	Sectors []Sector `json:"sectors"`
+}
+
+type Sector struct {
+	Label  string `json:"label"`
+	Weight int    `json:"weight"`
+	// Kind of the item for item wheels ("effect" | "bonus" | "drop"), empty otherwise.
+	Kind string `json:"kind"`
+}
+
+type PlaythroughView struct {
+	ID         int64   `json:"id"`
+	GameID     int64   `json:"gameId"`
+	Game       string  `json:"game"`
+	HLTBHours  int     `json:"hltbHours"`
+	BasePoints int     `json:"basePoints"`
+	Outcome    string  `json:"outcome"` // "" | "completed" | "dropped"
+	Hours      float64 `json:"hours"`
+	Proof      string  `json:"proof"`
+	Confirmed  bool    `json:"confirmed"`
+	Points     int     `json:"points"`
+}
+
+type ItemView struct {
+	ID        int64  `json:"id"`
+	DefID     string `json:"defId"`
+	Name      string `json:"name"`
+	Concept   string `json:"concept"`
+	Kind      string `json:"kind"`
+	Placement string `json:"placement"` // pending | pocket | attached | used
+	Blocked   bool   `json:"blocked"`
+	// Status describes multi-game items: "2 из 3".
+	Status       string      `json:"status"`
+	Fields       []FieldView `json:"fields"`
+	NeedsConfirm bool        `json:"needsConfirm"`
+	Confirmed    bool        `json:"confirmed"`
+	Rejected     bool        `json:"rejected"`
+	// UseLabel is set for items that can be used by hand; CanUse says
+	// whether it is possible right now, UseHint why not.
+	UseLabel string `json:"useLabel"`
+	CanUse   bool   `json:"canUse"`
+	UseHint  string `json:"useHint"`
+}
+
+type FieldView struct {
+	Name     string `json:"name"`
+	Label    string `json:"label"`
+	Type     string `json:"type"` // bool | int | text | url | player | players
+	By       string `json:"by"`   // player | judge
+	Optional bool   `json:"optional"`
+	Value    any    `json:"value"`
+}
+
+type PointEntry struct {
+	Game   string `json:"game"`
+	Label  string `json:"label"`
+	Points int    `json:"points"`
+	// From names the player whose game gave these points, if not one's own.
+	From string `json:"from"`
+}
+
+// SpinResult tells the UI where the wheel stops.
+type SpinResult struct {
+	Wheel  WheelView  `json:"wheel"`
+	Result int        `json:"result"` // index into wheel.sectors
+	Label  string     `json:"label"`
+	View   PlayerView `json:"view"`
+}
+
+type ChooseRequest struct {
+	Choice int64 `json:"choice"`
+}
+
+type FinishRequest struct {
+	Outcome string  `json:"outcome"` // "completed" | "dropped"
+	Hours   float64 `json:"hours"`
+	Proof   string  `json:"proof"`
+}
+
+type InputRequest struct {
+	Values map[string]any `json:"values"`
+}
+
+type ConfirmRequest struct {
+	Accept bool `json:"accept"`
+}
+
+// LeaderboardRow is one player's standing.
+type LeaderboardRow struct {
+	Player    PlayerRef `json:"player"`
+	Points    int       `json:"points"`
+	Completed int       `json:"completed"`
+	Dropped   int       `json:"dropped"`
+	// Playing is the title of the current game, if any.
+	Playing string `json:"playing"`
+}
+
+// QueueEntry is something waiting for a judge.
+type QueueEntry struct {
+	Kind   string    `json:"kind"` // "playthrough" | "item"
+	ID     int64     `json:"id"`
+	Player PlayerRef `json:"player"`
+	Title  string    `json:"title"`
+	// For playthroughs.
+	Playthrough *PlaythroughView `json:"playthrough" tstype:"PlaythroughView | null,required"`
+	// For items.
+	Item *ItemView `json:"item" tstype:"ItemView | null,required"`
+	Game string    `json:"game"`
+}
+
+type ActivityEntry struct {
+	ID        int64  `json:"id"`
+	Kind      string `json:"kind"`
+	Message   string `json:"message"`
+	ActorName string `json:"actorName"`
+	CreatedAt string `json:"createdAt"`
+}

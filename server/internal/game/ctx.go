@@ -227,7 +227,7 @@ func (u *UseOps) RedoLastSpin() error {
 		}
 	}
 	if last == nil || last.SpinID == 0 {
-		return fmt.Errorf("%w: the last step was not a spin", ErrNotAllowed)
+		return fmt.Errorf("%w: последний шаг — не крутка", ErrNotAllowed)
 	}
 	return u.r.rewindTo(u.turn, last)
 }
@@ -240,7 +240,7 @@ func (u *UseOps) RedoGameSpin() error {
 			return u.r.rewindTo(u.turn, st)
 		}
 	}
-	return fmt.Errorf("%w: no game was spun yet", ErrNotAllowed)
+	return fmt.Errorf("%w: игра ещё не выпала", ErrNotAllowed)
 }
 
 // ResetWheel returns the player's finished games to their game wheel.
@@ -253,9 +253,14 @@ func (u *UseOps) ResetWheel() {
 func (u *UseOps) ReplaceGameSpinWithChoice() error {
 	st := u.turn.CurrentStep()
 	if st == nil || st.Kind != StepSpinGame {
-		return fmt.Errorf("%w: the current step is not a game spin", ErrNotAllowed)
+		return fmt.Errorf("%w: сейчас не крутка колеса игр", ErrNotAllowed)
 	}
-	sectors, err := u.r.gameWheel(u.turn)
+	return u.r.gameSpinToChoice(u.turn, st)
+}
+
+// gameSpinToChoice turns a game spin step into a choice from the same wheel.
+func (r *run) gameSpinToChoice(t *Turn, st *Step) error {
+	sectors, err := r.gameWheel(t)
 	if err != nil {
 		return err
 	}
@@ -272,7 +277,7 @@ func (u *UseOps) ReplaceGameSpinWithChoice() error {
 func (u *UseOps) RerollSelf() error {
 	st := u.turn.CurrentStep()
 	if st == nil {
-		return fmt.Errorf("%w: the turn is over", ErrNotAllowed)
+		return fmt.Errorf("%w: ход закончен", ErrNotAllowed)
 	}
 	i, _ := u.turn.step(st.ID)
 	u.r.voidItem(u.item)
@@ -293,16 +298,32 @@ func (ri *RolledItem) ID() int64     { return ri.item.ID }
 func (ri *RolledItem) DefID() string { return ri.item.DefID }
 func (ri *RolledItem) Kind() Kind    { return ri.r.def(ri.item).Kind }
 
-// ForceActivate makes a pocket bonus work on the next game right away
-// instead of going to the pocket.
+// ForceActivate activates a pocket bonus right away instead of keeping it:
+//   - a bonus for a game works on the next game;
+//   - «Колесо удачи» (instead of the game spin) turns the turn's next game
+//     spin into a choice;
+//   - «Реролл» (after a spin) burns: there is nothing left to reroll.
 func (ri *RolledItem) ForceActivate() {
 	if ri.item.Placement != PlacePocket {
 		return
 	}
-	ri.item.Placement = PlacePending
 	ri.item.Forced = true
-	if ri.turn.Playthrough != 0 {
-		ri.r.attach(ri.item, ri.turn.Playthrough)
+	switch ri.r.def(ri.item).Use {
+	case UseAfterSpin:
+		ri.item.Placement = PlaceUsed
+	case UseInsteadOfGameSpin:
+		ri.item.Placement = PlaceUsed
+		for _, st := range ri.turn.Steps {
+			if st.Kind == StepSpinGame && !st.Done {
+				_ = ri.r.gameSpinToChoice(ri.turn, st) // an empty wheel leaves the spin as it is
+				break
+			}
+		}
+	default:
+		ri.item.Placement = PlacePending
+		if ri.turn.Playthrough != 0 {
+			ri.r.attach(ri.item, ri.turn.Playthrough)
+		}
 	}
 }
 

@@ -29,6 +29,7 @@ export function fakeBackend(opts: { config?: AppConfig; me?: Me | null; items?: 
   let nextId = 100
   const events = new Map<string, FakeEvent>()
   const requests: { method: string; url: string; body?: unknown }[] = []
+  const overrides: { method: string; path: RegExp; handle: (body: unknown) => unknown }[] = []
 
   const membership = (ev: EventDetail) => ev.members.find((m) => m.userId === me?.id)
   const withMe = (ev: EventDetail): EventDetail => {
@@ -38,6 +39,10 @@ export function fakeBackend(opts: { config?: AppConfig; me?: Me | null; items?: 
 
   const backend = {
     requests,
+    /** Answers method + path with handle(body) as JSON 200 (204 for undefined), before the built-in routes. */
+    on(method: string, path: RegExp, handle: (body: unknown) => unknown) {
+      overrides.unshift({ method, path, handle })
+    },
     setMe(user: Me | null) {
       me = user
     },
@@ -61,6 +66,13 @@ export function fakeBackend(opts: { config?: AppConfig; me?: Me | null; items?: 
       const method = init?.method ?? 'GET'
       const body = init?.body ? JSON.parse(String(init.body)) : undefined
       requests.push({ method, url, body })
+
+      for (const o of overrides) {
+        if (o.method === method && o.path.test(url)) {
+          const out = o.handle(body)
+          return out === undefined ? new Response(null, { status: 204 }) : json(200, out)
+        }
+      }
 
       if (url === '/api/config') return json(200, config)
       if (url === '/api/me') return me ? json(200, me) : json(401, { error: 'not logged in' })

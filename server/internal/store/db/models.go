@@ -8,6 +8,16 @@ import (
 	"time"
 )
 
+type Activity struct {
+	ID        int64
+	EventID   int64
+	ActorID   *int64
+	Kind      string
+	Message   string
+	Payload   []byte
+	CreatedAt time.Time
+}
+
 type Event struct {
 	ID        int64
 	Slug      string
@@ -25,6 +35,13 @@ type EventMember struct {
 	IsParticipant bool
 	IsJudge       bool
 	JoinedAt      time.Time
+}
+
+type EventState struct {
+	EventID   int64
+	State     []byte
+	Version   int64
+	UpdatedAt time.Time
 }
 
 type Game struct {

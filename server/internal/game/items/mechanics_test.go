@@ -367,3 +367,35 @@ func TestVeteranRerollsItselfOntoTheSameGame(t *testing.T) {
 	sc.play(a, game.OutcomeCompleted, 10)
 	sc.expectTotal(a, 17+1+4)
 }
+
+func TestPutinVoteBurnsAForcedReroll(t *testing.T) {
+	sc := newScenario(t)
+	a := sc.player("Алиса")
+	sc.addGame("G1", 10, 80, 2015, a)
+
+	spinItems(sc, a, "putin_vote", "reroll", "reflex")
+	rr := sc.item(a, "reroll")
+	if rr.Placement != game.PlaceUsed || len(rr.Chain) != 0 {
+		t.Fatalf("a forced reroll must burn: %+v", rr)
+	}
+	sc.spin(a, "G1")
+	for _, it := range sc.s.Items {
+		if it.DefID == "reroll" && len(it.Chain) > 0 {
+			t.Fatal("the burnt reroll must not sit on the game")
+		}
+	}
+}
+
+func TestPutinVoteForcesLuckyWheel(t *testing.T) {
+	sc := newScenario(t)
+	a := sc.player("Алиса")
+	sc.addGame("G1", 10, 80, 2015, a)
+	g2 := sc.addGame("G2", 10, 80, 2015, a)
+
+	spinItems(sc, a, "putin_vote", "lucky_wheel", "reflex")
+	sc.expectSteps(a, game.StepChooseGame, game.StepPlay) // the game spin became a choice
+	sc.choose(a, g2.ID)
+	if got := sc.currentGame(a); got != "G2" {
+		t.Fatalf("game = %q, want G2", got)
+	}
+}

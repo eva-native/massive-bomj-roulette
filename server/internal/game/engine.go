@@ -8,14 +8,14 @@ import (
 )
 
 var (
-	ErrUnknownPlayer = errors.New("game: unknown player")
-	ErrNotYourTurn   = errors.New("game: not your turn")
-	ErrWrongStep     = errors.New("game: this step is not the current one")
-	ErrNotJudge      = errors.New("game: only a judge can do this")
-	ErrEmptyWheel    = errors.New("game: the wheel is empty")
-	ErrNotAllowed    = errors.New("game: not allowed")
-	ErrTooLate       = errors.New("game: too late, the turn has moved on")
-	ErrBadInput      = errors.New("game: bad input")
+	ErrUnknownPlayer = errors.New("участник не найден")
+	ErrNotYourTurn   = errors.New("сейчас не ваш ход")
+	ErrWrongStep     = errors.New("этот шаг уже не текущий")
+	ErrNotJudge      = errors.New("это может только судья")
+	ErrEmptyWheel    = errors.New("колесо пустое")
+	ErrNotAllowed    = errors.New("сейчас нельзя")
+	ErrTooLate       = errors.New("поздно: ход уже ушёл дальше")
+	ErrBadInput      = errors.New("неверные данные")
 )
 
 const defaultStartSpins = 3
@@ -61,12 +61,54 @@ func (r *run) def(it *Item) *Def {
 // Join adds a participant and starts their first turn.
 func (e *Engine) Join(s *State, p Player) error {
 	if s.Player(p.ID) != nil {
-		return fmt.Errorf("game: player %d already joined", p.ID)
+		return fmt.Errorf("участник %d уже в игре", p.ID)
 	}
 	s.Players = append(s.Players, &p)
+	_, err := e.Start(s, p.ID)
+	return err
+}
+
+// Start gives a player their first turn if they have none yet. It reports
+// whether a turn was created.
+func (e *Engine) Start(s *State, p PlayerID) (bool, error) {
+	if s.Player(p) == nil {
+		return false, ErrUnknownPlayer
+	}
+	if s.CurrentTurn(p) != nil {
+		return false, nil
+	}
 	r := e.on(s)
-	r.newTurn(p.ID, ReasonStart, r.startSpins())
-	return nil
+	r.newTurn(p, ReasonStart, r.startSpins())
+	return true, nil
+}
+
+// IsJudge reports whether the player may act as a judge.
+func (s *State) IsJudge(id PlayerID) bool {
+	if p := s.Player(id); p != nil && p.Judge {
+		return true
+	}
+	return slices.Contains(s.Judges, id)
+}
+
+// Blocked reports whether another item on the same game switches the item off.
+func (e *Engine) Blocked(s *State, itemID int64) bool {
+	r := e.on(s)
+	it := s.Item(itemID)
+	if it == nil {
+		return false
+	}
+	var group []*Item
+	for _, other := range s.Items {
+		if other.Player != it.Player || other.Placement == PlaceVoided {
+			continue
+		}
+		samePending := other.Placement == PlacePending && it.Placement == PlacePending && other.TurnID == it.TurnID
+		shared := len(it.Chain) > 0 && slices.Contains(other.Chain, it.Chain[len(it.Chain)-1])
+		if samePending || shared {
+			group = append(group, other)
+		}
+	}
+	return r.blocked(it, group)
 }
 
 func (r *run) newTurn(p PlayerID, reason TurnReason, spins int) *Turn {
@@ -117,11 +159,7 @@ func (r *run) finishStep(st *Step) {
 }
 
 func (r *run) requireJudge(actor PlayerID) error {
-	p := r.s.Player(actor)
-	if p == nil {
-		return ErrUnknownPlayer
-	}
-	if !p.Judge {
+	if !r.s.IsJudge(actor) {
 		return ErrNotJudge
 	}
 	return nil
@@ -157,7 +195,7 @@ func (r *run) wheelFor(t *Turn, st *Step) (WheelKind, []Sector, error) {
 	case StepSpinMovie:
 		wheel, sectors = WheelMovie, r.movieWheel(t.Player)
 	default:
-		return "", nil, fmt.Errorf("%w: step %s is not a spin", ErrWrongStep, st.Kind)
+		return "", nil, fmt.Errorf("%w: шаг %s — не крутка", ErrWrongStep, st.Kind)
 	}
 	if err == nil && len(sectors) == 0 {
 		err = ErrEmptyWheel
@@ -486,21 +524,21 @@ func (e *Engine) Choose(s *State, actor PlayerID, stepID, choice int64) error {
 	switch st.Kind {
 	case StepChoosePlayer:
 		if PlayerID(choice) == actor || s.Player(PlayerID(choice)) == nil {
-			return fmt.Errorf("%w: choose another participant", ErrBadInput)
+			return fmt.Errorf("%w: выберите другого участника", ErrBadInput)
 		}
 		st.Result = choice
 		r.finishStep(st)
 		r.stepDone(t, st)
 	case StepChooseGame:
 		if !slices.Contains(st.Options, choice) {
-			return fmt.Errorf("%w: game %d is not one of the options", ErrBadInput, choice)
+			return fmt.Errorf("%w: этой игры нет среди вариантов", ErrBadInput)
 		}
 		st.Result = choice
 		t.Game = choice
 		r.finishStep(st)
 		r.maybeFinalizeGame(t, st)
 	default:
-		return fmt.Errorf("%w: step %s is not a choice", ErrWrongStep, st.Kind)
+		return fmt.Errorf("%w: шаг %s — не выбор", ErrWrongStep, st.Kind)
 	}
 	return nil
 }
@@ -515,15 +553,15 @@ func (e *Engine) FinishGame(s *State, actor PlayerID, stepID int64, outcome Outc
 		return err
 	}
 	if st.Kind != StepPlay {
-		return fmt.Errorf("%w: the game is not being played", ErrWrongStep)
+		return fmt.Errorf("%w: сейчас не идёт игра", ErrWrongStep)
 	}
 	switch {
 	case outcome != OutcomeCompleted && outcome != OutcomeDropped:
-		return fmt.Errorf("%w: outcome must be completed or dropped", ErrBadInput)
+		return fmt.Errorf("%w: итог — «прошёл» или «дропнул»", ErrBadInput)
 	case outcome == OutcomeCompleted && hours <= 0:
-		return fmt.Errorf("%w: hours are required for a completed game", ErrBadInput)
+		return fmt.Errorf("%w: укажите, за сколько часов пройдена игра", ErrBadInput)
 	case hours < 0:
-		return fmt.Errorf("%w: hours cannot be negative", ErrBadInput)
+		return fmt.Errorf("%w: часы не могут быть отрицательными", ErrBadInput)
 	}
 	pt := s.Playthrough(t.Playthrough)
 	pt.Outcome, pt.Hours, pt.Proof = outcome, hours, strings.TrimSpace(proof)
@@ -540,10 +578,10 @@ func (e *Engine) ConfirmGame(s *State, actor PlayerID, playthroughID int64, acce
 	}
 	pt := s.Playthrough(playthroughID)
 	if pt == nil || pt.Outcome == OutcomeNone {
-		return fmt.Errorf("%w: nothing to confirm", ErrNotAllowed)
+		return fmt.Errorf("%w: нечего подтверждать", ErrNotAllowed)
 	}
 	if pt.Confirmed {
-		return fmt.Errorf("%w: already confirmed", ErrNotAllowed)
+		return fmt.Errorf("%w: уже подтверждено", ErrNotAllowed)
 	}
 	t := s.Turn(pt.TurnID)
 	if !accept {
@@ -574,7 +612,7 @@ func (e *Engine) ConfirmItem(s *State, actor PlayerID, itemID int64, accept bool
 	}
 	it := s.Item(itemID)
 	if it == nil || it.Placement == PlaceVoided {
-		return fmt.Errorf("%w: no such item", ErrNotAllowed)
+		return fmt.Errorf("%w: предмет не найден", ErrNotAllowed)
 	}
 	it.Confirmed, it.Rejected = accept, !accept
 	return nil
@@ -585,20 +623,20 @@ func (e *Engine) ConfirmItem(s *State, actor PlayerID, itemID int64, accept bool
 // judge's confirmation.
 func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[string]any) error {
 	r := e.on(s)
-	p := s.Player(actor)
 	it := s.Item(itemID)
-	if p == nil || it == nil || it.Placement == PlaceVoided {
-		return fmt.Errorf("%w: no such item", ErrNotAllowed)
+	judge := s.IsJudge(actor)
+	if it == nil || it.Placement == PlaceVoided || actor != it.Player && !judge {
+		return fmt.Errorf("%w: предмет не найден", ErrNotAllowed)
 	}
 	d := r.def(it)
 	clean := map[string]any{}
 	for name, v := range values {
 		f := d.field(name)
 		if f == nil {
-			return fmt.Errorf("%w: unknown field %q", ErrBadInput, name)
+			return fmt.Errorf("%w: неизвестное поле %q", ErrBadInput, name)
 		}
-		if f.By == RoleJudge && !p.Judge || f.By == RolePlayer && actor != it.Player && !p.Judge {
-			return fmt.Errorf("%w: field %q is not yours to fill", ErrNotAllowed, name)
+		if f.By == RoleJudge && !judge {
+			return fmt.Errorf("%w: поле «%s» заполняет не вы", ErrNotAllowed, f.Label)
 		}
 		cv, err := r.checkField(f, v, it.Player)
 		if err != nil {
@@ -617,50 +655,50 @@ func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[str
 }
 
 func (r *run) checkField(f *Field, v any, owner PlayerID) (any, error) {
-	bad := func(why string) error { return fmt.Errorf("%w: field %q %s", ErrBadInput, f.Name, why) }
+	bad := func(why string) error { return fmt.Errorf("%w: «%s» %s", ErrBadInput, f.Label, why) }
 	isPlayer := func(id int) bool { return r.s.Player(PlayerID(id)) != nil }
 	switch f.Type {
 	case FieldBool:
 		if b, ok := v.(bool); ok {
 			return b, nil
 		}
-		return nil, bad("must be true or false")
+		return nil, bad("— да или нет")
 	case FieldInt:
 		if n, ok := toInt(v); ok && n >= 0 {
 			return n, nil
 		}
-		return nil, bad("must be a non-negative whole number")
+		return nil, bad("— целое число от нуля")
 	case FieldText, FieldURL:
 		str, ok := v.(string)
 		if !ok {
-			return nil, bad("must be text")
+			return nil, bad("— текст")
 		}
 		str = strings.TrimSpace(str)
 		if f.Type == FieldURL && str != "" && !strings.HasPrefix(str, "http://") && !strings.HasPrefix(str, "https://") {
-			return nil, bad("must be a link")
+			return nil, bad("— ссылка (http:// или https://)")
 		}
 		return str, nil
 	case FieldPlayer:
 		if n, ok := toInt(v); ok && isPlayer(n) && PlayerID(n) != owner {
 			return n, nil
 		}
-		return nil, bad("must be another participant")
+		return nil, bad("— другой участник")
 	case FieldPlayers:
 		list, ok := v.([]any)
 		if !ok {
-			return nil, bad("must be a list of participants")
+			return nil, bad("— список участников")
 		}
 		out := make([]any, 0, len(list))
 		for _, x := range list {
 			n, ok := toInt(x)
 			if !ok || !isPlayer(n) {
-				return nil, bad("must be a list of participants")
+				return nil, bad("— список участников")
 			}
 			out = append(out, n)
 		}
 		return out, nil
 	}
-	return nil, bad("has an unknown type")
+	return nil, bad("— неизвестный тип поля")
 }
 
 // --- using items -------------------------------------------------------------------
@@ -674,7 +712,7 @@ func (e *Engine) CanUse(s *State, actor PlayerID, itemID int64) error {
 func (r *run) checkUse(actor PlayerID, itemID int64) (*Item, *Def, *Turn, error) {
 	it := r.s.Item(itemID)
 	if it == nil || it.Player != actor || it.Placement == PlaceVoided {
-		return nil, nil, nil, fmt.Errorf("%w: no such item", ErrNotAllowed)
+		return nil, nil, nil, fmt.Errorf("%w: предмет не найден", ErrNotAllowed)
 	}
 	d := r.def(it)
 	t := r.s.CurrentTurn(actor)
@@ -682,11 +720,11 @@ func (r *run) checkUse(actor PlayerID, itemID int64) (*Item, *Def, *Turn, error)
 
 	if d.Kind == KindBonus {
 		if it.Placement != PlacePocket {
-			return nil, nil, nil, fmt.Errorf("%w: the bonus is not in the pocket", ErrNotAllowed)
+			return nil, nil, nil, fmt.Errorf("%w: бонуса нет в кармане", ErrNotAllowed)
 		}
 		for _, other := range r.turnItems(t) {
 			if r.def(other).blocks(KindBonus) {
-				return nil, nil, nil, fmt.Errorf("%w: bonuses are blocked on this game by «%s»", ErrNotAllowed, r.def(other).Name)
+				return nil, nil, nil, fmt.Errorf("%w: на этой игре бонусы запрещены («%s»)", ErrNotAllowed, r.def(other).Name)
 			}
 		}
 	}
@@ -694,22 +732,22 @@ func (r *run) checkUse(actor PlayerID, itemID int64) (*Item, *Def, *Turn, error)
 	switch d.Use {
 	case UsePlaythrough:
 		if t.Playthrough == 0 || cur == nil || cur.Kind != StepPlay {
-			return nil, nil, nil, fmt.Errorf("%w: use it while playing a game", ErrNotAllowed)
+			return nil, nil, nil, fmt.Errorf("%w: применяется во время игры", ErrNotAllowed)
 		}
 	case UseAfterSpin:
 		if !r.lastStepWasSpin(t) {
-			return nil, nil, nil, fmt.Errorf("%w: use it right after a spin", ErrNotAllowed)
+			return nil, nil, nil, fmt.Errorf("%w: применяется сразу после крутки", ErrNotAllowed)
 		}
 	case UseInsteadOfGameSpin:
 		if cur == nil || cur.Kind != StepSpinGame {
-			return nil, nil, nil, fmt.Errorf("%w: use it instead of the game spin", ErrNotAllowed)
+			return nil, nil, nil, fmt.Errorf("%w: применяется вместо крутки колеса игр", ErrNotAllowed)
 		}
 	case UseOffer:
 		if !slices.Contains(r.turnItems(t), it) || r.blocked(it, r.turnItems(t)) {
-			return nil, nil, nil, fmt.Errorf("%w: the effect does not work on this game", ErrNotAllowed)
+			return nil, nil, nil, fmt.Errorf("%w: эффект не действует на эту игру", ErrNotAllowed)
 		}
 	default:
-		return nil, nil, nil, fmt.Errorf("%w: this item cannot be used by hand", ErrNotAllowed)
+		return nil, nil, nil, fmt.Errorf("%w: этот предмет не применяется вручную", ErrNotAllowed)
 	}
 	if c, ok := d.Impl.(UseChecker); ok {
 		if err := c.CanUse(r.ctx(it, t), r.self(it, 0)); err != nil {

@@ -14,6 +14,8 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/config"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/events"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/live"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/play"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store"
 )
 
@@ -22,12 +24,26 @@ type Server struct {
 	store  *store.Store
 	auth   *auth.Service
 	events *events.Service
+	play   *play.Service
+	live   *live.Broker
 	log    *slog.Logger
 	web    fs.FS
 }
 
-func New(cfg config.Config, st *store.Store, a *auth.Service, ev *events.Service, log *slog.Logger, web fs.FS) *Server {
-	return &Server{cfg: cfg, store: st, auth: a, events: ev, log: log, web: web}
+// Deps are the services the HTTP layer talks to.
+type Deps struct {
+	Config config.Config
+	Store  *store.Store
+	Auth   *auth.Service
+	Events *events.Service
+	Play   *play.Service
+	Live   *live.Broker
+	Log    *slog.Logger
+	Web    fs.FS
+}
+
+func New(d Deps) *Server {
+	return &Server{cfg: d.Config, store: d.Store, auth: d.Auth, events: d.Events, play: d.Play, live: d.Live, log: d.Log, web: d.Web}
 }
 
 // Handler returns the root HTTP handler.
@@ -37,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/config", s.appConfig)
 	api.HandleFunc("GET /api/me", s.me)
 	s.routeEvents(api)
+	s.routePlay(api)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})

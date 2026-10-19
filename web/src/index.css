@@ -7,3 +7,24 @@
 body {
   @apply min-h-screen bg-stone-50 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
 }
+
+/* The wheel turns to the angle the component puts in --wheel-to. */
+@keyframes wheel-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(var(--wheel-to));
+  }
+}
+
+.wheel-spin {
+  transform-origin: 50% 50%;
+  animation: wheel-spin 4.5s cubic-bezier(0.15, 0.7, 0.1, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel-spin {
+    animation-duration: 1ms;
+  }
+}

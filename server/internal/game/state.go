@@ -194,8 +194,11 @@ type Item struct {
 
 // State is everything the engine knows about one event.
 type State struct {
-	Settings     Settings
-	Players      []*Player
+	Settings Settings
+	// Players are everyone who plays or played in the event.
+	Players []*Player
+	// Judges who do not play; they may confirm and fill judge fields too.
+	Judges       []PlayerID
 	Games        []*Game
 	Movies       []*Movie
 	Turns        []*Turn

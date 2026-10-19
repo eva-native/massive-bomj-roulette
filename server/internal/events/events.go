@@ -50,13 +50,23 @@ const (
 var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$`)
 
 type Service struct {
-	st  *store.Store
-	cat *game.Catalog
+	st    *store.Store
+	cat   *game.Catalog
+	usage GameUsage
+}
+
+// GameUsage tells whether a game was already spun or played; such games
+// cannot be deleted without breaking the history.
+type GameUsage interface {
+	GameInUse(ctx context.Context, slug string, gameID int64) (bool, error)
 }
 
 func New(st *store.Store, cat *game.Catalog) *Service {
 	return &Service{st: st, cat: cat}
 }
+
+// SetGameUsage plugs in the check used before deleting games.
+func (s *Service) SetGameUsage(u GameUsage) { s.usage = u }
 
 // event loads an event with the user's membership (zero value if none).
 func (s *Service) event(ctx context.Context, slug string, u *auth.User) (db.Event, db.EventMember, error) {

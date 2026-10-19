@@ -15,8 +15,11 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/config"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/events"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/game"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game/items"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/httpapi"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/live"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/play"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/webui"
 )
@@ -57,9 +60,16 @@ func run(log *slog.Logger) error {
 	authSvc := auth.New(st, cfg, log)
 	go cleanupSessions(ctx, authSvc, log)
 
+	broker := live.NewBroker()
+	playSvc := play.New(st, game.NewEngine(catalog, nil), broker)
+	eventsSvc := events.New(st, catalog)
+	eventsSvc.SetGameUsage(playSvc)
+
 	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           httpapi.New(cfg, st, authSvc, events.New(st, catalog), log, webui.FS()).Handler(),
+		Addr: cfg.Addr,
+		Handler: httpapi.New(httpapi.Deps{
+			Config: cfg, Store: st, Auth: authSvc, Events: eventsSvc, Play: playSvc, Live: broker, Log: log, Web: webui.FS(),
+		}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	errc := make(chan error, 1)

@@ -16,7 +16,10 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/config"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/events"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/game"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game/items"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/live"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/play"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store/storetest"
 )
 
@@ -33,7 +36,13 @@ func newTestServer(t *testing.T) (*httptest.Server, *http.Client) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(New(cfg, st, auth.New(st, cfg, log), events.New(st, cat), log, fstest.MapFS{}).Handler())
+	broker := live.NewBroker()
+	playSvc := play.New(st, game.NewEngine(cat, testPicker), broker)
+	eventsSvc := events.New(st, cat)
+	eventsSvc.SetGameUsage(playSvc)
+	srv := httptest.NewServer(New(Deps{
+		Config: cfg, Store: st, Auth: auth.New(st, cfg, log), Events: eventsSvc, Play: playSvc, Live: broker, Log: log, Web: fstest.MapFS{},
+	}).Handler())
 	t.Cleanup(srv.Close)
 
 	jar, _ := cookiejar.New(nil)

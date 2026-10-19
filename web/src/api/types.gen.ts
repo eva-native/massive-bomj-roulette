@@ -165,3 +165,200 @@ export interface Movie {
   addedBy: number /* int64 */;
   addedByName: string;
 }
+/**
+ * PlayerView is everything about one player's game in an event: the current
+ * turn, items, pocket, history and points. The UI draws the turn from it
+ * without knowing the rules.
+ */
+export interface PlayerView {
+  player: PlayerRef;
+  /**
+   * CanAct is true when the viewer is this player and may take the
+   * current step.
+   */
+  canAct: boolean;
+  turn: TurnView | null;
+  /**
+   * Pocket holds bonuses kept for later.
+   */
+  pocket: ItemView[];
+  history: PlaythroughView[];
+  points: number /* int */;
+  entries: PointEntry[];
+}
+export interface PlayerRef {
+  id: number /* int64 */;
+  name: string;
+  avatarUrl: string;
+}
+export interface TurnView {
+  id: number /* int64 */;
+  number: number /* int */;
+  reason: string; // "start" | "completed" | "dropped"
+  steps: StepView[];
+  /**
+   * Current is the step to take now; null while waiting for the judge.
+   */
+  current: StepView | null;
+  /**
+   * Wheel is set when the current step is a spin.
+   */
+  wheel: WheelView | null;
+  playthrough: PlaythroughView | null;
+  /**
+   * Items work on this turn's game: rolled effects, the drop debuff,
+   * bonuses used on it and multi-game items still running.
+   */
+  items: ItemView[];
+  /**
+   * Waiting explains why nothing can be done right now, if so.
+   */
+  waiting: string;
+}
+export interface StepView {
+  id: number /* int64 */;
+  kind: string; // spin_items | spin_drop | choose_player | spin_game | choose_game | spin_movie | play
+  done: boolean;
+  /**
+   * Result is a short label of what happened ("ОПАААА", a game title…).
+   */
+  result: string;
+  /**
+   * AddedBy names the item that added the step, if any.
+   */
+  addedBy: string;
+  /**
+   * Options for choose_game and choose_player.
+   */
+  options: Option[];
+}
+export interface Option {
+  id: number /* int64 */;
+  label: string;
+}
+export interface WheelView {
+  kind: string; // items | drops | games | movies
+  sectors: Sector[];
+}
+export interface Sector {
+  label: string;
+  weight: number /* int */;
+  /**
+   * Kind of the item for item wheels ("effect" | "bonus" | "drop"), empty otherwise.
+   */
+  kind: string;
+}
+export interface PlaythroughView {
+  id: number /* int64 */;
+  gameId: number /* int64 */;
+  game: string;
+  hltbHours: number /* int */;
+  basePoints: number /* int */;
+  outcome: string; // "" | "completed" | "dropped"
+  hours: number /* float64 */;
+  proof: string;
+  confirmed: boolean;
+  points: number /* int */;
+}
+export interface ItemView {
+  id: number /* int64 */;
+  defId: string;
+  name: string;
+  concept: string;
+  kind: string;
+  placement: string; // pending | pocket | attached | used
+  blocked: boolean;
+  /**
+   * Status describes multi-game items: "2 из 3".
+   */
+  status: string;
+  fields: FieldView[];
+  needsConfirm: boolean;
+  confirmed: boolean;
+  rejected: boolean;
+  /**
+   * UseLabel is set for items that can be used by hand; CanUse says
+   * whether it is possible right now, UseHint why not.
+   */
+  useLabel: string;
+  canUse: boolean;
+  useHint: string;
+}
+export interface FieldView {
+  name: string;
+  label: string;
+  type: string; // bool | int | text | url | player | players
+  by: string; // player | judge
+  optional: boolean;
+  value: any;
+}
+export interface PointEntry {
+  game: string;
+  label: string;
+  points: number /* int */;
+  /**
+   * From names the player whose game gave these points, if not one's own.
+   */
+  from: string;
+}
+/**
+ * SpinResult tells the UI where the wheel stops.
+ */
+export interface SpinResult {
+  wheel: WheelView;
+  result: number /* int */; // index into wheel.sectors
+  label: string;
+  view: PlayerView;
+}
+export interface ChooseRequest {
+  choice: number /* int64 */;
+}
+export interface FinishRequest {
+  outcome: string; // "completed" | "dropped"
+  hours: number /* float64 */;
+  proof: string;
+}
+export interface InputRequest {
+  values: { [key: string]: any};
+}
+export interface ConfirmRequest {
+  accept: boolean;
+}
+/**
+ * LeaderboardRow is one player's standing.
+ */
+export interface LeaderboardRow {
+  player: PlayerRef;
+  points: number /* int */;
+  completed: number /* int */;
+  dropped: number /* int */;
+  /**
+   * Playing is the title of the current game, if any.
+   */
+  playing: string;
+}
+/**
+ * QueueEntry is something waiting for a judge.
+ */
+export interface QueueEntry {
+  kind: string; // "playthrough" | "item"
+  id: number /* int64 */;
+  player: PlayerRef;
+  title: string;
+  /**
+   * For playthroughs.
+   */
+  playthrough: PlaythroughView | null;
+  /**
+   * For items.
+   */
+  item: ItemView | null;
+  game: string;
+}
+export interface ActivityEntry {
+  id: number /* int64 */;
+  kind: string;
+  message: string;
+  actorName: string;
+  createdAt: string;
+}

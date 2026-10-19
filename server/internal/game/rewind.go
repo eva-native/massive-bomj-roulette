@@ -18,7 +18,7 @@ import (
 func (r *run) rewindTo(t *Turn, anchor *Step) error {
 	i, _ := t.step(anchor.ID)
 	if i < 0 || !anchor.Done {
-		return fmt.Errorf("%w: the step is not done", ErrNotAllowed)
+		return fmt.Errorf("%w: шаг ещё не сделан", ErrNotAllowed)
 	}
 	since := anchor.DoneSeq
 

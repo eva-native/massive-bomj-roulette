@@ -197,6 +197,15 @@ func (s *Service) DeleteGame(ctx context.Context, u *auth.User, slug string, id 
 	if err := canEdit(u, m, cur.AddedBy); err != nil {
 		return err
 	}
+	if s.usage != nil {
+		used, err := s.usage.GameInUse(ctx, slug, id)
+		if err != nil {
+			return err
+		}
+		if used {
+			return fmt.Errorf("%w: игра уже выпадала на колесе, её нельзя удалить — только исправить", ErrConflict)
+		}
+	}
 	_, err = s.st.DeleteGame(ctx, db.DeleteGameParams{ID: id, EventID: ev.ID})
 	return err
 }
