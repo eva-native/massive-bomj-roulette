@@ -1,0 +1,14 @@
+.env
+.DS_Store
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Built frontend copied into the Go binary (keep the placeholder)
+server/internal/webui/dist/*
+!server/internal/webui/dist/.gitkeep
+
+# Go binaries
+/server/mbr
+/bin/

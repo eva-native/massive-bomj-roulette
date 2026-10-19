@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mbr
+          POSTGRES_PASSWORD: mbr
+          POSTGRES_DB: mbr
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mbr"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: |
+            server/go.sum
+            server/tools/go.sum
+      - name: Generated code is up to date
+        run: |
+          go tool -modfile=tools/go.mod sqlc generate
+          go tool -modfile=tools/go.mod tygo generate
+          git diff --exit-code -- internal/store/db ../web/src/api/types.gen.ts
+      - run: go vet ./...
+      - run: go test -race ./...
+        env:
+          MBR_TEST_DATABASE_URL: postgres://mbr:mbr@localhost:5432/postgres?sslmode=disable
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: server
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    needs: [server, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mbr .

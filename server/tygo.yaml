@@ -1,0 +1,3 @@
+packages:
+  - path: github.com/eva-native/massive-bomj-roulette/server/internal/api
+    output_path: ../web/src/api/types.gen.ts

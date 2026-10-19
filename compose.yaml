@@ -1,0 +1,46 @@
+# Local development:   docker compose up -d db
+# Full app locally:    docker compose --profile app up --build
+# Production (HTTPS):  docker compose --profile app --profile prod up -d --build
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: mbr
+      POSTGRES_PASSWORD: mbr
+      POSTGRES_DB: mbr
+    # 5433 on the host so it does not clash with a locally installed PostgreSQL.
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mbr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    profiles: [app]
+    build: .
+    env_file: .env
+    environment:
+      MBR_DATABASE_URL: postgres://mbr:mbr@db:5432/mbr?sslmode=disable
+    ports: ["8080:8080"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    profiles: [prod]
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment:
+      MBR_DOMAIN: ${MBR_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [app]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy_data:

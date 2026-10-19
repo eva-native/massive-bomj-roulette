@@ -1,0 +1,8 @@
+# Caddy gets a TLS certificate for MBR_DOMAIN automatically.
+{$MBR_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8080 {
+		# Keep SSE streams open.
+		flush_interval -1
+	}
+}

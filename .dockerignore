@@ -1,0 +1,7 @@
+.git
+.github
+.env
+docs
+**/node_modules
+web/dist
+server/internal/webui/dist
