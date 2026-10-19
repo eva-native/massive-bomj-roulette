@@ -11,4 +11,5 @@ linters:
       exclude-functions:
         - (io.Closer).Close
         - (io.ReadCloser).Close
+        - (*os.File).Close
         - (*github.com/jackc/pgx/v5.Conn).Close

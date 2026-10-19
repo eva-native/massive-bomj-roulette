@@ -26,6 +26,8 @@ const (
 	UseInsteadOfGameSpin UseMode = "instead_of_game_spin"
 	// UseOffer: an optional action of an effect on its game («Сделка», «Ветеран»).
 	UseOffer UseMode = "offer"
+	// UseAnytime: a pocket bonus used at any moment of the turn («Геймерский Иск»).
+	UseAnytime UseMode = "anytime"
 )
 
 type FieldType string
@@ -163,6 +165,11 @@ type Scorer interface {
 	Score(c *ScoreCtx, l *Ledger)
 }
 
+// Noter adds a short note to the item's card («Часть 2», the rolled movie).
+type Noter interface {
+	Note(c *Ctx, self *Self) string
+}
+
 // --- catalog ------------------------------------------------------------------
 
 type Catalog struct {
@@ -198,7 +205,7 @@ func validateDef(d *Def) error {
 	case d.Kind != KindBonus && d.Use != UseNone && d.Use != UseOffer:
 		return fmt.Errorf("catalog: item %q: only bonuses go to the pocket", d.ID)
 	}
-	if _, ok := d.Impl.(User); d.Use != UseNone && d.Use != UsePlaythrough && !ok {
+	if _, ok := d.Impl.(User); d.Use != UseNone && d.Use != UsePlaythrough && d.Use != UseAnytime && !ok {
 		return fmt.Errorf("catalog: item %q: use mode %q needs an OnUse hook", d.ID, d.Use)
 	}
 	for _, f := range d.Input {

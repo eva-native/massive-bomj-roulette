@@ -28,6 +28,7 @@ var useLabels = map[game.UseMode]string{
 	game.UseAfterSpin:         "Перекрутить",
 	game.UseInsteadOfGameSpin: "Выбрать игру самому",
 	game.UseOffer:             "Воспользоваться",
+	game.UseAnytime:           "Использовать",
 }
 
 func (s *Service) def(id string) *game.Def { return s.eng.Catalog().Def(id) }
@@ -241,6 +242,7 @@ func (s *Service) itemView(ss *session, it *game.Item, t *game.Turn) api.ItemVie
 		return v
 	}
 	v.Name, v.Concept, v.Kind, v.NeedsConfirm = d.Name, d.Concept, string(d.Kind), d.NeedsConfirm
+	v.Note = s.eng.Note(ss.st, it.ID)
 	for _, f := range d.Input {
 		v.Fields = append(v.Fields, api.FieldView{
 			Name: f.Name, Label: f.Label, Type: string(f.Type), By: string(f.By), Optional: f.Optional, Value: it.Input[f.Name],

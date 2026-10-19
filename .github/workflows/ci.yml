@@ -34,7 +34,8 @@ jobs:
         run: |
           go tool -modfile=tools/go.mod sqlc generate
           go tool -modfile=tools/go.mod tygo generate
-          git diff --exit-code -- internal/store/db ../web/src/api/types.gen.ts
+          go generate ./internal/game/items
+          git diff --exit-code -- internal/store/db ../web/src/api/types.gen.ts internal/game/items/texts_gen.go
       - run: go vet ./...
       - run: go test -race ./...
         env:

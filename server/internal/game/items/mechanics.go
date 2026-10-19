@@ -87,3 +87,20 @@ type veteran struct{}
 func (veteran) OnUse(_ *game.Ctx, u *game.UseOps, _ *game.Self) error {
 	return u.RerollSelf()
 }
+
+func (babina) Note(c *game.Ctx, self *game.Self) string {
+	var st babinaState
+	if self.LoadState(&st) && st.Movie != 0 {
+		if m, ok := c.Movie(st.Movie); ok {
+			return "Фильм: " + m.Title
+		}
+	}
+	return ""
+}
+
+func (putinVote) Note(_ *game.Ctx, self *game.Self) string {
+	if self.Finished() {
+		return "Сработало"
+	}
+	return "Ждёт следующий бонус"
+}

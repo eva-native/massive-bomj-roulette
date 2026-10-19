@@ -46,6 +46,7 @@ const opaaa: ItemView = {
   placement: 'pending',
   blocked: false,
   status: '',
+  note: '',
   fields: [],
   needsConfirm: false,
   confirmed: false,
@@ -153,5 +154,15 @@ describe('judge queue', () => {
 
     expect(await screen.findByText('Всё подтверждено, очередь пуста.')).toBeInTheDocument()
     expect(backend.requests.find((r) => r.url.endsWith('/confirm'))?.body).toEqual({ accept: true })
+  })
+})
+
+describe('rule text', () => {
+  it('turns markdown links into links and keeps the rest as text', async () => {
+    const { render } = await import('@testing-library/react')
+    const { RuleText } = await import('@/components/RuleText')
+    render(<RuleText text={'Во время игры слушай [полный плейлист](https://youtube.com/x).\nВторая строка'} />)
+    expect(screen.getByRole('link', { name: 'полный плейлист' })).toHaveAttribute('href', 'https://youtube.com/x')
+    expect(screen.getByText(/Вторая строка/)).toBeInTheDocument()
   })
 })

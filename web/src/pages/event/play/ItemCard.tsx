@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useItemInput, useUseItem } from '@/api/play'
 import type { FieldView, ItemView, Member } from '@/api/types.gen'
 import { Button } from '@/components/Button'
+import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Input, Select } from '@/components/ui'
 import { cn } from '@/lib/cn'
 
@@ -33,13 +34,14 @@ export function ItemCard({
         <h4 className="font-medium">{item.name}</h4>
         <Badge tone={kindTone[item.kind]}>{kindName[item.kind] ?? item.kind}</Badge>
         {item.status && <Badge>{item.status}</Badge>}
+        {item.note && <Badge tone="amber">{item.note}</Badge>}
         {item.blocked && <Badge>заблокирован</Badge>}
         {item.needsConfirm && !item.confirmed && !item.rejected && <Badge>ждёт судью</Badge>}
         {item.confirmed && <Badge tone="green">подтверждено</Badge>}
         {item.rejected && <Badge>отклонено</Badge>}
         {item.placement === 'used' && <Badge>использован</Badge>}
       </div>
-      <p className="mt-1 text-sm whitespace-pre-line text-stone-600 dark:text-stone-400">{item.concept}</p>
+      <RuleText text={item.concept} className="mt-1" />
 
       {item.fields.length > 0 && <ItemFields slug={slug} item={item} members={members} editAs={editAs} />}
 

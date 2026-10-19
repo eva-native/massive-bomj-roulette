@@ -243,7 +243,9 @@ type ItemView struct {
 	Placement string `json:"placement"` // pending | pocket | attached | used
 	Blocked   bool   `json:"blocked"`
 	// Status describes multi-game items: "2 из 3".
-	Status       string      `json:"status"`
+	Status string `json:"status"`
+	// Note is the item's own remark: "Часть 2", the rolled movie, the chosen friend.
+	Note         string      `json:"note"`
 	Fields       []FieldView `json:"fields"`
 	NeedsConfirm bool        `json:"needsConfirm"`
 	Confirmed    bool        `json:"confirmed"`

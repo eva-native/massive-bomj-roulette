@@ -79,6 +79,11 @@ func (c *ScoreCtx) Bool(name string) (bool, bool) {
 
 func (c *ScoreCtx) Int(name string) (int, bool) { return toInt(c.item.Input[name]) }
 
+// Players reads a list-of-participants field.
+func (c *ScoreCtx) Players(name string) []PlayerID {
+	return (&Self{item: c.item}).Players(name)
+}
+
 func (c *ScoreCtx) InputPlayer(name string) (PlayerID, bool) {
 	n, ok := toInt(c.item.Input[name])
 	return PlayerID(n), ok

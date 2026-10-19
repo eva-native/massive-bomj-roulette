@@ -90,6 +90,20 @@ func (s *State) IsJudge(id PlayerID) bool {
 	return slices.Contains(s.Judges, id)
 }
 
+// Note returns the item's own note for its card, if it has one.
+func (e *Engine) Note(s *State, itemID int64) string {
+	r := e.on(s)
+	it := s.Item(itemID)
+	if it == nil {
+		return ""
+	}
+	n, ok := r.def(it).Impl.(Noter)
+	if !ok {
+		return ""
+	}
+	return n.Note(r.ctx(it, s.Turn(it.TurnID)), r.self(it, 0))
+}
+
 // Blocked reports whether another item on the same game switches the item off.
 func (e *Engine) Blocked(s *State, itemID int64) bool {
 	r := e.on(s)
@@ -742,6 +756,7 @@ func (r *run) checkUse(actor PlayerID, itemID int64) (*Item, *Def, *Turn, error)
 		if cur == nil || cur.Kind != StepSpinGame {
 			return nil, nil, nil, fmt.Errorf("%w: применяется вместо крутки колеса игр", ErrNotAllowed)
 		}
+	case UseAnytime:
 	case UseOffer:
 		if !slices.Contains(r.turnItems(t), it) || r.blocked(it, r.turnItems(t)) {
 			return nil, nil, nil, fmt.Errorf("%w: эффект не действует на эту игру", ErrNotAllowed)

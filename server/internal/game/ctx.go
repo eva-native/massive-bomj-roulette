@@ -24,6 +24,21 @@ func (c *Ctx) Players() []Player {
 	return out
 }
 
+// PlayerName returns a participant's name, or "".
+func (c *Ctx) PlayerName(id PlayerID) string {
+	if p := c.r.s.Player(id); p != nil {
+		return p.Name
+	}
+	return ""
+}
+
+func (c *Ctx) Movie(id int64) (Movie, bool) {
+	if m := c.r.s.Movie(id); m != nil {
+		return *m, true
+	}
+	return Movie{}, false
+}
+
 func (c *Ctx) Game(id int64) (Game, bool) {
 	if g := c.r.s.Game(id); g != nil {
 		return *g, true
@@ -77,6 +92,7 @@ type Self struct {
 func (s *Self) ID() int64       { return s.item.ID }
 func (s *Self) DefID() string   { return s.item.DefID }
 func (s *Self) Confirmed() bool { return s.item.Confirmed }
+func (s *Self) Finished() bool  { return s.item.Finished }
 
 // LoadState decodes the item state into v. It reports false if there is none.
 func (s *Self) LoadState(v any) bool {

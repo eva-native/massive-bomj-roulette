@@ -1,101 +1,115 @@
 package items
 
-import "github.com/eva-native/massive-bomj-roulette/server/internal/game"
+import (
+	"fmt"
 
-// Defs returns every item of the catalog. Stage 1 holds the items that test
-// the engine's mechanics; the rest of docs/rules is added in stage 4.
+	"github.com/eva-native/massive-bomj-roulette/server/internal/game"
+)
+
+var (
+	opponent = field("opponent", "Соперник", game.FieldPlayer, game.RolePlayer)
+	won      = field("won", "Победа", game.FieldBool, game.RolePlayer)
+	watched  = field("watched", "Посмотрено", game.FieldBool, game.RolePlayer)
+)
+
+// Defs returns every item of docs/rules with its mechanics, in the order of
+// the documents.
 func Defs() []*game.Def {
-	return []*game.Def{
-		// --- effects ---
-		FlatPoints("opaaa", "ОПАААА", "Получи плюс 4 очка.", 4),
-		Text("reflex", game.KindEffect, "Мужской природный рефлекс",
-			"Каждый раз, когда в сцене появляется женский персонаж, игрок ебашит по столу."),
-		Blocker("plot_armor", game.KindEffect, "Плот Армор",
-			"Дебаффы и эффекты на этой игре не влияют ни на геймплей, ни на очки.",
-			game.KindEffect, game.KindDrop),
-		build(&game.Def{
-			ID: "babina", Kind: game.KindEffect, Name: "Бабина",
-			Concept:      "После крутки колеса игр ты крутишь ещё и киноколесо: в нём фильмы, которые добавили участники ивента. Фильм, который ты уже посмотрел, тебе больше не выпадет. Можно смотреть вместе с друзьями, но очки получает только тот, кому выпал эффект: после того как он напишет «Посмотрено», ему начисляется +10.",
-			NeedsConfirm: true,
-			Input:        []game.Field{{Name: "watched", Label: "Посмотрено", Type: game.FieldBool, By: game.RolePlayer}},
-			Impl:         babina{},
-		}, nil),
-		build(&game.Def{
-			ID: "geralt", Kind: game.KindEffect, Name: "ГЕРАЛЬТ ДВЕ КРУТКИ",
-			Concept: "Прокрути колесо игр ещё раз. Из двух выпавших игр выбери самую долгую. Если у них одинаковые часы HLTB, играй в любую.",
-			Impl:    doubleGameSpin{tie: TieChoose},
-		}, nil),
-		build(&game.Def{
-			ID: "borrow_game", Kind: game.KindEffect, Name: "Одолжи игру у друга",
-			Concept: "Вместо обычного колеса игр ты сам выбираешь участника и крутишь колесо из игр, которые он добавил на ивент. Игры, которые ты уже прошёл или дропнул, в это колесо не попадают.",
-			Impl:    borrowGame{},
-		}, nil),
-		build(&game.Def{
-			ID: "no_step_back", Kind: game.KindEffect, Name: "Ни шагу назад",
-			Concept: "Действует на текущую игру и 2 следующие.\n" +
-				"- Дропнул одну из них: теряешь 100% базовых очков этой игры (вместо обычных 50%), и эффект заканчивается.\n" +
-				"- Прошёл все три: получаешь +30% от суммы базовых очков трёх игр.\n" +
-				"«Парашют» отменяет потерю целиком.",
-			Lifetime:   3,
-			EndsOnDrop: true,
-			Impl:       noStepBack{},
-		}, nil),
-		build(&game.Def{
-			ID: "putin_vote", Kind: game.KindEffect, Name: "Голосование за Путина",
-			Concept:  "Следующий выпавший тебе бонус не кладётся в карман, а насильно активируется на игру, которая выпадет следом.",
-			Lifetime: game.UntilDone,
-			Impl:     putinVote{},
-		}, nil),
-		build(&game.Def{
-			ID: "devil_deal", Kind: game.KindEffect, Name: "Сделка с пиксельным дьяволом",
-			Concept: "Можешь бесплатно рерольнуть выпавшую игру и даже получить эффекты для новой. Но все игры, которые ты уже прошёл или дропнул, возвращаются в твоё колесо и снова могут тебе выпасть.",
-			Use:     game.UseOffer,
-			Impl:    deal{},
-		}, nil),
-		build(&game.Def{
-			ID: "veteran", Kind: game.KindEffect, Name: "Закаленный ветеран",
-			Concept: "Пройди игру на повышенной сложности. Если в игре нет стандартного выбора уровня сложности, эффект перекручивается.",
-			Use:     game.UseOffer,
-			Impl:    veteran{},
-		}, nil),
-		build(&game.Def{
-			ID: "smuta", Kind: game.KindEffect, Name: "Внезапный ДЭБ",
-			Concept:       "Заменяешь выпавшую игру на «Смуту». Очки за неё считаются по обычным правилам.",
-			OncePerPlayer: true,
-			SpecialGames:  []game.SpecialGame{{Key: "smuta", Title: "Смута"}},
-			Impl:          replaceGame{key: "smuta"},
-		}, nil),
+	byID := map[string]*game.Def{}
+	for _, d := range []*game.Def{
+		// --- effects: points ---
+		FlatPoints("opaaa", 4),
+		FlatPoints("plus8", 8),
+		FlatPoints("minus3", -3),
+		FlatPoints("minus6", -6),
+		Text("nothing"),
+
+		// --- effects: points by result ---
+		def("sto_k_odnomu", Input(opponent, won), Confirm(), Impl(duel{stake: 5})),
+		def("rps", Input(opponent, won), Confirm(), Impl(winnerTakes{points: 5})),
+		def("jester",
+			Input(optional(field("meme", "Мемчик (ссылка)", game.FieldURL, game.RolePlayer)),
+				field("liked", "Понравился судье", game.FieldBool, game.RoleJudge)),
+			Confirm(), Impl(ifTrue{field: "liked", points: 3})),
+		def("dendy", Input(field("levels", "Пройдено уровней", game.FieldInt, game.RolePlayer)), Confirm(),
+			Impl(perUnit{field: "levels", points: 1})),
+		def("babina", Input(watched), Confirm(), Impl(babina{})),
+		def("documentary", Input(watched), Confirm(), Impl(ifTrue{field: "watched", points: 10})),
+		def("group_bow", Input(field("late", "Опоздали", game.FieldPlayers, game.RoleJudge)), Confirm(),
+			Impl(eachListed{field: "late", points: -5})),
+
+		// --- effects: several games ---
+		def("no_step_back", Lifetime(3), EndsOnDrop(), Impl(noStepBack{})),
+
+		// --- effects: game choice ---
+		def("borrow_game", Impl(borrowGame{})),
+		def("geralt", Impl(doubleGameSpin{tie: TieChoose})),
+		def("smuta", OncePerPlayer(), Special("smuta", "Смута"), Impl(replaceGame{key: "smuta"})),
+		def("zemsky_sobor", OncePerPlayer(), Special("zemsky_sobor", "Земский собор"), Impl(replaceGame{key: "zemsky_sobor"})),
+		def("devil_deal", Use(game.UseOffer), Impl(deal{})),
+		def("veteran", Use(game.UseOffer), Impl(veteran{})),
+
+		// --- effects: protection and statuses ---
+		Blocker("plot_armor", game.KindEffect, game.KindDrop),
+		def("putin_vote", Lifetime(game.UntilDone), Impl(putinVote{})),
+		def("shrek", Impl(shrek{})),
+
+		// --- effects: rules only ---
+		Text("reflex"),
+		Text("ne_shturm"),
+		Text("hungry", WithProof()),
+		Text("mc_trup", WithProof()),
+		Text("shit_seller", Input(optional(field("target", "Кого выбрал", game.FieldPlayer, game.RolePlayer)))),
 
 		// --- bonuses ---
-		build(&game.Def{
-			ID: "parachute", Kind: game.KindBonus, Name: "Парашют",
-			Concept: "За дроп игры не теряешь очки, в том числе 100% от «Ни шагу назад».",
-			Use:     game.UsePlaythrough,
-			Impl:    parachute{},
-		}, nil),
-		build(&game.Def{
-			ID: "reroll", Kind: game.KindBonus, Name: "Реролл",
-			Concept: "Используй сразу после крутки любого колеса: старого результата как будто не было. Не привязан к игре.",
-			Use:     game.UseAfterSpin,
-			Impl:    reroll{},
-		}, nil),
-		build(&game.Def{
-			ID: "lucky_wheel", Kind: game.KindBonus, Name: "Колесо удачи",
-			Concept: "Используй этот бонус вместо крутки колеса игр: ты сам выбираешь игру с колеса.",
-			Use:     game.UseInsteadOfGameSpin,
-			Impl:    luckyWheel{},
-		}, nil),
+		def("parachute", Impl(parachute{})),
+		def("friend_assist", Input(field("helper", "Помощник", game.FieldPlayer, game.RolePlayer)), Confirm(),
+			Impl(helperShare{percent: 50})),
+		def("lucky_wheel", Use(game.UseInsteadOfGameSpin), Impl(luckyWheel{})),
+		def("reroll", Use(game.UseAfterSpin), Impl(reroll{})),
+		def("vault_born", Blocks(game.KindEffect, game.KindDrop)),
+		Text("skip_cutscenes"),
+		Text("cheater"),
+		Text("easy_mode"),
+		Text("wiki"),
+		def("lawsuit", Use(game.UseAnytime), Confirm(), Input(
+			field("target", "Чью игру судим", game.FieldPlayer, game.RolePlayer),
+			field("verdict", "Решение судьи", game.FieldText, game.RoleJudge),
+		)),
 
 		// --- drop debuffs ---
-		build(&game.Def{
-			ID: "johnny", Kind: game.KindDrop, Name: "ДЖОННИ ДВЕ КРУТКИ",
-			Concept: "Прокрути колесо игр ещё раз. Из двух выпавших игр выбери самую долгую. Если у них одинаковые часы HLTB, играй во вторую.",
-			Impl:    doubleGameSpin{tie: TieSecond},
-		}, nil),
-		Blocker("self_sufficient", game.KindDrop, "Самодостаточный",
-			"На эту игру нельзя использовать никакие бонусы, в том числе из кармана. Они остаются на потом.",
-			game.KindBonus),
+		def("johnny", Impl(doubleGameSpin{tie: TieSecond})),
+		Blocker("self_sufficient", game.KindBonus),
+		Text("immigrant"),
+		Text("scary"),
+		Text("anthem"),
+		Text("not_casual"),
+		Text("vlad"),
+		Text("shutdown"),
+		Text("one_punch"),
+		Text("ost"),
+		Text("papich"),
+	} {
+		if _, dup := byID[d.ID]; dup {
+			panic(fmt.Sprintf("items: %q is defined twice", d.ID))
+		}
+		byID[d.ID] = d
 	}
+
+	// Keep the order of docs/rules; every item there must have a definition.
+	out := make([]*game.Def, 0, len(textOrder))
+	for _, id := range textOrder {
+		d, ok := byID[id]
+		if !ok {
+			panic(fmt.Sprintf("items: %q from docs/rules has no definition", id))
+		}
+		out = append(out, d)
+		delete(byID, id)
+	}
+	for id := range byID {
+		panic(fmt.Sprintf("items: %q is not in docs/rules", id))
+	}
+	return out
 }
 
 // NewCatalog builds the catalog of all items.

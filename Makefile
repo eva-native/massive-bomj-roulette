@@ -21,11 +21,11 @@ dev-server: ## Run the Go server on :8080 with settings from .env
 dev-web: ## Run the Vite dev server on :5173 (proxies /api and /auth to :8080)
 	cd web && npm run dev
 
-gen: ## Regenerate sqlc queries and TypeScript API types
-	cd server && $(TOOLS) sqlc generate && $(TOOLS) tygo generate
+gen: ## Regenerate sqlc queries, TypeScript API types and item texts from docs/rules
+	cd server && $(TOOLS) sqlc generate && $(TOOLS) tygo generate && go generate ./internal/game/items
 
 check-gen: gen ## Fail if generated code is out of date
-	git diff --exit-code -- server/internal/store/db web/src/api/types.gen.ts
+	git diff --exit-code -- server/internal/store/db web/src/api/types.gen.ts server/internal/game/items/texts_gen.go
 
 test: test-server test-web ## Run all tests
 

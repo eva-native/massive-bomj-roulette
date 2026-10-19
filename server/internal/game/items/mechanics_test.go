@@ -96,7 +96,13 @@ func TestJohnnyTieTakesTheSecondGame(t *testing.T) {
 	sc.spin(a, "First")
 	sc.play(a, game.OutcomeDropped, 1)
 
-	sc.expectWheel(a, "johnny", "self_sufficient") // the drop wheel has only drop debuffs
+	// The drop wheel has only drop debuffs.
+	cat := sc.e.Catalog()
+	for _, id := range sc.wheel(a) {
+		if cat.Def(id).Kind != game.KindDrop {
+			t.Fatalf("%s is on the drop wheel", id)
+		}
+	}
 	sc.spin(a, "johnny")
 	sc.spin(a, "Equal 1")
 	sc.spin(a, "Equal 2")

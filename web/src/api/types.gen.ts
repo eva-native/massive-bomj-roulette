@@ -272,6 +272,10 @@ export interface ItemView {
    * Status describes multi-game items: "2 из 3".
    */
   status: string;
+  /**
+   * Note is the item's own remark: "Часть 2", the rolled movie, the chosen friend.
+   */
+  note: string;
   fields: FieldView[];
   needsConfirm: boolean;
   confirmed: boolean;

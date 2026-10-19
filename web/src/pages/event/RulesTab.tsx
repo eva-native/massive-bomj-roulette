@@ -1,5 +1,6 @@
 import { useItems } from '@/api/events'
 import type { ItemDef } from '@/api/types.gen'
+import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Loading } from '@/components/ui'
 import { kindLabels } from '@/lib/items'
 import { useEventContext } from './context'
@@ -41,7 +42,7 @@ function ItemCard({ item }: { item: ItemDef }) {
           <Badge>вес {item.weight}</Badge>
         </div>
       </div>
-      <p className="mt-1 text-sm whitespace-pre-line text-stone-600 dark:text-stone-400">{item.concept}</p>
+      <RuleText text={item.concept} className="mt-1" />
     </article>
   )
 }

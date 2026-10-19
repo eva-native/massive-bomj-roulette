@@ -119,3 +119,11 @@ func (r replaceGame) OnGameSpun(c *game.Ctx, t *game.TurnOps, _ *game.Self) {
 		t.SetGame(g.ID)
 	}
 }
+
+func (borrowGame) Note(c *game.Ctx, self *game.Self) string {
+	var st borrowState
+	if self.LoadState(&st) && st.Friend != 0 {
+		return "Друг: " + c.PlayerName(st.Friend)
+	}
+	return ""
+}
