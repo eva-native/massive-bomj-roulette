@@ -53,6 +53,9 @@ export function EventLayout() {
           ))}
       </div>
       <ErrorText error={join.error} />
+      {ev.status === 'finished' && (
+        <p className="rounded-lg bg-stone-100 px-3 py-2 text-sm dark:bg-stone-800">Ивент завершён — итоги заморожены.</p>
+      )}
 
       <nav className="flex gap-1 overflow-x-auto border-b border-stone-200 dark:border-stone-800">
         {tabs.map((t) => (

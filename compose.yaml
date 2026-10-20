@@ -8,8 +8,9 @@ services:
       POSTGRES_USER: mbr
       POSTGRES_PASSWORD: mbr
       POSTGRES_DB: mbr
-    # 5433 on the host so it does not clash with a locally installed PostgreSQL.
-    ports: ["5433:5432"]
+    # 5433 on the host so it does not clash with a locally installed PostgreSQL;
+    # bound to localhost only, so the database is never reachable from outside.
+    ports: ["127.0.0.1:5433:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mbr"]

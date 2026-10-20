@@ -2,8 +2,10 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game/items"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/live"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/store"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store/db"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store/storetest"
 )
@@ -53,6 +56,7 @@ type fixture struct {
 	events            *events.Service
 	picker            *labelPicker
 	broker            *live.Broker
+	st                *store.Store
 	admin, alice, bob *auth.User
 }
 
@@ -63,7 +67,7 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fixture{t: t, ctx: context.Background(), picker: &labelPicker{}, broker: live.NewBroker()}
+	f := &fixture{t: t, ctx: context.Background(), picker: &labelPicker{}, broker: live.NewBroker(), st: st}
 	f.play = New(st, game.NewEngine(cat, f.picker), f.broker)
 	f.events = events.New(st, cat)
 	f.events.SetGameUsage(f.play)
@@ -335,5 +339,153 @@ func TestSpinSnapshotAndDiscord(t *testing.T) {
 	sp := acts[0].Spin
 	if sp == nil || sp.Player != "Алиса" || sp.Label != "ОПАААА" || sp.Wheel.Sectors[sp.Result].Label != "ОПАААА" {
 		t.Fatalf("spin snapshot = %+v", sp)
+	}
+}
+
+func TestJudgeTools(t *testing.T) {
+	f := newFixture(t)
+	f.addGame(f.alice, "G1", 10, 80, 2015) // base 17
+	for range 3 {
+		f.spin(f.alice, "reflex")
+	}
+	f.spin(f.alice, "G1")
+
+	if err := f.play.UndoStep(f.ctx, "lbr", f.bob, f.alice.ID); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("a player undid a step: %v", err)
+	}
+	if err := f.play.UndoStep(f.ctx, "lbr", f.admin, f.alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if cur := f.view(f.alice).Turn.Current; cur.Kind != "spin_game" {
+		t.Fatalf("after undo the current step is %s", cur.Kind)
+	}
+	f.spin(f.alice, "G1")
+	v := f.view(f.alice)
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 20}); err != nil {
+		t.Fatal(err)
+	}
+	ptID := f.view(f.alice).Turn.Playthrough.ID
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, ptID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.view(f.alice).Points; got != 17-10+1 {
+		t.Fatalf("points = %d", got)
+	}
+	if err := f.play.EditPlaythrough(f.ctx, "lbr", f.alice, ptID, api.EditPlaythroughRequest{Hours: 5}); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("a player edited hours: %v", err)
+	}
+	if err := f.play.EditPlaythrough(f.ctx, "lbr", f.admin, ptID, api.EditPlaythroughRequest{Hours: 8, Proof: "https://proof"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.view(f.alice).Points; got != 17+2+1 {
+		t.Fatalf("points after the edit = %d", got)
+	}
+	acts, _ := f.play.Activity(f.ctx, "lbr", 1)
+	if acts[0].Kind != "edit" {
+		t.Fatalf("journal = %+v", acts[0])
+	}
+}
+
+func TestFinishFreezesTheEvent(t *testing.T) {
+	f := newFixture(t)
+	f.addGame(f.alice, "G", 10, 80, 2015) // base 17
+	for range 3 {
+		f.spin(f.alice, "reflex")
+	}
+	f.spin(f.alice, "G")
+	v := f.view(f.alice)
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, f.view(f.alice).Turn.Playthrough.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.play.FinishEvent(f.ctx, "lbr", f.alice); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("a player finished the event: %v", err)
+	}
+	if err := f.play.FinishEvent(f.ctx, "lbr", f.admin); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.play.FinishEvent(f.ctx, "lbr", f.admin); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("finishing twice: %v", err)
+	}
+
+	// Nothing can change any more.
+	frozen := f.view(f.alice)
+	if frozen.CanAct || frozen.Turn.Waiting != "Ивент завершён" || frozen.Points != 18 {
+		t.Fatalf("frozen view = canAct %v, waiting %q, points %d", frozen.CanAct, frozen.Turn.Waiting, frozen.Points)
+	}
+	if _, err := f.play.Spin(f.ctx, "lbr", f.alice, frozen.Turn.Current.ID); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("spinning in a finished event: %v", err)
+	}
+	if err := f.play.UndoStep(f.ctx, "lbr", f.admin, f.alice.ID); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("undo in a finished event: %v", err)
+	}
+
+	// Even if the data underneath changes, the standings stay as they were.
+	if _, err := f.st.Pool.Exec(f.ctx, "UPDATE games SET hltb_hours = 100"); err != nil {
+		t.Fatal(err)
+	}
+	board, err := f.play.Leaderboard(f.ctx, "lbr", nil)
+	if err != nil || board[0].Points != 18 {
+		t.Fatalf("frozen leaderboard = %+v, %v", board, err)
+	}
+	if v := f.view(f.alice); v.Points != 18 {
+		t.Fatalf("frozen points = %d", v.Points)
+	}
+	if q, _ := f.play.Queue(f.ctx, "lbr", f.admin); len(q) != 0 {
+		t.Fatalf("queue of a finished event = %+v", q)
+	}
+	acts, _ := f.play.Activity(f.ctx, "lbr", 1)
+	if acts[0].Kind != "finish_event" || acts[0].Message != "Судья Судья завершает ивент: победитель — Алиса (18)" {
+		t.Fatalf("journal = %+v", acts[0])
+	}
+}
+
+func TestRulesVersionAndExport(t *testing.T) {
+	f := newFixture(t)
+	d, _ := f.events.Get(f.ctx, "lbr", f.admin)
+	s := d.Settings
+	s.WebhookURL = "https://discord.com/api/webhooks/1/secret"
+	if _, err := f.events.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The event was created with the current rules: nothing to note.
+	cat, _ := items.NewCatalog()
+	if err := f.play.MarkRulesVersion(f.ctx, cat.Fingerprint()); err != nil {
+		t.Fatal(err)
+	}
+	if acts, _ := f.play.Activity(f.ctx, "lbr", 10); len(acts) != 0 {
+		t.Fatalf("journal = %+v", acts)
+	}
+	// New rules: the journal says so, once.
+	for range 2 {
+		if err := f.play.MarkRulesVersion(f.ctx, "new-version"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	acts, _ := f.play.Activity(f.ctx, "lbr", 10)
+	if len(acts) != 1 || acts[0].Kind != "rules" {
+		t.Fatalf("journal = %+v", acts)
+	}
+
+	if _, err := f.play.Export(f.ctx, "lbr", f.alice); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("a player exported: %v", err)
+	}
+	b, err := f.play.Export(f.ctx, "lbr", f.admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc["event"].(map[string]any)["slug"] != "lbr" || len(doc["members"].([]any)) != 3 {
+		t.Fatalf("export = %s", b[:200])
+	}
+	if strings.Contains(string(b), "secret") {
+		t.Fatal("the webhook leaked into the export")
 	}
 }

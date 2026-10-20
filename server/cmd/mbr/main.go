@@ -63,6 +63,9 @@ func run(log *slog.Logger) error {
 
 	broker := live.NewBroker()
 	playSvc := play.New(st, game.NewEngine(catalog, nil), broker)
+	if err := playSvc.MarkRulesVersion(ctx, catalog.Fingerprint()); err != nil {
+		return fmt.Errorf("rules version: %w", err)
+	}
 	notifier := notify.New(log)
 	go notifier.Run(ctx)
 	playSvc.SetNotifier(notifier)

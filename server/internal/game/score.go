@@ -58,8 +58,13 @@ type ScoreCtx struct {
 	// Status describes multi-game items; Index is 1-based.
 	Status Status
 
-	item *Item
+	item     *Item
+	def      *Def
+	settings Settings
 }
+
+// Param returns one of the item's parameters as set for this event.
+func (c *ScoreCtx) Param(name string) int { return c.settings.Param(c.def, name) }
 
 type Status struct {
 	Index int
@@ -198,7 +203,7 @@ func (r *run) scorePlaythrough(pt *Playthrough, records map[int64]*Playthrough) 
 		if !ok || r.blocked(it, group) || d.NeedsConfirm && !it.Confirmed {
 			continue
 		}
-		c := &ScoreCtx{Player: pt.Player, Game: *g, Base: base, Outcome: outcome, Hours: pt.Hours, item: it}
+		c := &ScoreCtx{Player: pt.Player, Game: *g, Base: base, Outcome: outcome, Hours: pt.Hours, item: it, def: d, settings: r.s.Settings}
 		if d.multiGame() {
 			c.Status = r.status(it, pt, d)
 		}

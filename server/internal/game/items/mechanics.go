@@ -31,7 +31,7 @@ func (babina) OnStepDone(_ *game.Ctx, step game.Step, self *game.Self) {
 
 func (babina) Score(c *game.ScoreCtx, l *game.Ledger) {
 	if watched, _ := c.Bool("watched"); watched {
-		l.Add(10)
+		l.Add(c.Param("points"))
 	}
 }
 
@@ -44,7 +44,7 @@ func (noStepBack) Score(c *game.ScoreCtx, l *game.Ledger) {
 	switch c.Outcome {
 	case game.OutcomeDropped:
 		l.Cancel(game.SourceDropPenalty)
-		l.AddAs(game.SourceDropPenalty, -c.Base)
+		l.AddAs(game.SourceDropPenalty, -game.Round(float64(c.Base)*float64(c.Param("penalty"))/100))
 	case game.OutcomeCompleted:
 		if c.Status.Index != c.Status.Total || len(c.Status.Chain) != c.Status.Total {
 			return
@@ -56,7 +56,7 @@ func (noStepBack) Score(c *game.ScoreCtx, l *game.Ledger) {
 			}
 			sum += g.Base
 		}
-		l.Add(game.Round(0.3 * float64(sum)))
+		l.Add(game.Round(float64(sum) * float64(c.Param("bonus")) / 100))
 	}
 }
 

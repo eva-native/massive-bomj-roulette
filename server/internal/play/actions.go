@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/events"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game"
+	"github.com/eva-native/massive-bomj-roulette/server/internal/live"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/store/db"
 )
 
@@ -22,6 +24,13 @@ func (s *Service) Player(ctx context.Context, slug string, viewer *auth.User, pl
 	ss, err := s.read(ctx, slug, viewer)
 	if err != nil {
 		return api.PlayerView{}, err
+	}
+	if ss.frozen != nil {
+		v, ok := ss.frozen.Players[playerID]
+		if !ok {
+			return api.PlayerView{}, events.ErrNotFound
+		}
+		return v, nil
 	}
 	if ss.st.Player(game.PlayerID(playerID)) == nil {
 		return api.PlayerView{}, events.ErrNotFound
@@ -147,7 +156,7 @@ func (s *Service) Input(ctx context.Context, slug string, viewer *auth.User, ite
 // ConfirmGame is a judge's decision on a finished game.
 func (s *Service) ConfirmGame(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, accept bool) error {
 	return s.write(ctx, slug, viewer, func(ss *session) error {
-		if err := requireJudge(ss); err != nil {
+		if err := requireJudgeAction(ss); err != nil {
 			return err
 		}
 		pt := ss.st.Playthrough(playthroughID)
@@ -170,7 +179,7 @@ func (s *Service) ConfirmGame(ctx context.Context, slug string, viewer *auth.Use
 // ConfirmItem is a judge's decision on an item's result.
 func (s *Service) ConfirmItem(ctx context.Context, slug string, viewer *auth.User, itemID int64, accept bool) error {
 	return s.write(ctx, slug, viewer, func(ss *session) error {
-		if err := requireJudge(ss); err != nil {
+		if err := requireJudgeAction(ss); err != nil {
 			return err
 		}
 		it := ss.st.Item(itemID)
@@ -189,10 +198,186 @@ func (s *Service) ConfirmItem(ctx context.Context, slug string, viewer *auth.Use
 	})
 }
 
+// FinishEvent ends the event and freezes its standings: from now on every view
+// comes from the frozen copy, so later rule or code changes never touch it.
+// Judges only.
+func (s *Service) FinishEvent(ctx context.Context, slug string, viewer *auth.User) error {
+	return s.write(ctx, slug, viewer, func(ss *session) error {
+		if err := requireJudgeAction(ss); err != nil {
+			return err
+		}
+		fz := &frozenDoc{Leaderboard: s.leaderboard(ss), Players: map[int64]api.PlayerView{}}
+		for _, p := range ss.st.Players {
+			v := s.playerView(ss, p.ID)
+			v.CanAct = false
+			if v.Turn != nil {
+				v.Turn.Waiting = "Ивент завершён"
+				v.Turn.Wheel = nil
+				for i := range v.Turn.Items {
+					v.Turn.Items[i].CanUse, v.Turn.Items[i].UseHint = false, ""
+				}
+			}
+			for i := range v.Pocket {
+				v.Pocket[i].CanUse, v.Pocket[i].UseHint = false, ""
+			}
+			fz.Players[int64(p.ID)] = v
+		}
+		ss.freeze = fz
+		if err := ss.q.SetEventStatus(ctx, db.SetEventStatusParams{ID: ss.ev.ID, Status: events.StatusFinished}); err != nil {
+			return err
+		}
+		winner := "никто не набрал очков"
+		if len(fz.Leaderboard) > 0 {
+			winner = fmt.Sprintf("победитель — %s (%d)", fz.Leaderboard[0].Player.Name, fz.Leaderboard[0].Points)
+		}
+		ss.log("finish_event", "Судья %s завершает ивент: %s", ss.viewer.Name, winner)
+		return nil
+	})
+}
+
+// MarkRulesVersion records the catalog version in every running event and
+// notes in their journal when the rules changed since the last start.
+// Points are always computed with the current rules anyway.
+func (s *Service) MarkRulesVersion(ctx context.Context, version string) error {
+	rows, err := s.st.ListActiveEvents(ctx)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if r.RulesVersion == version {
+			continue
+		}
+		if r.RulesVersion != "" {
+			const msg = "Правила обновлены: очки пересчитаны по новой версии"
+			if _, err := s.st.AddActivity(ctx, db.AddActivityParams{EventID: r.ID, Kind: "rules", Message: msg, Payload: []byte("{}")}); err != nil {
+				return err
+			}
+			s.live.Publish(r.ID, live.Message{Kind: "rules", Message: msg})
+		}
+		if err := s.st.SetRulesVersion(ctx, db.SetRulesVersionParams{ID: r.ID, RulesVersion: version}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// exportDoc is everything about an event, for archives and backups of a
+// single event. The webhook secret is left out.
+type exportDoc struct {
+	ExportedAt  time.Time            `json:"exportedAt"`
+	Event       exportEvent          `json:"event"`
+	Members     []db.ListMembersRow  `json:"members"`
+	Games       []*game.Game         `json:"games"`
+	Movies      []*game.Movie        `json:"movies"`
+	State       stateDoc             `json:"state"`
+	Leaderboard []api.LeaderboardRow `json:"leaderboard"`
+	Activity    []api.ActivityEntry  `json:"activity"`
+}
+
+type exportEvent struct {
+	Slug         string            `json:"slug"`
+	Title        string            `json:"title"`
+	Status       string            `json:"status"`
+	RulesVersion string            `json:"rulesVersion"`
+	Settings     api.EventSettings `json:"settings"`
+}
+
+// Export returns the whole event as JSON. Judges only.
+func (s *Service) Export(ctx context.Context, slug string, viewer *auth.User) ([]byte, error) {
+	ss, err := s.read(ctx, slug, viewer)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireJudge(ss); err != nil {
+		return nil, err
+	}
+	var settings api.EventSettings
+	_ = json.Unmarshal(ss.ev.Settings, &settings)
+	settings.WebhookURL = ""
+	acts, err := s.Activity(ctx, slug, maxExportActivity)
+	if err != nil {
+		return nil, err
+	}
+	doc := exportDoc{
+		ExportedAt: time.Now().UTC(),
+		Event:      exportEvent{Slug: ss.ev.Slug, Title: ss.ev.Title, Status: ss.ev.Status, RulesVersion: ss.ev.RulesVersion, Settings: settings},
+		Games:      ss.st.Games,
+		Movies:     ss.st.Movies,
+		State: stateDoc{Turns: ss.st.Turns, Spins: ss.st.Spins, Items: ss.st.Items, Playthroughs: ss.st.Playthroughs,
+			WheelResets: ss.st.WheelResets, NextID: ss.st.NextID, NextSeq: ss.st.NextSeq},
+		Activity: acts,
+	}
+	for _, m := range ss.members {
+		doc.Members = append(doc.Members, m)
+	}
+	if ss.frozen != nil {
+		doc.Leaderboard = ss.frozen.Leaderboard
+	} else {
+		doc.Leaderboard = s.leaderboard(ss)
+	}
+	return json.MarshalIndent(doc, "", "  ")
+}
+
+const maxExportActivity = 1_000_000
+
+var stepNames = map[game.StepKind]string{
+	game.StepSpinItems:    "колесо эффектов и бонусов",
+	game.StepSpinDrop:     "колесо дроп-дебаффов",
+	game.StepChoosePlayer: "выбор участника",
+	game.StepSpinGame:     "колесо игр",
+	game.StepChooseGame:   "выбор игры",
+	game.StepSpinMovie:    "киноколесо",
+	game.StepPlay:         "итог игры",
+}
+
+// UndoStep lets a judge take back a player's last step in the current turn.
+func (s *Service) UndoStep(ctx context.Context, slug string, viewer *auth.User, playerID int64) error {
+	return s.write(ctx, slug, viewer, func(ss *session) error {
+		if err := requireJudgeAction(ss); err != nil {
+			return err
+		}
+		p := game.PlayerID(playerID)
+		if ss.st.Player(p) == nil {
+			return events.ErrNotFound
+		}
+		st, err := s.eng.UndoLastStep(ss.st, ss.viewerID(), p)
+		if err != nil {
+			return err
+		}
+		ss.log("undo", "Судья %s отменяет последний шаг у %s: %s", ss.viewer.Name, ss.name(p), stepNames[st.Kind])
+		return nil
+	})
+}
+
+// EditPlaythrough lets a judge correct the hours and proof of a finished game.
+func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, req api.EditPlaythroughRequest) error {
+	proof := strings.TrimSpace(req.Proof)
+	if proof != "" && !strings.HasPrefix(proof, "http://") && !strings.HasPrefix(proof, "https://") {
+		return &events.InvalidError{Msg: "доказательство — ссылка (http:// или https://)"}
+	}
+	return s.write(ctx, slug, viewer, func(ss *session) error {
+		if err := requireJudgeAction(ss); err != nil {
+			return err
+		}
+		pt := ss.st.Playthrough(playthroughID)
+		if pt == nil {
+			return events.ErrNotFound
+		}
+		if err := s.eng.EditPlaythrough(ss.st, ss.viewerID(), playthroughID, req.Hours, proof); err != nil {
+			return err
+		}
+		ss.log("edit", "Судья %s исправляет «%s» у %s: %s ч", ss.viewer.Name, s.gameTitle(ss, pt.Game), ss.name(pt.Player), formatHours(req.Hours))
+		return nil
+	})
+}
+
 func (s *Service) Leaderboard(ctx context.Context, slug string, viewer *auth.User) ([]api.LeaderboardRow, error) {
 	ss, err := s.read(ctx, slug, viewer)
 	if err != nil {
 		return nil, err
+	}
+	if ss.frozen != nil {
+		return ss.frozen.Leaderboard, nil
 	}
 	return s.leaderboard(ss), nil
 }
@@ -206,6 +391,9 @@ func (s *Service) Queue(ctx context.Context, slug string, viewer *auth.User) ([]
 	if err := requireJudge(ss); err != nil {
 		return nil, err
 	}
+	if ss.frozen != nil {
+		return []api.QueueEntry{}, nil
+	}
 	return s.queue(ss), nil
 }
 
@@ -214,7 +402,7 @@ func (s *Service) Activity(ctx context.Context, slug string, limit int) ([]api.A
 	if err != nil {
 		return nil, notFound(err)
 	}
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 || limit > 200 && limit != maxExportActivity {
 		limit = 50
 	}
 	rows, err := s.st.ListActivity(ctx, db.ListActivityParams{EventID: ev.ID, Limit: int32(limit)})

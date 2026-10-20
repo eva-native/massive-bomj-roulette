@@ -144,6 +144,7 @@ func TestSettings(t *testing.T) {
 		SpinsByHours: []api.SpinsRow{{MinHours: 0, Spins: 1}, {MinHours: 20, Spins: 2}},
 		Weights:      map[string]int{"opaaa": 5, "reflex": 1}, // reflex = default, not stored
 		Disabled:     []string{"smuta", "smuta"},
+		Params:       map[string]map[string]int{"opaaa": {"points": 6}, "minus3": {"points": -3}}, // -3 is the default
 		WebhookURL:   "https://discord.com/api/webhooks/1/x",
 	}
 	_, err := f.svc.Update(f.ctx, f.alice, "lbr", api.UpdateEventRequest{Settings: &good})
@@ -153,7 +154,8 @@ func TestSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Settings.StartSpins != 4 || len(d.Settings.Weights) != 1 || len(d.Settings.Disabled) != 1 || d.Settings.WebhookURL == "" {
+	if d.Settings.StartSpins != 4 || len(d.Settings.Weights) != 1 || len(d.Settings.Disabled) != 1 || d.Settings.WebhookURL == "" ||
+		len(d.Settings.Params) != 1 || d.Settings.Params["opaaa"]["points"] != 6 {
 		t.Fatalf("settings = %+v", d.Settings)
 	}
 
@@ -169,6 +171,9 @@ func TestSettings(t *testing.T) {
 		{StartSpins: 3, Weights: map[string]int{"opaaa": -1}},
 		{StartSpins: 3, Disabled: []string{"nope"}},
 		{StartSpins: 3, WebhookURL: "http://insecure"},
+		{StartSpins: 3, Params: map[string]map[string]int{"opaaa": {"points": 1000}}},
+		{StartSpins: 3, Params: map[string]map[string]int{"opaaa": {"nope": 1}}},
+		{StartSpins: 3, Params: map[string]map[string]int{"nope": {"points": 1}}},
 	}
 	for _, s := range bad {
 		_, err := f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s})
@@ -182,7 +187,7 @@ func TestSettings(t *testing.T) {
 	for _, it := range items {
 		switch it.ID {
 		case "opaaa":
-			if it.Weight != 5 || it.DefaultWeight != 1 || !it.Enabled {
+			if it.Weight != 5 || it.DefaultWeight != 1 || !it.Enabled || len(it.Params) != 1 || it.Params[0].Value != 6 || it.Params[0].Default != 4 {
 				t.Errorf("opaaa = %+v", it)
 			}
 		case "smuta":

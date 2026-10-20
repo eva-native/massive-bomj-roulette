@@ -1,6 +1,6 @@
 -- name: CreateEvent :one
-INSERT INTO events (slug, title, settings, created_by)
-VALUES ($1, $2, $3, $4)
+INSERT INTO events (slug, title, settings, created_by, rules_version)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetEventBySlug :one

@@ -19,6 +19,10 @@ func (s *Server) routePlay(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events/{slug}/items/{id}/input", s.itemInput)
 	mux.HandleFunc("POST /api/events/{slug}/items/{id}/confirm", s.confirmItem)
 	mux.HandleFunc("POST /api/events/{slug}/playthroughs/{id}/confirm", s.confirmGame)
+	mux.HandleFunc("PATCH /api/events/{slug}/playthroughs/{id}", s.editPlaythrough)
+	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/undo", s.undoStep)
+	mux.HandleFunc("POST /api/events/{slug}/finish", s.finishEvent)
+	mux.HandleFunc("GET /api/events/{slug}/export", s.exportEvent)
 	mux.HandleFunc("GET /api/events/{slug}/leaderboard", s.leaderboard)
 	mux.HandleFunc("GET /api/events/{slug}/queue", s.queue)
 	mux.HandleFunc("GET /api/events/{slug}/activity", s.activity)
@@ -133,6 +137,61 @@ func (s *Server) confirmGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) editPlaythrough(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok || !requireLogin(w, r) {
+		return
+	}
+	var req api.EditPlaythroughRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := s.play.EditPlaythrough(r.Context(), r.PathValue("slug"), user(r), id, req); err != nil {
+		s.serviceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) undoStep(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "userID")
+	if !ok || !requireLogin(w, r) {
+		return
+	}
+	if err := s.play.UndoStep(r.Context(), r.PathValue("slug"), user(r), id); err != nil {
+		s.serviceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) finishEvent(w http.ResponseWriter, r *http.Request) {
+	if !requireLogin(w, r) {
+		return
+	}
+	if err := s.play.FinishEvent(r.Context(), r.PathValue("slug"), user(r)); err != nil {
+		s.serviceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) exportEvent(w http.ResponseWriter, r *http.Request) {
+	if !requireLogin(w, r) {
+		return
+	}
+	slug := r.PathValue("slug")
+	b, err := s.play.Export(r.Context(), slug, user(r))
+	if err != nil {
+		s.serviceError(w, err)
+		return
+	}
+	name := fmt.Sprintf("mbr-%s-%s.json", slug, time.Now().Format("2006-01-02"))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	_, _ = w.Write(b)
 }
 
 func (s *Server) leaderboard(w http.ResponseWriter, r *http.Request) {

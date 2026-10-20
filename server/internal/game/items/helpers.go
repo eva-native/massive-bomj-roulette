@@ -35,8 +35,10 @@ func def(id string, opts ...Option) *game.Def {
 func Text(id string, opts ...Option) *game.Def { return def(id, opts...) }
 
 // FlatPoints is an effect worth a fixed number of points on its game,
-// completed or dropped.
-func FlatPoints(id string, points int) *game.Def { return def(id, Impl(flatPoints(points))) }
+// completed or dropped. Events may change the number.
+func FlatPoints(id string, points int) *game.Def {
+	return def(id, Param("points", "Очки", points, -100, 100), Impl(flatPoints{}))
+}
 
 // Blocker switches off items of the given kinds on its game.
 func Blocker(id string, kinds ...game.Kind) *game.Def { return def(id, Blocks(kinds...)) }
@@ -67,6 +69,13 @@ func Blocks(kinds ...game.Kind) Option {
 	return func(d *game.Def) { d.Blocks = append(d.Blocks, kinds...) }
 }
 
+// Param declares a number of the rule that events may change.
+func Param(name, label string, def, min, max int) Option {
+	return func(d *game.Def) {
+		d.Params = append(d.Params, game.Param{Name: name, Label: label, Default: def, Min: min, Max: max})
+	}
+}
+
 func Special(key, title string) Option {
 	return func(d *game.Def) { d.SpecialGames = append(d.SpecialGames, game.SpecialGame{Key: key, Title: title}) }
 }
@@ -81,10 +90,10 @@ func optional(f game.Field) game.Field { f.Optional = true; return f }
 
 // --- simple mechanics -----------------------------------------------------------------
 
-type flatPoints int
+type flatPoints struct{}
 
-func (p flatPoints) Score(c *game.ScoreCtx, l *game.Ledger) {
+func (flatPoints) Score(c *game.ScoreCtx, l *game.Ledger) {
 	if c.Outcome != game.OutcomeNone {
-		l.Add(int(p))
+		l.Add(c.Param("points"))
 	}
 }

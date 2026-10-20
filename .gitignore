@@ -12,3 +12,4 @@ server/internal/webui/dist/*
 # Go binaries
 /server/mbr
 /bin/
+/backups/

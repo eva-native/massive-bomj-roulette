@@ -25,21 +25,23 @@ func Defs() []*game.Def {
 		Text("nothing"),
 
 		// --- effects: points by result ---
-		def("sto_k_odnomu", Input(opponent, won), Confirm(), Impl(duel{stake: 5})),
-		def("rps", Input(opponent, won), Confirm(), Impl(winnerTakes{points: 5})),
+		def("sto_k_odnomu", Input(opponent, won), Confirm(), Param("stake", "Ставка", 5, 0, 100), Impl(duel{})),
+		def("rps", Input(opponent, won), Confirm(), Param("points", "Очки победителю", 5, 0, 100), Impl(winnerTakes{})),
 		def("jester",
 			Input(optional(field("meme", "Мемчик (ссылка)", game.FieldURL, game.RolePlayer)),
 				field("liked", "Понравился судье", game.FieldBool, game.RoleJudge)),
-			Confirm(), Impl(ifTrue{field: "liked", points: 3})),
+			Confirm(), Param("points", "Очки за мем", 3, 0, 100), Impl(ifTrue{field: "liked"})),
 		def("dendy", Input(field("levels", "Пройдено уровней", game.FieldInt, game.RolePlayer)), Confirm(),
-			Impl(perUnit{field: "levels", points: 1})),
-		def("babina", Input(watched), Confirm(), Impl(babina{})),
-		def("documentary", Input(watched), Confirm(), Impl(ifTrue{field: "watched", points: 10})),
+			Param("points", "Очки за уровень", 1, 0, 100), Impl(perUnit{field: "levels"})),
+		def("babina", Input(watched), Confirm(), Param("points", "Очки за фильм", 10, 0, 100), Impl(babina{})),
+		def("documentary", Input(watched), Confirm(), Param("points", "Очки за документалку", 10, 0, 100), Impl(ifTrue{field: "watched"})),
 		def("group_bow", Input(field("late", "Опоздали", game.FieldPlayers, game.RoleJudge)), Confirm(),
-			Impl(eachListed{field: "late", points: -5})),
+			Param("points", "Очки каждому опоздавшему", -5, -100, 0), Impl(eachListed{field: "late"})),
 
 		// --- effects: several games ---
-		def("no_step_back", Lifetime(3), EndsOnDrop(), Impl(noStepBack{})),
+		def("no_step_back", Lifetime(3), EndsOnDrop(),
+			Param("penalty", "Штраф за дроп, % базы", 100, 0, 200), Param("bonus", "Бонус за три игры, % базы", 30, 0, 100),
+			Impl(noStepBack{})),
 
 		// --- effects: game choice ---
 		def("borrow_game", Impl(borrowGame{})),
@@ -64,7 +66,7 @@ func Defs() []*game.Def {
 		// --- bonuses ---
 		def("parachute", Impl(parachute{})),
 		def("friend_assist", Input(field("helper", "Помощник", game.FieldPlayer, game.RolePlayer)), Confirm(),
-			Impl(helperShare{percent: 50})),
+			Param("percent", "Доля помощнику, % базы", 50, 0, 100), Impl(helperShare{})),
 		def("lucky_wheel", Use(game.UseInsteadOfGameSpin), Impl(luckyWheel{})),
 		def("reroll", Use(game.UseAfterSpin), Impl(reroll{})),
 		def("vault_born", Blocks(game.KindEffect, game.KindDrop)),

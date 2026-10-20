@@ -120,3 +120,24 @@ export function useEventStream(slug: string) {
     }
   }, [slug, qc])
 }
+
+export function useUndoStep(slug: string) {
+  return useEventAction(slug, (playerId: number) => api<void>(`${base(slug)}/players/${playerId}/undo`, { method: 'POST' }))
+}
+
+export function useEditPlaythrough(slug: string) {
+  return useEventAction(slug, ({ id, hours, proof }: { id: number; hours: number; proof: string }) =>
+    api<void>(`${base(slug)}/playthroughs/${id}`, { method: 'PATCH', json: { hours, proof } }),
+  )
+}
+
+export function useFinishEvent(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api<void>(`${base(slug)}/finish`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
+  })
+}
+
+/** The download link of the event's full export (judges only). */
+export const exportUrl = (slug: string) => `${base(slug)}/export`

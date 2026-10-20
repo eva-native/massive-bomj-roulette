@@ -45,6 +45,20 @@ func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activ
 	return i, err
 }
 
+const freezeEvent = `-- name: FreezeEvent :exec
+UPDATE event_states SET frozen = $2 WHERE event_id = $1
+`
+
+type FreezeEventParams struct {
+	EventID int64
+	Frozen  []byte
+}
+
+func (q *Queries) FreezeEvent(ctx context.Context, arg FreezeEventParams) error {
+	_, err := q.db.Exec(ctx, freezeEvent, arg.EventID, arg.Frozen)
+	return err
+}
+
 const getEventState = `-- name: GetEventState :one
 SELECT state, version FROM event_states WHERE event_id = $1
 `
@@ -59,6 +73,17 @@ func (q *Queries) GetEventState(ctx context.Context, eventID int64) (GetEventSta
 	var i GetEventStateRow
 	err := row.Scan(&i.State, &i.Version)
 	return i, err
+}
+
+const getFrozen = `-- name: GetFrozen :one
+SELECT frozen FROM event_states WHERE event_id = $1
+`
+
+func (q *Queries) GetFrozen(ctx context.Context, eventID int64) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getFrozen, eventID)
+	var frozen []byte
+	err := row.Scan(&frozen)
+	return frozen, err
 }
 
 const getUsers = `-- name: GetUsers :many
@@ -82,6 +107,36 @@ func (q *Queries) GetUsers(ctx context.Context, ids []int64) ([]User, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveEvents = `-- name: ListActiveEvents :many
+SELECT id, slug, rules_version FROM events WHERE status = 'active' ORDER BY id
+`
+
+type ListActiveEventsRow struct {
+	ID           int64
+	Slug         string
+	RulesVersion string
+}
+
+func (q *Queries) ListActiveEvents(ctx context.Context) ([]ListActiveEventsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveEvents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveEventsRow{}
+	for rows.Next() {
+		var i ListActiveEventsRow
+		if err := rows.Scan(&i.ID, &i.Slug, &i.RulesVersion); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -170,5 +225,33 @@ type SaveEventStateParams struct {
 
 func (q *Queries) SaveEventState(ctx context.Context, arg SaveEventStateParams) error {
 	_, err := q.db.Exec(ctx, saveEventState, arg.EventID, arg.State)
+	return err
+}
+
+const setEventStatus = `-- name: SetEventStatus :exec
+UPDATE events SET status = $2, updated_at = now() WHERE id = $1
+`
+
+type SetEventStatusParams struct {
+	ID     int64
+	Status string
+}
+
+func (q *Queries) SetEventStatus(ctx context.Context, arg SetEventStatusParams) error {
+	_, err := q.db.Exec(ctx, setEventStatus, arg.ID, arg.Status)
+	return err
+}
+
+const setRulesVersion = `-- name: SetRulesVersion :exec
+UPDATE events SET rules_version = $2 WHERE id = $1
+`
+
+type SetRulesVersionParams struct {
+	ID           int64
+	RulesVersion string
+}
+
+func (q *Queries) SetRulesVersion(ctx context.Context, arg SetRulesVersionParams) error {
+	_, err := q.db.Exec(ctx, setRulesVersion, arg.ID, arg.RulesVersion)
 	return err
 }

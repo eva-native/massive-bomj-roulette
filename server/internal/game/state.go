@@ -7,7 +7,10 @@
 // saves it in one transaction; tests use the snapshot directly.
 package game
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type PlayerID int64
 
@@ -43,6 +46,19 @@ type Settings struct {
 	SpinsByHours []SpinsRow
 	Weights      map[string]int  // item weight overrides by def id
 	Disabled     map[string]bool // items switched off for this event
+	// Params override item parameters: def id → param name → value.
+	Params map[string]map[string]int
+}
+
+// Param returns an item parameter for this event: the override or the default.
+func (s Settings) Param(d *Def, name string) int {
+	if v, ok := s.Params[d.ID][name]; ok {
+		return v
+	}
+	if p := d.param(name); p != nil {
+		return p.Default
+	}
+	panic(fmt.Sprintf("game: item %s has no param %q", d.ID, name))
 }
 
 type SpinsRow struct {

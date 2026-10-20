@@ -53,6 +53,13 @@ type stateDoc struct {
 	NextSeq      int64               `json:"nextSeq"`
 }
 
+// frozenDoc keeps the final standings of a finished event: every view the
+// app shows, computed once with the rules of that moment.
+type frozenDoc struct {
+	Leaderboard []api.LeaderboardRow     `json:"leaderboard"`
+	Players     map[int64]api.PlayerView `json:"players"`
+}
+
 // activityPayload is stored with a journal entry.
 type activityPayload struct {
 	Spin *api.SpinInfo `json:"spin,omitempty"`
@@ -67,6 +74,8 @@ type session struct {
 	names   map[game.PlayerID]api.PlayerRef
 	members map[game.PlayerID]db.ListMembersRow
 	webhook string
+	frozen  *frozenDoc // final standings of a finished event
+	freeze  *frozenDoc // set by FinishEvent; saved with the snapshot
 	q       *db.Queries
 	acts    []activity
 	dirty   bool // the snapshot changed while loading (new players got turns)
@@ -178,6 +187,19 @@ func (s *Service) load(ctx context.Context, q *db.Queries, slug string, viewer *
 		return nil, err
 	}
 
+	if ev.Status == events.StatusFinished {
+		raw, err := q.GetFrozen(ctx, ev.ID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		if len(raw) > 0 {
+			ss.frozen = &frozenDoc{}
+			if err := json.Unmarshal(raw, ss.frozen); err != nil {
+				return nil, fmt.Errorf("play: frozen: %w", err)
+			}
+		}
+	}
+
 	// Participants without a turn get their first one. Only a running event
 	// starts new turns.
 	if ev.Status == events.StatusActive {
@@ -221,7 +243,7 @@ func (s *Service) addFormerPlayers(ctx context.Context, ss *session) error {
 }
 
 func toGameSettings(in api.EventSettings) game.Settings {
-	out := game.Settings{StartSpins: in.StartSpins, Weights: in.Weights, Disabled: map[string]bool{}}
+	out := game.Settings{StartSpins: in.StartSpins, Weights: in.Weights, Disabled: map[string]bool{}, Params: in.Params}
 	for _, r := range in.SpinsByHours {
 		out.SpinsByHours = append(out.SpinsByHours, game.SpinsRow{MinHours: r.MinHours, Spins: r.Spins})
 	}
@@ -269,6 +291,15 @@ func (s *Service) write(ctx context.Context, slug string, viewer *auth.User, fn 
 	}
 	if err := q.SaveEventState(ctx, db.SaveEventStateParams{EventID: ss.ev.ID, State: doc}); err != nil {
 		return err
+	}
+	if ss.freeze != nil {
+		raw, err := json.Marshal(ss.freeze)
+		if err != nil {
+			return err
+		}
+		if err := q.FreezeEvent(ctx, db.FreezeEventParams{EventID: ss.ev.ID, Frozen: raw}); err != nil {
+			return err
+		}
 	}
 	for _, a := range ss.acts {
 		payload := []byte("{}")
@@ -350,6 +381,17 @@ func requireJudge(ss *session) error {
 	}
 	if !ss.member.IsJudge {
 		return fmt.Errorf("%w: это может только судья", events.ErrForbidden)
+	}
+	return nil
+}
+
+// requireJudgeAction is requireJudge for changes: a finished event is frozen.
+func requireJudgeAction(ss *session) error {
+	if err := requireJudge(ss); err != nil {
+		return err
+	}
+	if ss.ev.Status != events.StatusActive {
+		return fmt.Errorf("%w: ивент завершён", events.ErrConflict)
 	}
 	return nil
 }

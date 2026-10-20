@@ -53,6 +53,8 @@ type EventSettings struct {
 	Weights map[string]int `json:"weights"`
 	// Items switched off for this event.
 	Disabled []string `json:"disabled"`
+	// Item parameter overrides: item id → parameter name → value.
+	Params map[string]map[string]int `json:"params"`
 	// Discord webhook for notifications; visible to judges only.
 	WebhookURL string `json:"webhookUrl,omitempty"`
 }
@@ -109,6 +111,17 @@ type ItemDef struct {
 	Weight        int           `json:"weight"`
 	Enabled       bool          `json:"enabled"`
 	SpecialGames  []SpecialGame `json:"specialGames"`
+	Params        []ItemParam   `json:"params"`
+}
+
+// ItemParam is a number of an item's rule; Value is the event's setting.
+type ItemParam struct {
+	Name    string `json:"name"`
+	Label   string `json:"label"`
+	Default int    `json:"default"`
+	Min     int    `json:"min"`
+	Max     int    `json:"max"`
+	Value   int    `json:"value"`
 }
 
 type SpecialGame struct {
@@ -294,6 +307,11 @@ type FinishRequest struct {
 
 type InputRequest struct {
 	Values map[string]any `json:"values"`
+}
+
+type EditPlaythroughRequest struct {
+	Hours float64 `json:"hours"`
+	Proof string  `json:"proof"`
 }
 
 type ConfirmRequest struct {

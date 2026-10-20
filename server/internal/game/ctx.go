@@ -15,6 +15,9 @@ type Ctx struct {
 
 func (c *Ctx) Player() PlayerID { return c.item.Player }
 
+// Param returns one of the item's parameters as set for this event.
+func (c *Ctx) Param(name string) int { return c.r.s.Settings.Param(c.r.def(c.item), name) }
+
 // Players returns all participants of the event.
 func (c *Ctx) Players() []Player {
 	out := make([]Player, 0, len(c.r.s.Players))

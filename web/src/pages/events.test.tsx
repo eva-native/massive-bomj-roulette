@@ -9,8 +9,11 @@ const admin: Me = { id: 1, name: 'Админ', avatarUrl: '', isAdmin: true }
 const alice: Me = { id: 2, name: 'Алиса', avatarUrl: '', isAdmin: false }
 
 const items: ItemDef[] = [
-  { id: 'opaaa', name: 'ОПАААА', concept: 'Получи плюс 4 очка.', kind: 'effect', defaultWeight: 1, weight: 1, enabled: true, specialGames: [] },
-  { id: 'parachute', name: 'Парашют', concept: 'За дроп игры не теряешь очки.', kind: 'bonus', defaultWeight: 1, weight: 1, enabled: true, specialGames: [] },
+  {
+    id: 'opaaa', name: 'ОПАААА', concept: 'Получи плюс 4 очка.', kind: 'effect', defaultWeight: 1, weight: 1, enabled: true, specialGames: [],
+    params: [{ name: 'points', label: 'Очки', default: 4, min: -100, max: 100, value: 4 }],
+  },
+  { id: 'parachute', name: 'Парашют', concept: 'За дроп игры не теряешь очки.', kind: 'bonus', defaultWeight: 1, weight: 1, enabled: true, specialGames: [], params: [] },
 ]
 
 describe('events', () => {
@@ -74,6 +77,9 @@ describe('events', () => {
     const weight = await screen.findByLabelText('Вес «ОПАААА»')
     await user.clear(weight)
     await user.type(weight, '5')
+    const points = screen.getByLabelText(/^Очки/)
+    await user.clear(points)
+    await user.type(points, '5')
     await user.click(screen.getByRole('checkbox', { name: 'Парашют' }))
     await user.click(screen.getByRole('button', { name: 'Добавить строку' }))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
@@ -81,7 +87,31 @@ describe('events', () => {
     expect(await screen.findByText('Сохранено')).toBeInTheDocument()
     const patch = backend.requests.find((r) => r.method === 'PATCH')
     expect(patch?.body).toMatchObject({
-      settings: { startSpins: 3, weights: { opaaa: 5 }, disabled: ['parachute'], spinsByHours: [{ minHours: 0, spins: 1 }] },
+      settings: {
+        startSpins: 3,
+        weights: { opaaa: 5 },
+        disabled: ['parachute'],
+        params: { opaaa: { points: 5 } },
+        spinsByHours: [{ minHours: 0, spins: 1 }],
+      },
     })
+  })
+})
+
+describe('finishing an event', () => {
+  it('asks first and posts the finish', async () => {
+    const backend = fakeBackend({ me: admin, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    backend.on('POST', /\/finish$/, () => undefined)
+    vi.stubGlobal('fetch', backend.fetch)
+    const ask = vi.fn(() => true)
+    vi.stubGlobal('confirm', ask)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/settings')
+
+    expect(await screen.findByRole('link', { name: 'Скачать экспорт (JSON)' })).toHaveAttribute('href', '/api/events/lbr/export')
+    await user.click(screen.getByRole('button', { name: 'Завершить ивент' }))
+    expect(ask).toHaveBeenCalled()
+    expect(backend.requests.some((r) => r.method === 'POST' && r.url === '/api/events/lbr/finish')).toBe(true)
   })
 })

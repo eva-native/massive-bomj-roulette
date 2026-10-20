@@ -85,12 +85,7 @@ make build    # bin/mbr со встроенным фронтендом
 make docker   # Docker-образ mbr
 ```
 
-Продакшен через compose (приложение + PostgreSQL + Caddy с автоматическим HTTPS):
-
-```bash
-# в .env: MBR_BASE_URL=https://<домен>, MBR_DEV_LOGIN=false, данные Discord
-MBR_DOMAIN=<домен> docker compose --profile app --profile prod up -d --build
-```
+Продакшен (сервер, домен, HTTPS, обновления, бэкапы, восстановление) описан в [deploy.md](deploy.md).
 
 ## Устройство
 

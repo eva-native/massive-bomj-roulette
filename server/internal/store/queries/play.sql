@@ -26,3 +26,18 @@ LIMIT $2;
 
 -- name: GetUsers :many
 SELECT * FROM users WHERE id = ANY(sqlc.arg(ids)::bigint[]);
+
+-- name: GetFrozen :one
+SELECT frozen FROM event_states WHERE event_id = $1;
+
+-- name: FreezeEvent :exec
+UPDATE event_states SET frozen = $2 WHERE event_id = $1;
+
+-- name: SetEventStatus :exec
+UPDATE events SET status = $2, updated_at = now() WHERE id = $1;
+
+-- name: ListActiveEvents :many
+SELECT id, slug, rules_version FROM events WHERE status = 'active' ORDER BY id;
+
+-- name: SetRulesVersion :exec
+UPDATE events SET rules_version = $2 WHERE id = $1;

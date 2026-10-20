@@ -143,7 +143,9 @@ func (s *Service) Create(ctx context.Context, u *auth.User, req api.CreateEventR
 	settings, _ := json.Marshal(api.EventSettings{StartSpins: defaultStartSpins})
 
 	err = s.inTx(ctx, func(q *db.Queries) error {
-		ev, err := q.CreateEvent(ctx, db.CreateEventParams{Slug: slug, Title: title, Settings: settings, CreatedBy: u.ID})
+		ev, err := q.CreateEvent(ctx, db.CreateEventParams{
+			Slug: slug, Title: title, Settings: settings, CreatedBy: u.ID, RulesVersion: s.cat.Fingerprint(),
+		})
 		if isUniqueViolation(err) {
 			return fmt.Errorf("%w: адрес «%s» уже занят", ErrConflict, slug)
 		}
@@ -316,6 +318,14 @@ func (s *Service) Items(ctx context.Context, slug string) ([]api.ItemDef, error)
 		for _, sg := range d.SpecialGames {
 			item.SpecialGames = append(item.SpecialGames, api.SpecialGame{Key: sg.Key, Title: sg.Title})
 		}
+		item.Params = []api.ItemParam{}
+		for _, p := range d.Params {
+			v := p.Default
+			if o, ok := settings.Params[d.ID][p.Name]; ok {
+				v = o
+			}
+			item.Params = append(item.Params, api.ItemParam{Name: p.Name, Label: p.Label, Default: p.Default, Min: p.Min, Max: p.Max, Value: v})
+		}
 		out = append(out, item)
 	}
 	return out, nil
@@ -339,6 +349,9 @@ func decodeSettings(raw []byte) (api.EventSettings, error) {
 	if st.Disabled == nil {
 		st.Disabled = []string{}
 	}
+	if st.Params == nil {
+		st.Params = map[string]map[string]int{}
+	}
 	return st, nil
 }
 
@@ -348,6 +361,7 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 		SpinsByHours: []api.SpinsRow{},
 		Weights:      map[string]int{},
 		Disabled:     []string{},
+		Params:       map[string]map[string]int{},
 		WebhookURL:   strings.TrimSpace(in.WebhookURL),
 	}
 	if out.StartSpins < 1 || out.StartSpins > 20 {
@@ -386,10 +400,40 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 		}
 	}
 	slices.Sort(out.Disabled)
+	for id, params := range in.Params {
+		d := s.cat.Def(id)
+		if d == nil {
+			return out, invalid("неизвестный предмет %q", id)
+		}
+		for name, v := range params {
+			p := findParam(d, name)
+			if p == nil {
+				return out, invalid("у «%s» нет параметра %q", d.Name, name)
+			}
+			if v < p.Min || v > p.Max {
+				return out, invalid("«%s», %s: от %d до %d", d.Name, p.Label, p.Min, p.Max)
+			}
+			if v != p.Default { // store only real overrides
+				if out.Params[id] == nil {
+					out.Params[id] = map[string]int{}
+				}
+				out.Params[id][name] = v
+			}
+		}
+	}
 	if out.WebhookURL != "" && !notify.AllowedWebhook(out.WebhookURL) {
 		return out, invalid("вебхук должен быть адресом вебхука Discord: https://discord.com/api/webhooks/…")
 	}
 	return out, nil
+}
+
+func findParam(d *game.Def, name string) *game.Param {
+	for i := range d.Params {
+		if d.Params[i].Name == name {
+			return &d.Params[i]
+		}
+	}
+	return nil
 }
 
 // --- helpers ------------------------------------------------------------------

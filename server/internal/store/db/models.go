@@ -19,14 +19,15 @@ type Activity struct {
 }
 
 type Event struct {
-	ID        int64
-	Slug      string
-	Title     string
-	Status    string
-	Settings  []byte
-	CreatedBy int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID           int64
+	Slug         string
+	Title        string
+	Status       string
+	Settings     []byte
+	CreatedBy    int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	RulesVersion string
 }
 
 type EventMember struct {
@@ -42,6 +43,7 @@ type EventState struct {
 	State     []byte
 	Version   int64
 	UpdatedAt time.Time
+	Frozen    []byte
 }
 
 type Game struct {

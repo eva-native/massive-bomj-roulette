@@ -221,3 +221,20 @@ func TestEventSettingsShapeTheItemWheel(t *testing.T) {
 		t.Fatalf("weight override not applied: %v %v", sectors, err)
 	}
 }
+
+func TestFingerprintFollowsRuleChanges(t *testing.T) {
+	mk := func(points int) *Catalog {
+		c, err := NewCatalog(&Def{ID: "x", Name: "X", Kind: KindEffect, Params: []Param{{Name: "points", Default: points, Min: 0, Max: 10}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	first, second := mk(4), mk(4) // two separate catalogs with the same rules
+	if first.Fingerprint() != second.Fingerprint() {
+		t.Fatal("same rules, different fingerprints")
+	}
+	if mk(4).Fingerprint() == mk(5).Fingerprint() {
+		t.Fatal("a changed parameter must change the fingerprint")
+	}
+}

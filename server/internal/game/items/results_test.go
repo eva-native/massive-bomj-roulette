@@ -192,3 +192,21 @@ func TestTextBonusesWorkOnAGame(t *testing.T) {
 		t.Fatalf("placement = %s", it.Placement)
 	}
 }
+
+func TestEventParamsOverrideItemNumbers(t *testing.T) {
+	sc := newScenario(t)
+	sc.s.Settings.Params = map[string]map[string]int{
+		"opaaa":         {"points": 7},
+		"friend_assist": {"percent": 100},
+	}
+	a, b := sc.player("Алиса"), sc.player("Боб")
+	sc.addGame("G", 10, 80, 2015, a) // base 17
+	startGame(sc, a, "G", "opaaa", "friend_assist")
+	sc.mustUse(a, "friend_assist")
+	fa := sc.item(a, "friend_assist")
+	sc.input(a, fa, map[string]any{"helper": int(b)})
+	sc.confirmItem(fa)
+	sc.play(a, game.OutcomeCompleted, 10)
+	sc.expectTotal(a, 17+1+7)
+	sc.expectTotal(b, 17)
+}

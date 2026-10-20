@@ -1,6 +1,9 @@
 package game
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"slices"
 )
@@ -82,8 +85,27 @@ type Def struct {
 	// SpecialGames are games outside the regular wheel the item needs
 	// («Смута» for «Внезапный ДЭБ»). The judge adds them to the pool.
 	SpecialGames []SpecialGame
+	// Params are numbers of the rule an event may change (points, percents).
+	Params []Param
 
 	Impl any
+}
+
+// Param is a number in an item's rule that events may override.
+type Param struct {
+	Name     string
+	Label    string
+	Default  int
+	Min, Max int
+}
+
+func (d *Def) param(name string) *Param {
+	for i := range d.Params {
+		if d.Params[i].Name == name {
+			return &d.Params[i]
+		}
+	}
+	return nil
 }
 
 // SpecialGame names a game an item swaps in by its key.
@@ -213,6 +235,13 @@ func validateDef(d *Def) error {
 			return fmt.Errorf("catalog: item %q: bad input field %+v", d.ID, f)
 		}
 	}
+	seen := map[string]bool{}
+	for _, p := range d.Params {
+		if p.Name == "" || seen[p.Name] || p.Min > p.Max || p.Default < p.Min || p.Default > p.Max {
+			return fmt.Errorf("catalog: item %q: bad param %+v", d.ID, p)
+		}
+		seen[p.Name] = true
+	}
 	return nil
 }
 
@@ -220,3 +249,33 @@ func (c *Catalog) Def(id string) *Def { return c.defs[id] }
 
 // All returns the items in catalog order.
 func (c *Catalog) All() []*Def { return c.order }
+
+// Fingerprint identifies this version of the rules: item texts, flags,
+// fields, parameters and the mechanics' type and settings. It changes when
+// any of those change; changes inside hook code are not seen.
+func (c *Catalog) Fingerprint() string {
+	type entry struct {
+		ID, Name, Concept, Kind string
+		Weight, Lifetime        int
+		EndsOnDrop, Once        bool
+		NeedsConfirm, Proof     bool
+		Blocks                  []Kind
+		Use                     UseMode
+		Input                   []Field
+		Params                  []Param
+		Special                 []SpecialGame
+		Impl                    string
+	}
+	var all []entry
+	for _, d := range c.order {
+		all = append(all, entry{
+			ID: d.ID, Name: d.Name, Concept: d.Concept, Kind: string(d.Kind), Weight: d.Weight, Lifetime: d.Lifetime,
+			EndsOnDrop: d.EndsOnDrop, Once: d.OncePerPlayer, NeedsConfirm: d.NeedsConfirm, Proof: d.Proof,
+			Blocks: d.Blocks, Use: d.Use, Input: d.Input, Params: d.Params, Special: d.SpecialGames,
+			Impl: fmt.Sprintf("%T %+v", d.Impl, d.Impl),
+		})
+	}
+	b, _ := json.Marshal(all)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])[:12]
+}

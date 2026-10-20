@@ -69,6 +69,10 @@ export interface EventSettings {
    */
   disabled: string[];
   /**
+   * Item parameter overrides: item id → parameter name → value.
+   */
+  params: { [key: string]: { [key: string]: number /* int */}};
+  /**
    * Discord webhook for notifications; visible to judges only.
    */
   webhookUrl?: string;
@@ -129,6 +133,18 @@ export interface ItemDef {
   weight: number /* int */;
   enabled: boolean;
   specialGames: SpecialGame[];
+  params: ItemParam[];
+}
+/**
+ * ItemParam is a number of an item's rule; Value is the event's setting.
+ */
+export interface ItemParam {
+  name: string;
+  label: string;
+  default: number /* int */;
+  min: number /* int */;
+  max: number /* int */;
+  value: number /* int */;
 }
 export interface SpecialGame {
   key: string;
@@ -324,6 +340,10 @@ export interface FinishRequest {
 }
 export interface InputRequest {
   values: { [key: string]: any};
+}
+export interface EditPlaythroughRequest {
+  hours: number /* float64 */;
+  proof: string;
 }
 export interface ConfirmRequest {
   accept: boolean;

@@ -22,16 +22,17 @@ func (q *Queries) CountJudges(ctx context.Context, eventID int64) (int64, error)
 }
 
 const createEvent = `-- name: CreateEvent :one
-INSERT INTO events (slug, title, settings, created_by)
-VALUES ($1, $2, $3, $4)
-RETURNING id, slug, title, status, settings, created_by, created_at, updated_at
+INSERT INTO events (slug, title, settings, created_by, rules_version)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, slug, title, status, settings, created_by, created_at, updated_at, rules_version
 `
 
 type CreateEventParams struct {
-	Slug      string
-	Title     string
-	Settings  []byte
-	CreatedBy int64
+	Slug         string
+	Title        string
+	Settings     []byte
+	CreatedBy    int64
+	RulesVersion string
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Event, error) {
@@ -40,6 +41,7 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Event
 		arg.Title,
 		arg.Settings,
 		arg.CreatedBy,
+		arg.RulesVersion,
 	)
 	var i Event
 	err := row.Scan(
@@ -51,6 +53,7 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Event
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RulesVersion,
 	)
 	return i, err
 }
@@ -73,7 +76,7 @@ func (q *Queries) DeleteMember(ctx context.Context, arg DeleteMemberParams) (int
 }
 
 const getEventBySlug = `-- name: GetEventBySlug :one
-SELECT id, slug, title, status, settings, created_by, created_at, updated_at FROM events WHERE slug = $1
+SELECT id, slug, title, status, settings, created_by, created_at, updated_at, rules_version FROM events WHERE slug = $1
 `
 
 func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (Event, error) {
@@ -88,6 +91,7 @@ func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (Event, error
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RulesVersion,
 	)
 	return i, err
 }
@@ -246,7 +250,7 @@ const updateEvent = `-- name: UpdateEvent :one
 UPDATE events
 SET title = $2, settings = $3, updated_at = now()
 WHERE id = $1
-RETURNING id, slug, title, status, settings, created_by, created_at, updated_at
+RETURNING id, slug, title, status, settings, created_by, created_at, updated_at, rules_version
 `
 
 type UpdateEventParams struct {
@@ -267,6 +271,7 @@ func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (Event
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RulesVersion,
 	)
 	return i, err
 }

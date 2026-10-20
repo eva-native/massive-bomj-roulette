@@ -8,6 +8,7 @@ import { Wheel } from '@/components/Wheel'
 import { Badge, Card, ErrorText, Field, Input } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { ItemCard } from './ItemCard'
+import { EditPlaythrough, UndoStep } from './JudgeTools'
 
 const stepNames: Record<string, string> = {
   spin_items: 'Колесо эффектов и бонусов',
@@ -90,6 +91,7 @@ export function PlayerBoard({ event, view }: { event: EventDetail; view: PlayerV
             </>
           )}
           <ErrorText error={spin.error} />
+          {isJudge && event.status === 'active' && <UndoStep slug={event.slug} playerId={view.player.id} turn={turn} />}
         </Card>
       )}
 
@@ -118,7 +120,7 @@ export function PlayerBoard({ event, view }: { event: EventDetail; view: PlayerV
         </section>
       )}
 
-      <History view={view} />
+      <History view={view} judgeSlug={isJudge && event.status === 'active' ? event.slug : null} />
     </div>
   )
 }
@@ -260,20 +262,23 @@ function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
 
 const outcomeNames: Record<string, string> = { completed: 'пройдена', dropped: 'дропнута' }
 
-function History({ view }: { view: PlayerView }) {
+function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | null }) {
   if (view.history.length === 0 && view.entries.length === 0) return null
   return (
     <section className="flex flex-col gap-2">
       <h3 className="font-semibold">История</h3>
       <ul className="flex flex-col gap-1">
         {view.history.map((pt) => (
-          <li key={pt.id} className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 text-sm dark:border-stone-800">
+          <li key={pt.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 text-sm dark:border-stone-800">
             <span>
               {pt.game} — {outcomeNames[pt.outcome]}
               {pt.outcome === 'completed' && ` за ${pt.hours} ч`}
               {!pt.confirmed && <Badge>ждёт судью</Badge>}
             </span>
-            <span className="font-semibold">{pt.points > 0 ? `+${pt.points}` : pt.points}</span>
+            <span className="flex items-center gap-3">
+              {judgeSlug && <EditPlaythrough slug={judgeSlug} pt={pt} />}
+              <span className="font-semibold">{pt.points > 0 ? `+${pt.points}` : pt.points}</span>
+            </span>
           </li>
         ))}
       </ul>
