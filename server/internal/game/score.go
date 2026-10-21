@@ -177,7 +177,7 @@ func (r *run) scorePlaythrough(pt *Playthrough, records map[int64]*Playthrough) 
 		l.add(pt.Player, SourceCompletion, base)
 		l.add(pt.Player, SourceSpeed, Round(float64(g.HLTB)-pt.Hours))
 		if records[pt.Game] == pt {
-			l.add(pt.Player, SourceRecord, 1)
+			l.add(pt.Player, SourceRecord, r.s.Settings.recordPoints())
 		}
 	case OutcomeDropped:
 		l.add(pt.Player, SourceDropPenalty, -base/2)

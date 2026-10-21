@@ -163,6 +163,7 @@ func TestSettings(t *testing.T) {
 	f.create("lbr")
 	f.join(f.alice, "lbr")
 
+	three, tooMany := 3, 101
 	good := api.EventSettings{
 		StartSpins:   4,
 		SpinsByHours: []api.SpinsRow{{MinHours: 0, Spins: 1}, {MinHours: 20, Spins: 2}},
@@ -173,6 +174,7 @@ func TestSettings(t *testing.T) {
 
 		GameWheelSeconds: 60,
 		ItemWheelSeconds: 30,
+		RecordPoints:     &three,
 	}
 	_, err := f.svc.Update(f.ctx, f.alice, "lbr", api.UpdateEventRequest{Settings: &good})
 	expect(t, err, ErrForbidden)
@@ -183,7 +185,7 @@ func TestSettings(t *testing.T) {
 	}
 	if d.Settings.StartSpins != 4 || len(d.Settings.Weights) != 1 || len(d.Settings.Disabled) != 1 || d.Settings.WebhookURL == "" ||
 		len(d.Settings.Params) != 1 || d.Settings.Params["opaaa"]["points"] != 6 ||
-		d.Settings.GameWheelSeconds != 60 || d.Settings.ItemWheelSeconds != 30 {
+		d.Settings.GameWheelSeconds != 60 || d.Settings.ItemWheelSeconds != 30 || d.Settings.RecordPoints == nil || *d.Settings.RecordPoints != 3 {
 		t.Fatalf("settings = %+v", d.Settings)
 	}
 
@@ -203,6 +205,7 @@ func TestSettings(t *testing.T) {
 		{StartSpins: 3, Params: map[string]map[string]int{"opaaa": {"nope": 1}}},
 		{StartSpins: 3, GameWheelSeconds: -1},
 		{StartSpins: 3, ItemWheelSeconds: 121},
+		{StartSpins: 3, RecordPoints: &tooMany},
 		{StartSpins: 3, Params: map[string]map[string]int{"nope": {"points": 1}}},
 	}
 	for _, s := range bad {

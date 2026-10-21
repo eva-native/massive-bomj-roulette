@@ -105,9 +105,12 @@ func (s *Service) Finish(ctx context.Context, slug string, viewer *auth.User, st
 			return err
 		}
 		title := s.gameTitle(ss, ss.st.Playthrough(ss.st.CurrentTurn(me).Playthrough).Game)
-		if req.Outcome == string(game.OutcomeCompleted) {
+		switch game.Outcome(req.Outcome) {
+		case game.OutcomeCompleted:
 			ss.log("finish", "%s прошёл «%s» за %s ч", ss.name(me), title, formatHours(req.Hours))
-		} else {
+		case game.OutcomeTech:
+			ss.log("finish", "%s просит тех. дроп «%s»", ss.name(me), title)
+		default:
 			ss.log("finish", "%s дропнул «%s»", ss.name(me), title)
 		}
 		return nil

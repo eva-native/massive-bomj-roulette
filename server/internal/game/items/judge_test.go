@@ -44,7 +44,7 @@ func TestJudgeEditsHoursAfterConfirmation(t *testing.T) {
 	spinItems(sc, a, "reflex", "reflex", "reflex")
 	sc.spin(a, "G")
 	sc.play(a, game.OutcomeCompleted, 20)
-	sc.expectTotal(a, 17-10+1)
+	sc.expectTotal(a, 17-10+rec)
 
 	var pt *game.Playthrough
 	for _, p := range sc.s.Playthroughs {
@@ -56,7 +56,7 @@ func TestJudgeEditsHoursAfterConfirmation(t *testing.T) {
 	if err := sc.e.EditPlaythrough(sc.s, sc.judge, pt.ID, 8, " https://proof "); err != nil {
 		t.Fatal(err)
 	}
-	sc.expectTotal(a, 17+2+1)
+	sc.expectTotal(a, 17+2+rec)
 	if pt.Proof != "https://proof" {
 		t.Fatalf("proof = %q", pt.Proof)
 	}

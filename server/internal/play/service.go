@@ -243,7 +243,7 @@ func (s *Service) addFormerPlayers(ctx context.Context, ss *session) error {
 }
 
 func toGameSettings(in api.EventSettings) game.Settings {
-	out := game.Settings{StartSpins: in.StartSpins, Weights: in.Weights, Disabled: map[string]bool{}, Params: in.Params}
+	out := game.Settings{StartSpins: in.StartSpins, Weights: in.Weights, Disabled: map[string]bool{}, Params: in.Params, RecordPoints: in.RecordPoints}
 	for _, r := range in.SpinsByHours {
 		out.SpinsByHours = append(out.SpinsByHours, game.SpinsRow{MinHours: r.MinHours, Spins: r.Spins})
 	}

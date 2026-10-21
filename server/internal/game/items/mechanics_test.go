@@ -36,11 +36,11 @@ func TestBabina(t *testing.T) {
 	}
 
 	sc.play(a, game.OutcomeCompleted, 10)
-	sc.expectTotal(a, 17+1) // +10 waits for the judge
+	sc.expectTotal(a, 17+rec) // +10 waits for the judge
 	if err := sc.e.ConfirmItem(sc.s, sc.judge, bab.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	sc.expectTotal(a, 17+1+10)
+	sc.expectTotal(a, 17+rec+10)
 
 	// A watched movie never comes up again for Alice.
 	sc.spin(a, "babina")
@@ -152,7 +152,7 @@ func TestNoStepBackThreeCompletions(t *testing.T) {
 		sc.play(a, game.OutcomeCompleted, float64(sc.game(g).HLTB))
 	}
 	// 3 completions with a record each, plus 30% of 17+29+32=78 → 23.
-	sc.expectTotal(a, 17+1+29+1+32+1+23)
+	sc.expectTotal(a, 17+rec+29+rec+32+rec+23)
 
 	sc.spin(a, "reflex")
 	sc.spin(a, "G4")
@@ -174,7 +174,7 @@ func TestNoStepBackDropEndsTheChain(t *testing.T) {
 	sc.spin(a, "reflex")
 	sc.spin(a, "G2")
 	sc.play(a, game.OutcomeDropped, 5)
-	sc.expectTotal(a, 17+1-29) // −100% instead of −50%
+	sc.expectTotal(a, 17+rec-29) // −100% instead of −50%
 
 	sc.spin(a, "self_sufficient")
 	sc.spin(a, "G3")
@@ -199,7 +199,7 @@ func TestParachuteCancelsNoStepBackPenalty(t *testing.T) {
 	sc.spin(a, "G2")
 	sc.mustUse(a, "parachute")
 	sc.play(a, game.OutcomeDropped, 5)
-	sc.expectTotal(a, 17+1) // the drop costs nothing
+	sc.expectTotal(a, 17+rec) // the drop costs nothing
 }
 
 func TestPutinVoteForcesTheNextBonus(t *testing.T) {
@@ -318,7 +318,7 @@ func TestPlotArmorBlocksEffects(t *testing.T) {
 	sc.spin(a, "G1")
 	sc.expectSteps(a, game.StepPlay) // geralt is blocked: no second spin
 	sc.play(a, game.OutcomeCompleted, 10)
-	sc.expectTotal(a, 17+1) // opaaa is blocked too
+	sc.expectTotal(a, 17+rec) // opaaa is blocked too
 }
 
 func TestSelfSufficientBlocksBonuses(t *testing.T) {
@@ -371,7 +371,7 @@ func TestVeteranRerollsItselfOntoTheSameGame(t *testing.T) {
 		t.Fatalf("the new effect must work on the current game: %+v", op)
 	}
 	sc.play(a, game.OutcomeCompleted, 10)
-	sc.expectTotal(a, 17+1+4)
+	sc.expectTotal(a, 17+rec+4)
 }
 
 func TestPutinVoteBurnsAForcedReroll(t *testing.T) {

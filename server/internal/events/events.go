@@ -389,6 +389,10 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 
 		GameWheelSeconds: in.GameWheelSeconds,
 		ItemWheelSeconds: in.ItemWheelSeconds,
+		RecordPoints:     in.RecordPoints,
+	}
+	if p := out.RecordPoints; p != nil && (*p < 0 || *p > 100) {
+		return out, invalid("очки за рекорд: от 0 до 100")
 	}
 	if out.StartSpins < 1 || out.StartSpins > 20 {
 		return out, invalid("стартовых круток должно быть от 1 до 20")

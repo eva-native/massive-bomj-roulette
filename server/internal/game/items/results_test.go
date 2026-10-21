@@ -109,7 +109,7 @@ func TestFriendAssistSharesTheBase(t *testing.T) {
 	sc.input(a, fa, map[string]any{"helper": int(b)})
 	sc.confirmItem(fa)
 	sc.play(a, game.OutcomeCompleted, 10)
-	sc.expectTotal(a, 17+1)
+	sc.expectTotal(a, 17+rec)
 	sc.expectTotal(b, 9) // 50% of 17 = 8.5 → 9
 }
 
@@ -162,7 +162,7 @@ func TestVaultBornBlocksEffectsOnceUsed(t *testing.T) {
 	startGame(sc, a, "G", "vault_born", "opaaa", "minus6")
 	sc.mustUse(a, "vault_born")
 	sc.play(a, game.OutcomeCompleted, 10)
-	sc.expectTotal(a, 17+1) // neither +4 nor −6
+	sc.expectTotal(a, 17+rec) // neither +4 nor −6
 }
 
 func TestLawsuitCanBeUsedAnytime(t *testing.T) {
@@ -207,6 +207,6 @@ func TestEventParamsOverrideItemNumbers(t *testing.T) {
 	sc.input(a, fa, map[string]any{"helper": int(b)})
 	sc.confirmItem(fa)
 	sc.play(a, game.OutcomeCompleted, 10)
-	sc.expectTotal(a, 17+1+7)
+	sc.expectTotal(a, 17+rec+7)
 	sc.expectTotal(b, 17)
 }

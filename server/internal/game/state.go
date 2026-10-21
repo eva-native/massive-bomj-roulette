@@ -48,6 +48,18 @@ type Settings struct {
 	Disabled     map[string]bool // items switched off for this event
 	// Params override item parameters: def id → param name → value.
 	Params map[string]map[string]int
+	// RecordPoints for the fastest completion of a game; nil means the default.
+	RecordPoints *int
+}
+
+// DefaultRecordPoints is what a speed record gives unless the event says otherwise.
+const DefaultRecordPoints = 5
+
+func (s Settings) recordPoints() int {
+	if s.RecordPoints != nil {
+		return *s.RecordPoints
+	}
+	return DefaultRecordPoints
 }
 
 // Param returns an item parameter for this event: the override or the default.
@@ -82,6 +94,8 @@ const (
 	ReasonStart     TurnReason = "start"
 	ReasonCompleted TurnReason = "completed"
 	ReasonDropped   TurnReason = "dropped"
+	// ReasonTech follows a technical drop: only the game wheel is spun.
+	ReasonTech TurnReason = "tech"
 )
 
 type StepKind string
@@ -120,6 +134,9 @@ type Turn struct {
 	Game int64
 	// Playthrough is created once the game is final.
 	Playthrough int64
+	// Carried lists items moved here from a technically dropped game. They
+	// already did their attach work and do not repeat it.
+	Carried []int64 `json:",omitempty"`
 }
 
 type WheelKind string
@@ -160,6 +177,9 @@ const (
 	OutcomeNone      Outcome = ""
 	OutcomeCompleted Outcome = "completed"
 	OutcomeDropped   Outcome = "dropped"
+	// OutcomeTech is a technical drop: the game cannot be played (does not
+	// start, breaks). No points either way; the items move to the next game.
+	OutcomeTech Outcome = "tech"
 )
 
 type Playthrough struct {

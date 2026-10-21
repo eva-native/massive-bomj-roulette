@@ -26,6 +26,7 @@ const reasonNames: Record<string, string> = {
   start: 'начало ивента',
   completed: 'после пройденной игры',
   dropped: 'после дропа',
+  tech: 'после тех. дропа',
 }
 
 /** One player's game: the turn, items, pocket, history and points. */
@@ -232,7 +233,7 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
 
 function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
   const finish = useFinish(slug)
-  const [outcome, setOutcome] = useState<'completed' | 'dropped'>('completed')
+  const [outcome, setOutcome] = useState<'completed' | 'dropped' | 'tech'>('completed')
   const [hours, setHours] = useState('')
   const [proof, setProof] = useState('')
   const parsed = parseHours(hours)
@@ -254,7 +255,17 @@ function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
           <input type="radio" name="outcome" checked={outcome === 'dropped'} onChange={() => setOutcome('dropped')} />
           Дропнул
         </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="outcome" checked={outcome === 'tech'} onChange={() => setOutcome('tech')} />
+          Тех. дроп
+        </label>
       </div>
+      {outcome === 'tech' && (
+        <p className="text-xs text-stone-500">
+          Игра не запускается или сломана. Без штрафа: судья проверит, игра уйдёт из вашего колеса, а эффекты и дебаффы перейдут на новую игру. Крутится
+          только колесо игр. Опишите проблему ссылкой на скриншот или видео.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Часов в игре">
           <Input inputMode="decimal" value={hours} onChange={(e) => setHours(cleanHoursInput(e.target.value))} placeholder={outcome === 'completed' ? 'например, 25' : 'необязательно'} />
@@ -271,7 +282,7 @@ function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
   )
 }
 
-const outcomeNames: Record<string, string> = { completed: 'пройдена', dropped: 'дропнута' }
+const outcomeNames: Record<string, string> = { completed: 'пройдена', dropped: 'дропнута', tech: 'тех. дроп' }
 
 function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | null }) {
   if (view.history.length === 0 && view.entries.length === 0) return null

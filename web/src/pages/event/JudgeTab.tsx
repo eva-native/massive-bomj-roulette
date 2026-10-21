@@ -6,7 +6,7 @@ import { Card, ErrorText, Loading } from '@/components/ui'
 import { useEventContext } from './context'
 import { ItemCard } from './play/ItemCard'
 
-const outcomeNames: Record<string, string> = { completed: 'прошёл', dropped: 'дропнул' }
+const outcomeNames: Record<string, string> = { completed: 'прошёл', dropped: 'дропнул', tech: 'просит тех. дроп' }
 
 /** What waits for a judge: finished games and items to confirm or fill in. */
 export function JudgeTab() {

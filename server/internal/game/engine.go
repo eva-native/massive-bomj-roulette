@@ -138,6 +138,7 @@ func (r *run) newTurn(p PlayerID, reason TurnReason, spins int) *Turn {
 		}
 	case ReasonDropped:
 		add(StepSpinDrop)
+	case ReasonTech: // only the game wheel
 	}
 	add(StepSpinGame)
 	add(StepPlay)
@@ -489,7 +490,9 @@ func (r *run) maybeFinalizeGame(t *Turn, st *Step) {
 		}
 	}
 	for _, it := range attached {
-		r.callAttach(it, t, st)
+		if !slices.Contains(t.Carried, it.ID) {
+			r.callAttach(it, t, st)
+		}
 	}
 }
 
@@ -570,8 +573,8 @@ func (e *Engine) FinishGame(s *State, actor PlayerID, stepID int64, outcome Outc
 	if st.Kind != StepPlay {
 		return fmt.Errorf("%w: сейчас не идёт игра", ErrWrongStep)
 	}
-	if outcome != OutcomeCompleted && outcome != OutcomeDropped {
-		return fmt.Errorf("%w: итог — «прошёл» или «дропнул»", ErrBadInput)
+	if outcome != OutcomeCompleted && outcome != OutcomeDropped && outcome != OutcomeTech {
+		return fmt.Errorf("%w: итог — «прошёл», «дропнул» или «тех. дроп»", ErrBadInput)
 	}
 	if err := checkHours(outcome, hours); err != nil {
 		return err
@@ -626,13 +629,32 @@ func (e *Engine) ConfirmGame(s *State, actor PlayerID, playthroughID int64, acce
 	}
 	pt.Confirmed = true
 	if s.CurrentTurn(pt.Player) == t {
-		if pt.Outcome == OutcomeDropped {
+		switch pt.Outcome {
+		case OutcomeDropped:
 			r.newTurn(pt.Player, ReasonDropped, 0)
-		} else {
+		case OutcomeTech:
+			r.carryItems(pt, r.newTurn(pt.Player, ReasonTech, 0))
+		default:
 			r.newTurn(pt.Player, ReasonCompleted, s.Settings.spinsAfter(s.Game(pt.Game).HLTB))
 		}
 	}
 	return nil
+}
+
+// carryItems moves the items of a technically dropped game to the next turn.
+// Single-game items wait there for the new game; multi-game items lose this
+// game from their chain, so it does not count towards their lifetime.
+func (r *run) carryItems(pt *Playthrough, next *Turn) {
+	for _, it := range r.s.Items {
+		if it.Placement == PlaceVoided || !slices.Contains(it.Chain, pt.ID) {
+			continue
+		}
+		it.Chain = slices.DeleteFunc(it.Chain, func(id int64) bool { return id == pt.ID })
+		if len(it.Chain) == 0 && it.Placement == PlaceAttached {
+			it.Placement, it.TurnID = PlacePending, next.ID
+			next.Carried = append(next.Carried, it.ID)
+		}
+	}
 }
 
 // ConfirmItem is the judge's decision on an item's result.

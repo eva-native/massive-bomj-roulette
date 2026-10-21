@@ -82,6 +82,10 @@ export interface EventSettings {
    */
   gameWheelSeconds: number /* int */;
   itemWheelSeconds: number /* int */;
+  /**
+   * Points for the fastest completion of a game; not set means 5.
+   */
+  recordPoints?: number /* int */;
 }
 export interface SpinsRow {
   minHours: number /* int */;
@@ -216,7 +220,7 @@ export interface PlayerRef {
 export interface TurnView {
   id: number /* int64 */;
   number: number /* int */;
-  reason: string; // "start" | "completed" | "dropped"
+  reason: string; // "start" | "completed" | "dropped" | "tech"
   steps: StepView[];
   /**
    * Current is the step to take now; null while waiting for the judge.
@@ -276,7 +280,7 @@ export interface PlaythroughView {
   game: string;
   hltbHours: number /* int */;
   basePoints: number /* int */;
-  outcome: string; // "" | "completed" | "dropped"
+  outcome: string; // "" | "completed" | "dropped" | "tech"
   hours: number /* float64 */;
   proof: string;
   confirmed: boolean;
@@ -345,7 +349,7 @@ export interface ChooseRequest {
   choice: number /* int64 */;
 }
 export interface FinishRequest {
-  outcome: string; // "completed" | "dropped"
+  outcome: string; // "completed" | "dropped" | "tech"
   hours: number /* float64 */;
   proof: string;
 }

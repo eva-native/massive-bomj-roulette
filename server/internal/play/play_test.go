@@ -188,12 +188,12 @@ func TestFullTurn(t *testing.T) {
 	}
 
 	v = f.view(f.alice)
-	if v.Points != 39+5+1+4 || v.Turn.Number != 2 || v.Turn.Current.Kind != "spin_items" || len(v.History) != 1 {
+	if v.Points != 39+5+game.DefaultRecordPoints+4 || v.Turn.Number != 2 || v.Turn.Current.Kind != "spin_items" || len(v.History) != 1 {
 		t.Fatalf("after confirm: points %d, turn %+v, history %d", v.Points, v.Turn, len(v.History))
 	}
 
 	board, err := f.play.Leaderboard(f.ctx, "lbr", nil)
-	if err != nil || board[0].Player.Name != "Алиса" || board[0].Points != 49 || board[0].Completed != 1 {
+	if err != nil || board[0].Player.Name != "Алиса" || board[0].Points != 39+5+game.DefaultRecordPoints+4 || board[0].Completed != 1 {
 		t.Fatalf("leaderboard = %+v, %v", board, err)
 	}
 	acts, err := f.play.Activity(f.ctx, "lbr", 0)
@@ -368,7 +368,7 @@ func TestJudgeTools(t *testing.T) {
 	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, ptID, true); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.view(f.alice).Points; got != 17-10+1 {
+	if got := f.view(f.alice).Points; got != 17-10+game.DefaultRecordPoints {
 		t.Fatalf("points = %d", got)
 	}
 	if err := f.play.EditPlaythrough(f.ctx, "lbr", f.alice, ptID, api.EditPlaythroughRequest{Hours: 5}); !errors.Is(err, events.ErrForbidden) {
@@ -377,7 +377,7 @@ func TestJudgeTools(t *testing.T) {
 	if err := f.play.EditPlaythrough(f.ctx, "lbr", f.admin, ptID, api.EditPlaythroughRequest{Hours: 8, Proof: "https://proof"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.view(f.alice).Points; got != 17+2+1 {
+	if got := f.view(f.alice).Points; got != 17+2+game.DefaultRecordPoints {
 		t.Fatalf("points after the edit = %d", got)
 	}
 	acts, _ := f.play.Activity(f.ctx, "lbr", 1)
@@ -413,7 +413,7 @@ func TestFinishFreezesTheEvent(t *testing.T) {
 
 	// Nothing can change any more.
 	frozen := f.view(f.alice)
-	if frozen.CanAct || frozen.Turn.Waiting != "Ивент завершён" || frozen.Points != 18 {
+	if frozen.CanAct || frozen.Turn.Waiting != "Ивент завершён" || frozen.Points != 17+game.DefaultRecordPoints {
 		t.Fatalf("frozen view = canAct %v, waiting %q, points %d", frozen.CanAct, frozen.Turn.Waiting, frozen.Points)
 	}
 	if _, err := f.play.Spin(f.ctx, "lbr", f.alice, frozen.Turn.Current.ID); !errors.Is(err, events.ErrConflict) {
@@ -428,17 +428,17 @@ func TestFinishFreezesTheEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	board, err := f.play.Leaderboard(f.ctx, "lbr", nil)
-	if err != nil || board[0].Points != 18 {
+	if err != nil || board[0].Points != 17+game.DefaultRecordPoints {
 		t.Fatalf("frozen leaderboard = %+v, %v", board, err)
 	}
-	if v := f.view(f.alice); v.Points != 18 {
+	if v := f.view(f.alice); v.Points != 17+game.DefaultRecordPoints {
 		t.Fatalf("frozen points = %d", v.Points)
 	}
 	if q, _ := f.play.Queue(f.ctx, "lbr", f.admin); len(q) != 0 {
 		t.Fatalf("queue of a finished event = %+v", q)
 	}
 	acts, _ := f.play.Activity(f.ctx, "lbr", 1)
-	if acts[0].Kind != "finish_event" || acts[0].Message != "Судья Судья завершает ивент: победитель — Алиса (18)" {
+	if acts[0].Kind != "finish_event" || acts[0].Message != "Судья Судья завершает ивент: победитель — Алиса (22)" {
 		t.Fatalf("journal = %+v", acts[0])
 	}
 }

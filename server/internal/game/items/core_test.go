@@ -7,6 +7,9 @@ import (
 	"github.com/eva-native/massive-bomj-roulette/server/internal/game"
 )
 
+// rec is what a speed record gives by default.
+const rec = game.DefaultRecordPoints
+
 func spinItems(sc *scenario, p game.PlayerID, results ...string) {
 	sc.t.Helper()
 	for _, r := range results {
@@ -46,14 +49,14 @@ func TestTurnFlowAndCoreScoring(t *testing.T) {
 	}
 
 	sc.confirm(alice)
-	sc.expectTotal(alice, 39+5+1) // base + speed (30−25) + record
+	sc.expectTotal(alice, 39+5+rec) // base + speed (30−25) + record
 	sc.expectSteps(alice, game.StepSpinItems, game.StepSpinGame, game.StepPlay)
 
 	// Bob completes the same game faster: the record moves to him.
 	spinItems(sc, bob, "reflex", "reflex", "reflex")
 	sc.spin(bob, "GTA SA")
 	sc.play(bob, game.OutcomeCompleted, 20)
-	sc.expectTotal(bob, 39+10+1)
+	sc.expectTotal(bob, 39+10+rec)
 	sc.expectTotal(alice, 39+5)
 
 	// GTA SA left Alice's wheel; only Celeste remains.
@@ -95,7 +98,7 @@ func TestJudgeRejectsOutcome(t *testing.T) {
 	}
 	sc.expectSteps(a, game.StepPlay)
 	sc.play(a, game.OutcomeCompleted, 9)
-	sc.expectTotal(a, 17+1+1)
+	sc.expectTotal(a, 17+1+rec)
 }
 
 func TestJudgeCanPlayAndConfirmThemselves(t *testing.T) {
@@ -104,7 +107,7 @@ func TestJudgeCanPlayAndConfirmThemselves(t *testing.T) {
 	spinItems(sc, sc.judge, "reflex", "reflex", "reflex")
 	sc.spin(sc.judge, "G")
 	sc.play(sc.judge, game.OutcomeCompleted, 10)
-	sc.expectTotal(sc.judge, 17+0+1)
+	sc.expectTotal(sc.judge, 17+0+rec)
 }
 
 func TestScoreIsDeterministic(t *testing.T) {
@@ -133,7 +136,7 @@ func TestOncePerPlayerAndSpecialGame(t *testing.T) {
 		t.Fatalf("game = %q, want Смута", got)
 	}
 	sc.play(a, game.OutcomeCompleted, 12)
-	sc.expectTotal(a, 12+10+1+0+1) // base 23, speed 0, record 1
+	sc.expectTotal(a, 12+10+1+0+rec) // base 23, speed 0, record
 
 	// «Внезапный ДЭБ» is gone from Alice's wheel now.
 	if slices.Contains(sc.wheel(a), "smuta") {

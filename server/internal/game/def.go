@@ -250,9 +250,14 @@ func (c *Catalog) Def(id string) *Def { return c.defs[id] }
 // All returns the items in catalog order.
 func (c *Catalog) All() []*Def { return c.order }
 
-// Fingerprint identifies this version of the rules: item texts, flags,
-// fields, parameters and the mechanics' type and settings. It changes when
-// any of those change; changes inside hook code are not seen.
+// engineRules is the version of the rules built into the engine (turns,
+// scoring). Bump it when they change so running events note the change.
+// 2: speed record +5 by default, technical drop.
+const engineRules = 2
+
+// Fingerprint identifies this version of the rules: the engine's rules, item
+// texts, flags, fields, parameters and the mechanics' type and settings. It
+// changes when any of those change; changes inside hook code are not seen.
 func (c *Catalog) Fingerprint() string {
 	type entry struct {
 		ID, Name, Concept, Kind string
@@ -275,7 +280,10 @@ func (c *Catalog) Fingerprint() string {
 			Impl: fmt.Sprintf("%T %+v", d.Impl, d.Impl),
 		})
 	}
-	b, _ := json.Marshal(all)
+	b, _ := json.Marshal(struct {
+		Engine int
+		Items  []entry
+	}{engineRules, all})
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])[:12]
 }

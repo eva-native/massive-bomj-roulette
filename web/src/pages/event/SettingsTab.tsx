@@ -8,6 +8,9 @@ import { buttonClass } from '@/components/buttonClass'
 import { Card, ErrorText, Field, Input, Loading } from '@/components/ui'
 import { kindLabels } from '@/lib/items'
 import { DEFAULT_WHEEL_SECONDS } from '@/lib/wheel'
+
+/** The server's default for a speed record (game.DefaultRecordPoints). */
+const DEFAULT_RECORD_POINTS = 5
 import { useEventContext } from './context'
 
 export function SettingsTab() {
@@ -69,6 +72,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [webhook, setWebhook] = useState(event.settings.webhookUrl ?? '')
   const [gameWheel, setGameWheel] = useState(event.settings.gameWheelSeconds)
   const [itemWheel, setItemWheel] = useState(event.settings.itemWheelSeconds)
+  const [recordPoints, setRecordPoints] = useState(event.settings.recordPoints ?? DEFAULT_RECORD_POINTS)
   const [itemRows, setItemRows] = useState<Record<string, ItemRow>>(() =>
     Object.fromEntries(
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
@@ -109,6 +113,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
           webhookUrl: webhook,
           gameWheelSeconds: gameWheel,
           itemWheelSeconds: itemWheel,
+          recordPoints,
         },
       },
       { onSuccess: () => setSaved(true) },
@@ -124,6 +129,13 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         </Field>
         <Field label="Вебхук Discord" hint="Сюда придут уведомления о крутках и итогах. Видят только судьи.">
           <Input value={webhook} placeholder="https://discord.com/api/webhooks/…" onChange={(e) => setWebhook(e.target.value)} />
+        </Field>
+      </Card>
+
+      <Card className="flex flex-col gap-3">
+        <h2 className="font-semibold">Очки</h2>
+        <Field label="За рекорд скорости" hint="Самое быстрое прохождение игры среди всех участников." className="max-w-56">
+          <Input type="number" min={0} max={100} value={recordPoints} onChange={(e) => setRecordPoints(num(e.target.value))} />
         </Field>
       </Card>
 

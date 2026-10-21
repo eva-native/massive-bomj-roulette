@@ -61,6 +61,8 @@ type EventSettings struct {
 	// setting also covers the movie wheel, the item one the drop wheel.
 	GameWheelSeconds int `json:"gameWheelSeconds"`
 	ItemWheelSeconds int `json:"itemWheelSeconds"`
+	// Points for the fastest completion of a game; not set means 5.
+	RecordPoints *int `json:"recordPoints,omitempty"`
 }
 
 type SpinsRow struct {
@@ -195,7 +197,7 @@ type PlayerRef struct {
 type TurnView struct {
 	ID     int64      `json:"id"`
 	Number int        `json:"number"`
-	Reason string     `json:"reason"` // "start" | "completed" | "dropped"
+	Reason string     `json:"reason"` // "start" | "completed" | "dropped" | "tech"
 	Steps  []StepView `json:"steps"`
 	// Current is the step to take now; null while waiting for the judge.
 	Current *StepView `json:"current" tstype:"StepView | null,required"`
@@ -244,7 +246,7 @@ type PlaythroughView struct {
 	Game       string  `json:"game"`
 	HLTBHours  int     `json:"hltbHours"`
 	BasePoints int     `json:"basePoints"`
-	Outcome    string  `json:"outcome"` // "" | "completed" | "dropped"
+	Outcome    string  `json:"outcome"` // "" | "completed" | "dropped" | "tech"
 	Hours      float64 `json:"hours"`
 	Proof      string  `json:"proof"`
 	Confirmed  bool    `json:"confirmed"`
@@ -307,7 +309,7 @@ type ChooseRequest struct {
 }
 
 type FinishRequest struct {
-	Outcome string  `json:"outcome"` // "completed" | "dropped"
+	Outcome string  `json:"outcome"` // "completed" | "dropped" | "tech"
 	Hours   float64 `json:"hours"`
 	Proof   string  `json:"proof"`
 }
