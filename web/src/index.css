@@ -26,7 +26,8 @@ html.overlay body {
 
 .wheel-spin {
   transform-origin: 50% 50%;
-  animation: wheel-spin 4.5s cubic-bezier(0.15, 0.7, 0.1, 1) forwards;
+  /* The event sets the length through --wheel-duration (see lib/wheel.ts). */
+  animation: wheel-spin var(--wheel-duration, 4.5s) cubic-bezier(0.15, 0.7, 0.1, 1) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

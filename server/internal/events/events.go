@@ -375,6 +375,9 @@ func decodeSettings(raw []byte) (api.EventSettings, error) {
 	return st, nil
 }
 
+// maxWheelSeconds caps how long a wheel may turn.
+const maxWheelSeconds = 120
+
 func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error) {
 	out := api.EventSettings{
 		StartSpins:   in.StartSpins,
@@ -383,9 +386,17 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 		Disabled:     []string{},
 		Params:       map[string]map[string]int{},
 		WebhookURL:   strings.TrimSpace(in.WebhookURL),
+
+		GameWheelSeconds: in.GameWheelSeconds,
+		ItemWheelSeconds: in.ItemWheelSeconds,
 	}
 	if out.StartSpins < 1 || out.StartSpins > 20 {
 		return out, invalid("стартовых круток должно быть от 1 до 20")
+	}
+	for _, sec := range []int{out.GameWheelSeconds, out.ItemWheelSeconds} {
+		if sec < 0 || sec > maxWheelSeconds {
+			return out, invalid("колесо крутится от 1 до %d секунд (0 — как обычно)", maxWheelSeconds)
+		}
 	}
 	if len(in.SpinsByHours) > 20 {
 		return out, invalid("в таблице круток не больше 20 строк")

@@ -10,6 +10,11 @@ export function BoardTab() {
   const { event } = useEventContext()
   const board = useLeaderboard(event.slug)
   const activity = useActivity(event.slug)
+  const rows = board.data ?? []
+  // Everyone tied for first gets a trophy, unless nobody is ahead yet.
+  const top = rows[0]?.points
+  const leaders = rows.filter((r) => r.points === top).length
+  const hasLeader = rows.length > 0 && (leaders < rows.length || top !== 0)
 
   return (
     <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
@@ -26,6 +31,11 @@ export function BoardTab() {
                 <Avatar name={row.player.name} url={row.player.avatarUrl} size="sm" />
                 <span className="flex-1">
                   <span className="font-medium">{row.player.name}</span>
+                  {hasLeader && row.points === top && (
+                    <span className="ml-1" role="img" aria-label="Лидер" title="Лидер">
+                      🏆
+                    </span>
+                  )}
                   <span className="block text-xs text-stone-500">
                     пройдено {row.completed} · дропнуто {row.dropped}
                     {row.playing && ` · играет в «${row.playing}»`}

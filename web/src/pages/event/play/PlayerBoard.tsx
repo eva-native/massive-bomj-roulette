@@ -8,6 +8,7 @@ import { Wheel } from '@/components/Wheel'
 import { Badge, Card, ErrorText, Field, Input } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { cleanHoursInput, parseHours } from '@/lib/hours'
+import { wheelSeconds } from '@/lib/wheel'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
 
@@ -28,12 +29,14 @@ const reasonNames: Record<string, string> = {
 }
 
 /** One player's game: the turn, items, pocket, history and points. */
-export function PlayerBoard({ event, view }: { event: EventDetail; view: PlayerView }) {
+export function PlayerBoard({ event, view: live }: { event: EventDetail; view: PlayerView }) {
   const qc = useQueryClient()
   const spin = useSpin(event.slug)
   // While the wheel turns we show the spin's snapshot, not the live data,
-  // so a refetch in the middle does not cut the animation.
-  const [spinning, setSpinning] = useState<{ result: SpinResult; done: boolean } | null>(null)
+  // so a refetch in the middle does not cut the animation. The board stays
+  // as it was before the spin, so the result shows only once the wheel stops.
+  const [spinning, setSpinning] = useState<{ result: SpinResult; done: boolean; before: PlayerView } | null>(null)
+  const view = spinning && !spinning.done ? spinning.before : live
   const { data: me } = useMe()
   const turn = view.turn
   const isJudge = event.me?.isJudge ?? false
@@ -41,7 +44,7 @@ export function PlayerBoard({ event, view }: { event: EventDetail; view: PlayerV
   const editAs = isJudge ? 'judge' : me?.id === view.player.id ? 'player' : null
 
   const doSpin = (stepId: number) => {
-    spin.mutate(stepId, { onSuccess: (result) => setSpinning({ result, done: false }) })
+    spin.mutate(stepId, { onSuccess: (result) => setSpinning({ result, done: false, before: live }) })
   }
   const finishSpin = () => {
     if (!spinning) return
@@ -69,7 +72,12 @@ export function PlayerBoard({ event, view }: { event: EventDetail; view: PlayerV
 
           {spinning && !spinning.done ? (
             <div className="flex flex-col items-center gap-3">
-              <Wheel sectors={spinning.result.wheel.sectors} target={spinning.result.result} onStop={finishSpin} />
+              <Wheel
+                sectors={spinning.result.wheel.sectors}
+                target={spinning.result.result}
+                seconds={wheelSeconds(event.settings, spinning.result.wheel.kind)}
+                onStop={finishSpin}
+              />
               <p className="text-sm text-stone-500">Крутится…</p>
             </div>
           ) : (

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
+import { useEvent } from '@/api/events'
 import { useActivity, useEventStream, useLeaderboard } from '@/api/play'
 import { Wheel } from '@/components/Wheel'
+import { wheelSeconds } from '@/lib/wheel'
 
 const wheelNames: Record<string, string> = {
   items: 'Колесо эффектов и бонусов',
@@ -27,6 +29,7 @@ export function OverlayPage() {
   useEventStream(slug)
   const activity = useActivity(slug)
   const board = useLeaderboard(slug)
+  const event = useEvent(slug) // for the wheel's length
 
   // Spins that happened before the overlay opened are not replayed.
   const [baseline, setBaseline] = useState<number | null>(null)
@@ -58,6 +61,7 @@ export function OverlayPage() {
                 sectors={current.spin.wheel.sectors}
                 target={current.spin.result}
                 legend={false}
+                seconds={wheelSeconds(event.data?.settings, current.spin.wheel.kind)}
                 onStop={() => {
                   setStopped(current.id)
                   setTimeout(() => setHidden(current.id), RESULT_MS)

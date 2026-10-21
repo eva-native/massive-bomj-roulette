@@ -76,6 +76,12 @@ export interface EventSettings {
    * Discord webhook for notifications; visible to judges only.
    */
   webhookUrl?: string;
+  /**
+   * How long the wheel turns, in seconds; 0 keeps the default. The game
+   * setting also covers the movie wheel, the item one the drop wheel.
+   */
+  gameWheelSeconds: number /* int */;
+  itemWheelSeconds: number /* int */;
 }
 export interface SpinsRow {
   minHours: number /* int */;

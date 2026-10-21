@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { FieldView, ItemView, Me, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
@@ -85,10 +85,14 @@ describe('my turn', () => {
     })
     vi.stubGlobal('fetch', backend.fetch)
     const user = userEvent.setup()
-    renderApp('/e/lbr/play')
+    const { queryClient } = renderApp('/e/lbr/play')
 
     await user.click(await screen.findByRole('button', { name: 'Крутить' }))
     expect(await screen.findByText('Крутится…')).toBeInTheDocument()
+    // A live refetch in the middle of the spin does not give the result away.
+    await act(() => queryClient.invalidateQueries())
+    await act(() => new Promise((r) => setTimeout(r, 50))) // let the new data render
+    expect(screen.queryByText('Колесо эффектов и бонусов: ОПАААА')).not.toBeInTheDocument()
     // jsdom has no CSS animations: end the spin by hand.
     fireEvent.animationEnd(screen.getByTestId('wheel-rotor'))
 

@@ -61,17 +61,22 @@ export function Wheel({
   sectors,
   target,
   onStop,
+  seconds,
   legend = true,
 }: {
   sectors: Sector[]
   target: number | null
   onStop?: () => void
+  /** How long the spin lasts; the CSS default when not set. */
+  seconds?: number
   /** List the sectors under the wheel when their labels do not fit on it. */
   legend?: boolean
 }) {
   const parts = useMemo(() => slices(sectors), [sectors])
   const spinning = target !== null && parts[target] !== undefined
-  const style = spinning ? ({ '--wheel-to': `${finalAngle(parts, target)}deg` } as CSSProperties) : undefined
+  const style = spinning
+    ? ({ '--wheel-to': `${finalAngle(parts, target)}deg`, ...(seconds ? { '--wheel-duration': `${seconds}s` } : {}) } as CSSProperties)
+    : undefined
 
   const showLabels = parts.length <= MAX_LABELS
 

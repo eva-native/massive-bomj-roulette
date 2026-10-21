@@ -57,6 +57,10 @@ type EventSettings struct {
 	Params map[string]map[string]int `json:"params"`
 	// Discord webhook for notifications; visible to judges only.
 	WebhookURL string `json:"webhookUrl,omitempty"`
+	// How long the wheel turns, in seconds; 0 keeps the default. The game
+	// setting also covers the movie wheel, the item one the drop wheel.
+	GameWheelSeconds int `json:"gameWheelSeconds"`
+	ItemWheelSeconds int `json:"itemWheelSeconds"`
 }
 
 type SpinsRow struct {

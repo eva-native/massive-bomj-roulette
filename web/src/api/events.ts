@@ -27,8 +27,8 @@ export function useEvents() {
   return useQuery({ queryKey: eventKeys.list, queryFn: () => api<EventSummary[]>('/api/events') })
 }
 
-export function useEvent(slug: string) {
-  return useQuery({ queryKey: eventKeys.detail(slug), queryFn: () => api<EventDetail>(base(slug)) })
+export function useEvent(slug: string, enabled = true) {
+  return useQuery({ queryKey: eventKeys.detail(slug), queryFn: () => api<EventDetail>(base(slug)), enabled })
 }
 
 export function useItems(slug: string) {

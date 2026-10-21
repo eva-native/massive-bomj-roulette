@@ -7,6 +7,7 @@ import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { Card, ErrorText, Field, Input, Loading } from '@/components/ui'
 import { kindLabels } from '@/lib/items'
+import { DEFAULT_WHEEL_SECONDS } from '@/lib/wheel'
 import { useEventContext } from './context'
 
 export function SettingsTab() {
@@ -66,6 +67,8 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [startSpins, setStartSpins] = useState(event.settings.startSpins)
   const [rows, setRows] = useState<SpinsRow[]>(event.settings.spinsByHours)
   const [webhook, setWebhook] = useState(event.settings.webhookUrl ?? '')
+  const [gameWheel, setGameWheel] = useState(event.settings.gameWheelSeconds)
+  const [itemWheel, setItemWheel] = useState(event.settings.itemWheelSeconds)
   const [itemRows, setItemRows] = useState<Record<string, ItemRow>>(() =>
     Object.fromEntries(
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
@@ -95,7 +98,19 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
       }
     }
     update.mutate(
-      { title, settings: { startSpins, spinsByHours: rows, weights, disabled, params, webhookUrl: webhook } },
+      {
+        title,
+        settings: {
+          startSpins,
+          spinsByHours: rows,
+          weights,
+          disabled,
+          params,
+          webhookUrl: webhook,
+          gameWheelSeconds: gameWheel,
+          itemWheelSeconds: itemWheel,
+        },
+      },
       { onSuccess: () => setSaved(true) },
     )
   }
@@ -110,6 +125,19 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         <Field label="Вебхук Discord" hint="Сюда придут уведомления о крутках и итогах. Видят только судьи.">
           <Input value={webhook} placeholder="https://discord.com/api/webhooks/…" onChange={(e) => setWebhook(e.target.value)} />
         </Field>
+      </Card>
+
+      <Card className="flex flex-col gap-3">
+        <h2 className="font-semibold">Длительность вращения колеса</h2>
+        <p className="text-xs text-stone-500">В секундах, до 120. Пусто или 0 — как обычно ({String(DEFAULT_WHEEL_SECONDS).replace('.', ',')} с). Действует и на оверлей.</p>
+        <div className="flex flex-wrap gap-3">
+          <Field label="Колесо игр и киноколесо" className="max-w-56">
+            <Input type="number" min={0} max={120} value={gameWheel || ''} onChange={(e) => setGameWheel(num(e.target.value))} />
+          </Field>
+          <Field label="Колёса предметов и дропов" className="max-w-56">
+            <Input type="number" min={0} max={120} value={itemWheel || ''} onChange={(e) => setItemWheel(num(e.target.value))} />
+          </Field>
+        </div>
       </Card>
 
       <Card className="flex flex-col gap-3">

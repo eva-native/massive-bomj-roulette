@@ -170,6 +170,9 @@ func TestSettings(t *testing.T) {
 		Disabled:     []string{"smuta", "smuta"},
 		Params:       map[string]map[string]int{"opaaa": {"points": 6}, "minus3": {"points": -3}}, // -3 is the default
 		WebhookURL:   "https://discord.com/api/webhooks/1/x",
+
+		GameWheelSeconds: 60,
+		ItemWheelSeconds: 30,
 	}
 	_, err := f.svc.Update(f.ctx, f.alice, "lbr", api.UpdateEventRequest{Settings: &good})
 	expect(t, err, ErrForbidden)
@@ -179,7 +182,8 @@ func TestSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if d.Settings.StartSpins != 4 || len(d.Settings.Weights) != 1 || len(d.Settings.Disabled) != 1 || d.Settings.WebhookURL == "" ||
-		len(d.Settings.Params) != 1 || d.Settings.Params["opaaa"]["points"] != 6 {
+		len(d.Settings.Params) != 1 || d.Settings.Params["opaaa"]["points"] != 6 ||
+		d.Settings.GameWheelSeconds != 60 || d.Settings.ItemWheelSeconds != 30 {
 		t.Fatalf("settings = %+v", d.Settings)
 	}
 
@@ -197,6 +201,8 @@ func TestSettings(t *testing.T) {
 		{StartSpins: 3, WebhookURL: "http://insecure"},
 		{StartSpins: 3, Params: map[string]map[string]int{"opaaa": {"points": 1000}}},
 		{StartSpins: 3, Params: map[string]map[string]int{"opaaa": {"nope": 1}}},
+		{StartSpins: 3, GameWheelSeconds: -1},
+		{StartSpins: 3, ItemWheelSeconds: 121},
 		{StartSpins: 3, Params: map[string]map[string]int{"nope": {"points": 1}}},
 	}
 	for _, s := range bad {
