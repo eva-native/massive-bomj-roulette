@@ -10,8 +10,9 @@ export function LoginPage() {
   const [params] = useSearchParams()
 
   // Only same-site paths, never a full URL from the query.
-  const next = params.get('next') ?? '/'
-  if (me.data) return <Navigate to={next.startsWith('/') && !next.startsWith('//') ? next : '/'} replace />
+  const raw = params.get('next') ?? '/'
+  const next = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
+  if (me.data) return <Navigate to={next} replace />
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-4">
@@ -27,7 +28,7 @@ export function LoginPage() {
       )}
 
       {config.data?.discordLogin && (
-        <a href="/auth/discord/login" className={buttonClass('discord', 'w-full')}>
+        <a href={next === '/' ? '/auth/discord/login' : `/auth/discord/login?next=${encodeURIComponent(next)}`} className={buttonClass('discord', 'w-full')}>
           Войти через Discord
         </a>
       )}

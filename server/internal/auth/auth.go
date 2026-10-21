@@ -25,6 +25,7 @@ import (
 const (
 	sessionCookie = "mbr_session"
 	stateCookie   = "mbr_oauth_state"
+	nextCookie    = "mbr_login_next" // where to go after the Discord login
 	devIDPrefix   = "dev:"
 	maxNameLen    = 32
 )

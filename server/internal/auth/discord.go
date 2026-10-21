@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"golang.org/x/oauth2"
 
@@ -23,7 +25,25 @@ func (s *Service) StartDiscordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.setCookie(w, stateCookie, state, "/auth", stateMaxAge)
+	if next := r.URL.Query().Get("next"); safeNext(next) {
+		s.setCookie(w, nextCookie, url.QueryEscape(next), "/auth", stateMaxAge)
+	}
 	http.Redirect(w, r, s.oauth.AuthCodeURL(state), http.StatusFound)
+}
+
+// safeNext accepts only paths of this site, never a full URL.
+func safeNext(p string) bool {
+	return len(p) <= 500 && strings.HasPrefix(p, "/") && !strings.HasPrefix(p, "//") && !strings.HasPrefix(p, "/\\")
+}
+
+// loginNext is the page to return to after the login, from the cookie.
+func loginNext(r *http.Request) string {
+	if c, err := r.Cookie(nextCookie); err == nil {
+		if next, err := url.QueryUnescape(c.Value); err == nil && safeNext(next) {
+			return next
+		}
+	}
+	return "/"
 }
 
 // FinishDiscordLogin handles Discord's redirect back: checks state, exchanges
@@ -69,7 +89,8 @@ func (s *Service) FinishDiscordLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusFound)
+	s.setCookie(w, nextCookie, "", "/auth", -1)
+	http.Redirect(w, r, loginNext(r), http.StatusFound)
 }
 
 type discordUser struct {

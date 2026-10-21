@@ -50,7 +50,7 @@ func canEdit(u *auth.User, m db.EventMember, addedBy int64) error {
 func toGame(g db.Game, addedByName string) api.Game {
 	out := api.Game{
 		ID: g.ID, Title: g.Title, HLTBHours: int(g.HltbHours), Rating: int(g.Rating), Year: int(g.Year),
-		AddedBy: g.AddedBy, AddedByName: addedByName,
+		AddedBy: g.AddedBy, AddedByName: addedByName, CoverURL: g.CoverUrl,
 	}
 	if g.SpecialKey != nil {
 		out.SpecialKey = *g.SpecialKey
@@ -72,7 +72,7 @@ func (s *Service) Games(ctx context.Context, slug string) ([]api.Game, error) {
 	for _, r := range rows {
 		out = append(out, toGame(db.Game{
 			ID: r.ID, EventID: r.EventID, AddedBy: r.AddedBy, Title: r.Title, HltbHours: r.HltbHours,
-			Rating: r.Rating, Year: r.Year, SpecialKey: r.SpecialKey,
+			Rating: r.Rating, Year: r.Year, SpecialKey: r.SpecialKey, CoverUrl: r.CoverUrl,
 		}, r.AddedByName))
 	}
 	return out, nil
@@ -82,7 +82,11 @@ type cleanGame struct {
 	title              string
 	hltb, rating, year int32
 	specialKey         *string
+	cover              string
 }
+
+// maxCoverLen caps the length of a cover link.
+const maxCoverLen = 500
 
 func (s *Service) cleanGame(in api.GameInput, m db.EventMember, keep *string) (cleanGame, error) {
 	title, err := cleanTitle(in.Title, maxGameTitleLen)
@@ -98,6 +102,9 @@ func (s *Service) cleanGame(in api.GameInput, m db.EventMember, keep *string) (c
 		return cleanGame{}, invalid("год: от %d до %d", minYear, maxYear)
 	}
 	out := cleanGame{title: title, hltb: int32(in.HLTBHours), rating: int32(in.Rating), year: int32(in.Year), specialKey: keep}
+	if out.cover, err = cleanImageURL(in.CoverURL, "обложка"); err != nil {
+		return cleanGame{}, err
+	}
 
 	key := strings.TrimSpace(in.SpecialKey)
 	current := ""
@@ -117,6 +124,37 @@ func (s *Service) cleanGame(in api.GameInput, m db.EventMember, keep *string) (c
 		}
 	}
 	return out, nil
+}
+
+// checkGameLimit enforces the event's limit of games per member. Judges add
+// special games and fix the pool, so they are not limited.
+func (s *Service) checkGameLimit(ctx context.Context, ev db.Event, m db.EventMember, u *auth.User) error {
+	settings, err := decodeSettings(ev.Settings)
+	if err != nil || settings.MaxGamesPerMember <= 0 || m.IsJudge {
+		return err
+	}
+	n, err := s.st.CountGamesAddedBy(ctx, db.CountGamesAddedByParams{EventID: ev.ID, AddedBy: u.ID})
+	if err != nil {
+		return err
+	}
+	if n >= int64(settings.MaxGamesPerMember) {
+		return fmt.Errorf("%w: можно добавить не больше %d игр", ErrConflict, settings.MaxGamesPerMember)
+	}
+	return nil
+}
+
+// cleanImageURL checks an optional https link to a picture.
+func cleanImageURL(raw, what string) (string, error) {
+	u := strings.TrimSpace(raw)
+	switch {
+	case u == "":
+		return "", nil
+	case !strings.HasPrefix(u, "https://"):
+		return "", invalid("%s — ссылка https://", what)
+	case len(u) > maxCoverLen:
+		return "", invalid("%s: ссылка не длиннее %d символов", what, maxCoverLen)
+	}
+	return u, nil
 }
 
 func (s *Service) knownSpecialKey(key string) bool {
@@ -139,8 +177,12 @@ func (s *Service) AddGame(ctx context.Context, u *auth.User, slug string, in api
 	if err != nil {
 		return api.Game{}, err
 	}
+	if err := s.checkGameLimit(ctx, ev, m, u); err != nil {
+		return api.Game{}, err
+	}
 	row, err := s.st.CreateGame(ctx, db.CreateGameParams{
 		EventID: ev.ID, AddedBy: u.ID, Title: g.title, HltbHours: g.hltb, Rating: g.rating, Year: g.year, SpecialKey: g.specialKey,
+		CoverUrl: g.cover,
 	})
 	if isUniqueViolation(err) {
 		return api.Game{}, fmt.Errorf("%w: эта особая игра уже есть в пуле", ErrConflict)
@@ -172,6 +214,7 @@ func (s *Service) UpdateGame(ctx context.Context, u *auth.User, slug string, id 
 	}
 	row, err := s.st.UpdateGame(ctx, db.UpdateGameParams{
 		ID: id, EventID: ev.ID, Title: g.title, HltbHours: g.hltb, Rating: g.rating, Year: g.year, SpecialKey: g.specialKey,
+		CoverUrl: g.cover,
 	})
 	if isUniqueViolation(err) {
 		return api.Game{}, fmt.Errorf("%w: эта особая игра уже есть в пуле", ErrConflict)

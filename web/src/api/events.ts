@@ -72,7 +72,19 @@ export function useUpdateEvent(slug: string) {
 }
 
 export function useJoinEvent(slug: string) {
-  return useEventMutation(slug, () => api<EventDetail>(`${base(slug)}/join`, { method: 'POST' }))
+  return useEventMutation(slug, (invite: string) =>
+    api<EventDetail>(`${base(slug)}/join${invite ? `?invite=${encodeURIComponent(invite)}` : ''}`, { method: 'POST' }),
+  )
+}
+
+/** A new invite code; the old link stops working. Judges only. */
+export function useNewInvite(slug: string) {
+  return useEventMutation(slug, () => api<EventDetail>(`${base(slug)}/invite`, { method: 'POST' }))
+}
+
+/** The link that lets people join an invite-only event. */
+export function inviteLink(slug: string, code: string) {
+  return `${window.location.origin}/e/${encodeURIComponent(slug)}?invite=${encodeURIComponent(code)}`
 }
 
 export function useUpdateMember(slug: string) {

@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { ItemDef, Me } from '@/api/types.gen'
+import type { EventDetail, ItemDef, Me } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { renderApp } from '@/test/renderApp'
 
@@ -42,7 +42,7 @@ describe('events', () => {
   it('lets a player join and add a game; others cannot edit it', async () => {
     const backend = fakeBackend({ me: alice, items })
     backend.addEvent('lbr', 'ЛБР', admin, {
-      games: [{ id: 7, title: 'Чужая игра', hltbHours: 10, rating: 80, year: 2015, specialKey: '', basePoints: 17, addedBy: 99, addedByName: 'Боб' }],
+      games: [{ id: 7, title: 'Чужая игра', hltbHours: 10, rating: 80, year: 2015, specialKey: '', basePoints: 17, addedBy: 99, addedByName: 'Боб', coverUrl: '' }],
     })
     vi.stubGlobal('fetch', backend.fetch)
     const user = userEvent.setup()
@@ -65,6 +65,23 @@ describe('events', () => {
     expect(within(row).getByRole('button', { name: 'Изменить' })).toBeInTheDocument()
     const post = backend.requests.find((r) => r.method === 'POST' && r.url.endsWith('/games'))
     expect(post?.body).toMatchObject({ title: 'GTA San Andreas', hltbHours: 30 })
+  })
+
+  it('joins an invite-only event only with the link', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    const ev = (await (await backend.fetch('/api/events/lbr')).json()) as EventDetail
+    await backend.fetch('/api/events/lbr', { method: 'PATCH', body: JSON.stringify({ settings: { ...ev.settings, inviteOnly: true } }) })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+
+    const { router } = renderApp('/e/lbr')
+    expect(await screen.findByText('Вступление по ссылке-приглашению')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Участвовать' })).not.toBeInTheDocument()
+
+    await router.navigate('/e/lbr?invite=abc')
+    await user.click(await screen.findByRole('button', { name: 'Участвовать' }))
+    await vi.waitFor(() => expect(backend.requests.some((r) => r.url === '/api/events/lbr/join?invite=abc')).toBe(true))
   })
 
   it('saves item weights and switches from the settings tab', async () => {

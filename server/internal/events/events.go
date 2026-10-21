@@ -4,6 +4,8 @@ package events
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -173,7 +175,7 @@ func (s *Service) Get(ctx context.Context, slug string, u *auth.User) (api.Event
 		return api.EventDetail{}, err
 	}
 	if !m.IsJudge {
-		settings.WebhookURL = ""
+		settings.WebhookURL, settings.InviteCode = "", ""
 	}
 	rows, err := s.st.ListMembers(ctx, ev.ID)
 	if err != nil {
@@ -210,6 +212,14 @@ func (s *Service) Update(ctx context.Context, u *auth.User, slug string, req api
 		if err != nil {
 			return api.EventDetail{}, err
 		}
+		// The invite code is the server's: keep it, make one when needed.
+		cur, err := decodeSettings(ev.Settings)
+		if err != nil {
+			return api.EventDetail{}, err
+		}
+		if clean.InviteCode = cur.InviteCode; clean.InviteOnly && clean.InviteCode == "" {
+			clean.InviteCode = rand.Text()
+		}
 		if settings, err = json.Marshal(clean); err != nil {
 			return api.EventDetail{}, err
 		}
@@ -220,19 +230,50 @@ func (s *Service) Update(ctx context.Context, u *auth.User, slug string, req api
 	return s.Get(ctx, slug, u)
 }
 
-// Join makes the user a participant of an active event.
-func (s *Service) Join(ctx context.Context, u *auth.User, slug string) (api.EventDetail, error) {
+// Join makes the user a participant of an active event. An invite-only
+// event needs its invite code, except for people already in the event and
+// admins.
+func (s *Service) Join(ctx context.Context, u *auth.User, slug, invite string) (api.EventDetail, error) {
 	if u == nil {
 		return api.EventDetail{}, ErrUnauthenticated
 	}
-	ev, _, err := s.event(ctx, slug, u)
+	ev, m, err := s.event(ctx, slug, u)
 	if err != nil {
 		return api.EventDetail{}, err
 	}
 	if ev.Status != StatusActive {
 		return api.EventDetail{}, fmt.Errorf("%w: ивент завершён", ErrConflict)
 	}
+	settings, err := decodeSettings(ev.Settings)
+	if err != nil {
+		return api.EventDetail{}, err
+	}
+	if settings.InviteOnly && m.EventID == 0 && !u.IsAdmin &&
+		subtle.ConstantTimeCompare([]byte(invite), []byte(settings.InviteCode)) != 1 {
+		return api.EventDetail{}, fmt.Errorf("%w: в этот ивент вступают по ссылке-приглашению", ErrForbidden)
+	}
 	if _, err := s.st.UpsertMember(ctx, db.UpsertMemberParams{EventID: ev.ID, UserID: u.ID, IsParticipant: true}); err != nil {
+		return api.EventDetail{}, err
+	}
+	return s.Get(ctx, slug, u)
+}
+
+// NewInvite replaces the invite code, so an old link stops working. Judges only.
+func (s *Service) NewInvite(ctx context.Context, u *auth.User, slug string) (api.EventDetail, error) {
+	ev, err := s.judgeEvent(ctx, slug, u)
+	if err != nil {
+		return api.EventDetail{}, err
+	}
+	settings, err := decodeSettings(ev.Settings)
+	if err != nil {
+		return api.EventDetail{}, err
+	}
+	settings.InviteCode = rand.Text()
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		return api.EventDetail{}, err
+	}
+	if _, err := s.st.UpdateEvent(ctx, db.UpdateEventParams{ID: ev.ID, Title: ev.Title, Settings: raw}); err != nil {
 		return api.EventDetail{}, err
 	}
 	return s.Get(ctx, slug, u)
@@ -390,6 +431,12 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 		GameWheelSeconds: in.GameWheelSeconds,
 		ItemWheelSeconds: in.ItemWheelSeconds,
 		RecordPoints:     in.RecordPoints,
+
+		MaxGamesPerMember: in.MaxGamesPerMember,
+		InviteOnly:        in.InviteOnly,
+	}
+	if out.MaxGamesPerMember < 0 || out.MaxGamesPerMember > 1000 {
+		return out, invalid("лимит игр на участника: от 0 до 1000")
 	}
 	if p := out.RecordPoints; p != nil && (*p < 0 || *p > 100) {
 		return out, invalid("очки за рекорд: от 0 до 100")

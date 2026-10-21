@@ -105,7 +105,7 @@ describe('my turn', () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
     })
     let current = view(playing)
     backend.on('GET', /\/players\/2$/, () => current)
@@ -137,7 +137,7 @@ describe('my turn', () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
     })
     backend.on('GET', /\/players\/2$/, () => view(playing, { timer: { elapsedMs: (90 * 60 + 5) * 1000, running: false } }))
     vi.stubGlobal('fetch', backend.fetch)
@@ -195,7 +195,7 @@ describe('judge queue', () => {
       id: 70,
       player: { id: 2, name: 'Алиса', avatarUrl: '' },
       title: 'GTA San Andreas',
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: 'completed', hours: 25, proof: 'https://imgur.com/x', review: '', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: 'completed', hours: 25, proof: 'https://imgur.com/x', review: '', confirmed: false, points: 0 },
       item: null,
       game: 'GTA San Andreas',
     }

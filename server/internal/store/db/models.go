@@ -57,6 +57,7 @@ type Game struct {
 	SpecialKey *string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	CoverUrl   string
 }
 
 type Movie struct {

@@ -49,7 +49,7 @@ func (f *fixture) create(slug string) api.EventDetail {
 
 func (f *fixture) join(u *auth.User, slug string) {
 	f.t.Helper()
-	if _, err := f.svc.Join(f.ctx, u, slug); err != nil {
+	if _, err := f.svc.Join(f.ctx, u, slug, ""); err != nil {
 		f.t.Fatal(err)
 	}
 }
@@ -142,7 +142,7 @@ func TestJoinAndRoles(t *testing.T) {
 		t.Fatalf("bob without roles adds a game: %v", err)
 	}
 	// Joining again makes him a participant.
-	if d, err = f.svc.Join(f.ctx, f.bob, "lbr"); err != nil || d.Me == nil || !d.Me.IsParticipant {
+	if d, err = f.svc.Join(f.ctx, f.bob, "lbr", ""); err != nil || d.Me == nil || !d.Me.IsParticipant {
 		t.Fatalf("bob after rejoin: %+v, %v", d.Me, err)
 	}
 
@@ -329,4 +329,82 @@ func TestUnknownEvent(t *testing.T) {
 	expect(t, err, ErrNotFound)
 	_, err = f.svc.Games(f.ctx, "nope")
 	expect(t, err, ErrNotFound)
+}
+
+func TestGameLimitAndCovers(t *testing.T) {
+	f := newFixture(t)
+	f.create("lbr")
+	f.join(f.alice, "lbr")
+	s := api.EventSettings{StartSpins: 3, MaxGamesPerMember: 1}
+	if _, err := f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); err != nil {
+		t.Fatal(err)
+	}
+
+	game := func(title, cover string) api.GameInput {
+		return api.GameInput{Title: title, HLTBHours: 10, Rating: 80, Year: 2015, CoverURL: cover}
+	}
+	_, err := f.svc.AddGame(f.ctx, f.alice, "lbr", game("G1", "http://insecure/x.png"))
+	expectInvalid(t, err)
+	g, err := f.svc.AddGame(f.ctx, f.alice, "lbr", game("G1", " https://img/x.png "))
+	if err != nil || g.CoverURL != "https://img/x.png" {
+		t.Fatalf("cover = %q, %v", g.CoverURL, err)
+	}
+	_, err = f.svc.AddGame(f.ctx, f.alice, "lbr", game("G2", ""))
+	expect(t, err, ErrConflict) // the limit is 1
+	// Judges are not limited.
+	for _, title := range []string{"J1", "J2"} {
+		if _, err := f.svc.AddGame(f.ctx, f.admin, "lbr", game(title, "")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A judge fills in the cover.
+	if g, err = f.svc.UpdateGame(f.ctx, f.admin, "lbr", g.ID, game("G1", "https://img/y.png")); err != nil || g.CoverURL != "https://img/y.png" {
+		t.Fatalf("judge cover = %q, %v", g.CoverURL, err)
+	}
+	list, _ := f.svc.Games(f.ctx, "lbr")
+	if list[0].CoverURL != "https://img/y.png" {
+		t.Fatalf("list = %+v", list)
+	}
+}
+
+func TestInviteOnly(t *testing.T) {
+	f := newFixture(t)
+	f.create("lbr")
+	f.join(f.alice, "lbr")
+	s := api.EventSettings{StartSpins: 3, InviteOnly: true, InviteCode: "chosen-by-client"}
+	d, err := f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s})
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := d.Settings.InviteCode
+	if code == "" || code == "chosen-by-client" {
+		t.Fatalf("invite code = %q, want one made by the server", code)
+	}
+	// Only judges see it.
+	if d, _ := f.svc.Get(f.ctx, "lbr", f.alice); d.Settings.InviteCode != "" {
+		t.Fatal("invite code leaked to a participant")
+	}
+
+	_, err = f.svc.Join(f.ctx, f.bob, "lbr", "")
+	expect(t, err, ErrForbidden)
+	_, err = f.svc.Join(f.ctx, f.bob, "lbr", "wrong")
+	expect(t, err, ErrForbidden)
+	if _, err := f.svc.Join(f.ctx, f.bob, "lbr", code); err != nil {
+		t.Fatal(err)
+	}
+	// Members come back without the code.
+	if _, err := f.svc.Join(f.ctx, f.alice, "lbr", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Saving the settings keeps the code; a new invite replaces it.
+	if d, _ = f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); d.Settings.InviteCode != code {
+		t.Fatalf("code changed on save: %q", d.Settings.InviteCode)
+	}
+	_, err = f.svc.NewInvite(f.ctx, f.alice, "lbr")
+	expect(t, err, ErrForbidden)
+	d, err = f.svc.NewInvite(f.ctx, f.admin, "lbr")
+	if err != nil || d.Settings.InviteCode == code || d.Settings.InviteCode == "" {
+		t.Fatalf("new invite = %q, %v", d.Settings.InviteCode, err)
+	}
 }

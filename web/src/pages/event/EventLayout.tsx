@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useParams } from 'react-router'
+import { Link, NavLink, Outlet, useParams, useSearchParams } from 'react-router'
 import { useEvent, useJoinEvent } from '@/api/events'
 import { useMe } from '@/api/hooks'
 import { useEventStream } from '@/api/play'
@@ -13,6 +13,8 @@ export function EventLayout() {
   const event = useEvent(slug)
   const join = useJoinEvent(slug)
   const { data: me } = useMe()
+  const [params] = useSearchParams()
+  const invite = params.get('invite') ?? ''
   useEventStream(slug)
 
   if (event.isPending) return <Loading />
@@ -20,6 +22,8 @@ export function EventLayout() {
 
   const ev = event.data
   const isJudge = ev.me?.isJudge ?? false
+  // Invite-only events need the code from the link, unless you are already in the list.
+  const canJoin = !ev.settings.inviteOnly || invite !== '' || Boolean(me?.isAdmin) || ev.members.some((m) => m.userId === me?.id)
   const tabs = [
     { to: '', label: 'Таблица', end: true },
     ...(ev.me?.isParticipant ? [{ to: 'play', label: 'Мой ход' }] : []),
@@ -43,11 +47,15 @@ export function EventLayout() {
         {!ev.me?.isParticipant &&
           ev.status === 'active' &&
           (me ? (
-            <Button onClick={() => join.mutate()} disabled={join.isPending}>
-              Участвовать
-            </Button>
+            canJoin ? (
+              <Button onClick={() => join.mutate(invite)} disabled={join.isPending}>
+                Участвовать
+              </Button>
+            ) : (
+              <span className="text-sm text-stone-500">Вступление по ссылке-приглашению</span>
+            )
           ) : (
-            <Link to={`/login?next=/e/${ev.slug}`} className={buttonClass('primary')}>
+            <Link to={`/login?next=${encodeURIComponent(`/e/${ev.slug}${invite ? `?invite=${invite}` : ''}`)}`} className={buttonClass('primary')}>
               Войти, чтобы участвовать
             </Link>
           ))}

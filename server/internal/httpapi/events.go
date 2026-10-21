@@ -16,6 +16,7 @@ func (s *Server) routeEvents(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/events/{slug}", s.getEvent)
 	mux.HandleFunc("PATCH /api/events/{slug}", s.updateEvent)
 	mux.HandleFunc("POST /api/events/{slug}/join", s.joinEvent)
+	mux.HandleFunc("POST /api/events/{slug}/invite", s.newInvite)
 	mux.HandleFunc("PATCH /api/events/{slug}/members/{userID}", s.updateMember)
 	mux.HandleFunc("DELETE /api/events/{slug}/members/{userID}", s.removeMember)
 	mux.HandleFunc("GET /api/events/{slug}/items", s.listItems)
@@ -109,7 +110,12 @@ func (s *Server) updateEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) joinEvent(w http.ResponseWriter, r *http.Request) {
-	d, err := s.events.Join(r.Context(), user(r), r.PathValue("slug"))
+	d, err := s.events.Join(r.Context(), user(r), r.PathValue("slug"), r.URL.Query().Get("invite"))
+	respond(s, w, http.StatusOK, d, err)
+}
+
+func (s *Server) newInvite(w http.ResponseWriter, r *http.Request) {
+	d, err := s.events.NewInvite(r.Context(), user(r), r.PathValue("slug"))
 	respond(s, w, http.StatusOK, d, err)
 }
 

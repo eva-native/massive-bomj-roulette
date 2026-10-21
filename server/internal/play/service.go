@@ -84,6 +84,7 @@ type session struct {
 	acts    []activity
 	dirty   bool // the snapshot changed while loading (new players got turns)
 	timers  map[int64]*playTimer
+	covers  map[int64]string // game id → cover link
 }
 
 type activity struct {
@@ -134,7 +135,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, slug string, viewer *
 	}
 	st := &game.State{Settings: toGameSettings(settings)}
 	ss := &session{ev: ev, viewer: viewer, st: st, q: q, webhook: settings.WebhookURL,
-		names: map[game.PlayerID]api.PlayerRef{}, members: map[game.PlayerID]db.ListMembersRow{}, timers: map[int64]*playTimer{}}
+		names: map[game.PlayerID]api.PlayerRef{}, members: map[game.PlayerID]db.ListMembersRow{}, timers: map[int64]*playTimer{}, covers: map[int64]string{}}
 
 	members, err := q.ListMembers(ctx, ev.ID)
 	if err != nil {
@@ -159,6 +160,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, slug string, viewer *
 		return nil, err
 	}
 	for _, g := range games {
+		ss.covers[g.ID] = g.CoverUrl
 		key := ""
 		if g.SpecialKey != nil {
 			key = *g.SpecialKey

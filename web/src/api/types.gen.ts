@@ -86,6 +86,17 @@ export interface EventSettings {
    * Points for the fastest completion of a game; not set means 5.
    */
   recordPoints?: number /* int */;
+  /**
+   * How many games one member may add to the pool; 0 means no limit.
+   * Judges are not limited.
+   */
+  maxGamesPerMember: number /* int */;
+  /**
+   * InviteOnly lets people join only with the invite link. InviteCode is
+   * made by the server and visible to judges only.
+   */
+  inviteOnly: boolean;
+  inviteCode?: string;
 }
 export interface SpinsRow {
   minHours: number /* int */;
@@ -166,6 +177,10 @@ export interface GameInput {
   rating: number /* int */;
   year: number /* int */;
   /**
+   * CoverURL is an optional https link to a cover picture.
+   */
+  coverUrl: string;
+  /**
    * SpecialKey marks a game provided by an item; judges only. Empty for
    * regular games.
    */
@@ -181,6 +196,7 @@ export interface Game {
   basePoints: number /* int */;
   addedBy: number /* int64 */;
   addedByName: string;
+  coverUrl: string;
 }
 export interface MovieInput {
   title: string;
@@ -284,6 +300,7 @@ export interface PlaythroughView {
   game: string;
   hltbHours: number /* int */;
   basePoints: number /* int */;
+  coverUrl: string;
   outcome: string; // "" | "completed" | "dropped" | "tech"
   hours: number /* float64 */;
   proof: string;

@@ -71,7 +71,7 @@ func TestDiscordLoginFlow(t *testing.T) {
 
 	// 1. Start: redirect to Discord with a state that is also set as a cookie.
 	rec := httptest.NewRecorder()
-	s.StartDiscordLogin(rec, httptest.NewRequest(http.MethodGet, "/auth/discord/login", nil))
+	s.StartDiscordLogin(rec, httptest.NewRequest(http.MethodGet, "/auth/discord/login?next="+url.QueryEscape("/e/lbr?invite=abc"), nil))
 	if rec.Code != http.StatusFound {
 		t.Fatalf("start: status %d", rec.Code)
 	}
@@ -84,6 +84,16 @@ func TestDiscordLoginFlow(t *testing.T) {
 	if stateCookie == nil || stateCookie.Value != state {
 		t.Fatal("start: state cookie missing or different")
 	}
+	nextCookie := findCookie(rec.Result().Cookies(), nextCookie)
+	if nextCookie == nil {
+		t.Fatal("start: the page to return to is not kept")
+	}
+	// Another site is never a place to return to.
+	rec2 := httptest.NewRecorder()
+	s.StartDiscordLogin(rec2, httptest.NewRequest(http.MethodGet, "/auth/discord/login?next=//evil.example", nil))
+	if c := findCookie(rec2.Result().Cookies(), "mbr_login_next"); c != nil {
+		t.Fatalf("start: kept an outside next %q", c.Value)
+	}
 
 	// 2. Wrong state is rejected.
 	rec = httptest.NewRecorder()
@@ -94,12 +104,13 @@ func TestDiscordLoginFlow(t *testing.T) {
 		t.Fatalf("wrong state: status %d, want 400", rec.Code)
 	}
 
-	// 3. Correct state: session cookie, redirect home, user saved.
+	// 3. Correct state: session cookie, back to the page the user came from, user saved.
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/auth/discord/callback?code=good-code&state="+state, nil)
 	req.AddCookie(stateCookie)
+	req.AddCookie(nextCookie)
 	s.FinishDiscordLogin(rec, req)
-	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/" {
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/e/lbr?invite=abc" {
 		t.Fatalf("callback: %d → %q", rec.Code, rec.Header().Get("Location"))
 	}
 	session := findCookie(rec.Result().Cookies(), sessionCookie)

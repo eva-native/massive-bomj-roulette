@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router'
-import { useItems, useUpdateEvent } from '@/api/events'
+import { inviteLink, useItems, useNewInvite, useUpdateEvent } from '@/api/events'
 import { exportUrl, useFinishEvent } from '@/api/play'
 import type { EventDetail, ItemDef, SpinsRow } from '@/api/types.gen'
 import { Button } from '@/components/Button'
@@ -73,6 +73,8 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [gameWheel, setGameWheel] = useState(event.settings.gameWheelSeconds)
   const [itemWheel, setItemWheel] = useState(event.settings.itemWheelSeconds)
   const [recordPoints, setRecordPoints] = useState(event.settings.recordPoints ?? DEFAULT_RECORD_POINTS)
+  const [maxGames, setMaxGames] = useState(event.settings.maxGamesPerMember)
+  const [inviteOnly, setInviteOnly] = useState(event.settings.inviteOnly)
   const [itemRows, setItemRows] = useState<Record<string, ItemRow>>(() =>
     Object.fromEntries(
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
@@ -114,6 +116,8 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
           gameWheelSeconds: gameWheel,
           itemWheelSeconds: itemWheel,
           recordPoints,
+          maxGamesPerMember: maxGames,
+          inviteOnly,
         },
       },
       { onSuccess: () => setSaved(true) },
@@ -130,6 +134,19 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         <Field label="Вебхук Discord" hint="Сюда придут уведомления о крутках и итогах. Видят только судьи.">
           <Input value={webhook} placeholder="https://discord.com/api/webhooks/…" onChange={(e) => setWebhook(e.target.value)} />
         </Field>
+      </Card>
+
+      <Card className="flex flex-col gap-3">
+        <h2 className="font-semibold">Пул и вступление</h2>
+        <Field label="Игр на участника" hint="Сколько игр каждый может добавить в пул. 0 — без ограничений. Судей не касается." className="max-w-56">
+          <Input type="number" min={0} max={1000} value={maxGames} onChange={(e) => setMaxGames(num(e.target.value))} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={inviteOnly} onChange={(e) => setInviteOnly(e.target.checked)} />
+          Вступление только по ссылке-приглашению
+        </label>
+        {event.settings.inviteOnly && event.settings.inviteCode && <InviteLink event={event} />}
+        {inviteOnly && !event.settings.inviteOnly && <p className="text-xs text-stone-500">Ссылка появится после сохранения.</p>}
       </Card>
 
       <Card className="flex flex-col gap-3">
@@ -240,5 +257,37 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
       </div>
       <ErrorText error={update.error} />
     </form>
+  )
+}
+
+/** The invite link with copy and replace buttons. */
+function InviteLink({ event }: { event: EventDetail }) {
+  const renew = useNewInvite(event.slug)
+  const [copied, setCopied] = useState(false)
+  const link = inviteLink(event.slug, event.settings.inviteCode ?? '')
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <Input readOnly value={link} aria-label="Ссылка-приглашение" onFocus={(e) => e.target.select()} />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          onClick={() => {
+            void navigator.clipboard?.writeText(link).then(() => setCopied(true))
+          }}
+        >
+          {copied ? 'Скопировано' : 'Копировать'}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={renew.isPending}
+          onClick={() => {
+            if (confirm('Выпустить новую ссылку? Старая перестанет работать.')) renew.mutate(undefined, { onSuccess: () => setCopied(false) })
+          }}
+        >
+          Новая ссылка
+        </Button>
+      </div>
+      <ErrorText error={renew.error} />
+    </div>
   )
 }

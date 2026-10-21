@@ -10,10 +10,26 @@ import (
 	"time"
 )
 
+const countGamesAddedBy = `-- name: CountGamesAddedBy :one
+SELECT count(*) FROM games WHERE event_id = $1 AND added_by = $2
+`
+
+type CountGamesAddedByParams struct {
+	EventID int64
+	AddedBy int64
+}
+
+func (q *Queries) CountGamesAddedBy(ctx context.Context, arg CountGamesAddedByParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countGamesAddedBy, arg.EventID, arg.AddedBy)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createGame = `-- name: CreateGame :one
-INSERT INTO games (event_id, added_by, title, hltb_hours, rating, year, special_key)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, event_id, added_by, title, hltb_hours, rating, year, special_key, created_at, updated_at
+INSERT INTO games (event_id, added_by, title, hltb_hours, rating, year, special_key, cover_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, event_id, added_by, title, hltb_hours, rating, year, special_key, created_at, updated_at, cover_url
 `
 
 type CreateGameParams struct {
@@ -24,6 +40,7 @@ type CreateGameParams struct {
 	Rating     int32
 	Year       int32
 	SpecialKey *string
+	CoverUrl   string
 }
 
 func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, error) {
@@ -35,6 +52,7 @@ func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, e
 		arg.Rating,
 		arg.Year,
 		arg.SpecialKey,
+		arg.CoverUrl,
 	)
 	var i Game
 	err := row.Scan(
@@ -48,6 +66,7 @@ func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, e
 		&i.SpecialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CoverUrl,
 	)
 	return i, err
 }
@@ -112,7 +131,7 @@ func (q *Queries) DeleteMovie(ctx context.Context, arg DeleteMovieParams) (int64
 }
 
 const getGame = `-- name: GetGame :one
-SELECT id, event_id, added_by, title, hltb_hours, rating, year, special_key, created_at, updated_at FROM games WHERE id = $1 AND event_id = $2
+SELECT id, event_id, added_by, title, hltb_hours, rating, year, special_key, created_at, updated_at, cover_url FROM games WHERE id = $1 AND event_id = $2
 `
 
 type GetGameParams struct {
@@ -134,6 +153,7 @@ func (q *Queries) GetGame(ctx context.Context, arg GetGameParams) (Game, error) 
 		&i.SpecialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CoverUrl,
 	)
 	return i, err
 }
@@ -161,7 +181,7 @@ func (q *Queries) GetMovie(ctx context.Context, arg GetMovieParams) (Movie, erro
 }
 
 const listGames = `-- name: ListGames :many
-SELECT g.id, g.event_id, g.added_by, g.title, g.hltb_hours, g.rating, g.year, g.special_key, g.created_at, g.updated_at, u.name AS added_by_name
+SELECT g.id, g.event_id, g.added_by, g.title, g.hltb_hours, g.rating, g.year, g.special_key, g.created_at, g.updated_at, g.cover_url, u.name AS added_by_name
 FROM games g
 JOIN users u ON u.id = g.added_by
 WHERE g.event_id = $1
@@ -179,6 +199,7 @@ type ListGamesRow struct {
 	SpecialKey  *string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	CoverUrl    string
 	AddedByName string
 }
 
@@ -202,6 +223,7 @@ func (q *Queries) ListGames(ctx context.Context, eventID int64) ([]ListGamesRow,
 			&i.SpecialKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CoverUrl,
 			&i.AddedByName,
 		); err != nil {
 			return nil, err
@@ -260,9 +282,9 @@ func (q *Queries) ListMovies(ctx context.Context, eventID int64) ([]ListMoviesRo
 
 const updateGame = `-- name: UpdateGame :one
 UPDATE games
-SET title = $3, hltb_hours = $4, rating = $5, year = $6, special_key = $7, updated_at = now()
+SET title = $3, hltb_hours = $4, rating = $5, year = $6, special_key = $7, cover_url = $8, updated_at = now()
 WHERE id = $1 AND event_id = $2
-RETURNING id, event_id, added_by, title, hltb_hours, rating, year, special_key, created_at, updated_at
+RETURNING id, event_id, added_by, title, hltb_hours, rating, year, special_key, created_at, updated_at, cover_url
 `
 
 type UpdateGameParams struct {
@@ -273,6 +295,7 @@ type UpdateGameParams struct {
 	Rating     int32
 	Year       int32
 	SpecialKey *string
+	CoverUrl   string
 }
 
 func (q *Queries) UpdateGame(ctx context.Context, arg UpdateGameParams) (Game, error) {
@@ -284,6 +307,7 @@ func (q *Queries) UpdateGame(ctx context.Context, arg UpdateGameParams) (Game, e
 		arg.Rating,
 		arg.Year,
 		arg.SpecialKey,
+		arg.CoverUrl,
 	)
 	var i Game
 	err := row.Scan(
@@ -297,6 +321,7 @@ func (q *Queries) UpdateGame(ctx context.Context, arg UpdateGameParams) (Game, e
 		&i.SpecialKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CoverUrl,
 	)
 	return i, err
 }

@@ -63,6 +63,13 @@ type EventSettings struct {
 	ItemWheelSeconds int `json:"itemWheelSeconds"`
 	// Points for the fastest completion of a game; not set means 5.
 	RecordPoints *int `json:"recordPoints,omitempty"`
+	// How many games one member may add to the pool; 0 means no limit.
+	// Judges are not limited.
+	MaxGamesPerMember int `json:"maxGamesPerMember"`
+	// InviteOnly lets people join only with the invite link. InviteCode is
+	// made by the server and visible to judges only.
+	InviteOnly bool   `json:"inviteOnly"`
+	InviteCode string `json:"inviteCode,omitempty"`
 }
 
 type SpinsRow struct {
@@ -142,6 +149,8 @@ type GameInput struct {
 	HLTBHours int    `json:"hltbHours"`
 	Rating    int    `json:"rating"`
 	Year      int    `json:"year"`
+	// CoverURL is an optional https link to a cover picture.
+	CoverURL string `json:"coverUrl"`
 	// SpecialKey marks a game provided by an item; judges only. Empty for
 	// regular games.
 	SpecialKey string `json:"specialKey"`
@@ -157,6 +166,7 @@ type Game struct {
 	BasePoints  int    `json:"basePoints"`
 	AddedBy     int64  `json:"addedBy"`
 	AddedByName string `json:"addedByName"`
+	CoverURL    string `json:"coverUrl"`
 }
 
 type MovieInput struct {
@@ -248,6 +258,7 @@ type PlaythroughView struct {
 	Game       string  `json:"game"`
 	HLTBHours  int     `json:"hltbHours"`
 	BasePoints int     `json:"basePoints"`
+	CoverURL   string  `json:"coverUrl"`
 	Outcome    string  `json:"outcome"` // "" | "completed" | "dropped" | "tech"
 	Hours      float64 `json:"hours"`
 	Proof      string  `json:"proof"`

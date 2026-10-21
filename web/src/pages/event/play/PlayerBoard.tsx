@@ -6,6 +6,7 @@ import type { EventDetail, PlayerView, PlaythroughView, SpinResult, StepView, Tu
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
+import { GameCover } from '@/components/GameCover'
 import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
@@ -209,11 +210,14 @@ function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; vi
   const judge = (event.me?.isJudge ?? false) && event.status === 'active'
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <p className="text-lg font-semibold">{playthrough.game}</p>
-        <p className="text-sm text-stone-500">
-          {playthrough.hltbHours} ч HLTB · база {playthrough.basePoints}
-        </p>
+      <div className="flex items-center gap-3">
+        <GameCover url={playthrough.coverUrl} title={playthrough.game} size="lg" />
+        <div>
+          <p className="text-lg font-semibold">{playthrough.game}</p>
+          <p className="text-sm text-stone-500">
+            {playthrough.hltbHours} ч HLTB · база {playthrough.basePoints}
+          </p>
+        </div>
       </div>
       {view.timer && (view.canAct || judge || view.timer.elapsedMs > 0 || view.timer.running) && (
         <Timer

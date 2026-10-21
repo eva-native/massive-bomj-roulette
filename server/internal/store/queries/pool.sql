@@ -9,13 +9,16 @@ ORDER BY g.title, g.id;
 SELECT * FROM games WHERE id = $1 AND event_id = $2;
 
 -- name: CreateGame :one
-INSERT INTO games (event_id, added_by, title, hltb_hours, rating, year, special_key)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO games (event_id, added_by, title, hltb_hours, rating, year, special_key, cover_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
+
+-- name: CountGamesAddedBy :one
+SELECT count(*) FROM games WHERE event_id = $1 AND added_by = $2;
 
 -- name: UpdateGame :one
 UPDATE games
-SET title = $3, hltb_hours = $4, rating = $5, year = $6, special_key = $7, updated_at = now()
+SET title = $3, hltb_hours = $4, rating = $5, year = $6, special_key = $7, cover_url = $8, updated_at = now()
 WHERE id = $1 AND event_id = $2
 RETURNING *;
 

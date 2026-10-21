@@ -85,7 +85,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	for _, u := range []*auth.User{f.alice, f.bob} {
-		if _, err := f.events.Join(f.ctx, u, "lbr"); err != nil {
+		if _, err := f.events.Join(f.ctx, u, "lbr", ""); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -222,6 +222,7 @@ func (s *Service) playthroughView(ss *session, pt *game.Playthrough, entries []g
 	if g := ss.st.Game(pt.Game); g != nil {
 		v.HLTBHours = g.HLTB
 		v.BasePoints = game.BasePoints(*g)
+		v.CoverURL = ss.covers[g.ID]
 	}
 	for _, e := range entries {
 		if e.Playthrough == pt.ID && e.Player == pt.Player {
