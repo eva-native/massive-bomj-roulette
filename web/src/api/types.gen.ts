@@ -97,6 +97,11 @@ export interface EventSettings {
    */
   inviteOnly: boolean;
   inviteCode?: string;
+  /**
+   * Icons are pictures for items, by item id (https links). Items without
+   * one show their default emoji.
+   */
+  icons: { [key: string]: string};
 }
 export interface SpinsRow {
   minHours: number /* int */;
@@ -293,6 +298,10 @@ export interface Sector {
    * Kind of the item for item wheels ("effect" | "bonus" | "drop"), empty otherwise.
    */
   kind: string;
+  /**
+   * DefID is the item's id on item wheels, for its icon; empty otherwise.
+   */
+  defId: string;
 }
 export interface PlaythroughView {
   id: number /* int64 */;

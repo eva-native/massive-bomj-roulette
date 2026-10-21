@@ -63,11 +63,7 @@ func (s *Service) Spin(ctx context.Context, slug string, viewer *auth.User, step
 		}
 		res.Wheel = api.WheelView{Kind: string(sp.Wheel), Sectors: make([]api.Sector, 0, len(sp.Sectors))}
 		for _, sec := range sp.Sectors {
-			out := api.Sector{Label: sec.Label, Weight: sec.Weight}
-			if d := s.def(sec.DefID); d != nil {
-				out.Kind = string(d.Kind)
-			}
-			res.Wheel.Sectors = append(res.Wheel.Sectors, out)
+			res.Wheel.Sectors = append(res.Wheel.Sectors, s.sectorView(sec))
 		}
 		res.Result, res.Label = sp.Result, sp.Picked().Label
 		ss.log("spin", "%s крутит %s: %s", ss.name(me), wheelNames[sp.Wheel], res.Label)

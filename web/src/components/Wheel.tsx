@@ -1,5 +1,6 @@
 import { useMemo, type CSSProperties } from 'react'
 import type { Sector } from '@/api/types.gen'
+import { ItemIcon } from './ItemIcon'
 
 const SIZE = 320
 const R = SIZE / 2 - 6
@@ -62,6 +63,7 @@ export function Wheel({
   target,
   onStop,
   seconds,
+  icons,
   legend = true,
 }: {
   sectors: Sector[]
@@ -69,6 +71,8 @@ export function Wheel({
   onStop?: () => void
   /** How long the spin lasts; the CSS default when not set. */
   seconds?: number
+  /** Item pictures from the event settings, for the legend. */
+  icons?: Record<string, string>
   /** List the sectors under the wheel when their labels do not fit on it. */
   legend?: boolean
 }) {
@@ -115,13 +119,13 @@ export function Wheel({
         {/* The pointer at the top. */}
         <div className="absolute top-0 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[22px] border-x-transparent border-t-stone-900 dark:border-t-stone-100" />
       </div>
-      {legend && !showLabels && <Legend parts={parts} />}
+      {legend && !showLabels && <Legend parts={parts} icons={icons} />}
     </div>
   )
 }
 
 /** The list of sectors with their chance, for wheels too dense to label. */
-function Legend({ parts }: { parts: Slice[] }) {
+function Legend({ parts, icons }: { parts: Slice[]; icons?: Record<string, string> }) {
   return (
     <details className="mt-2 text-sm">
       <summary className="cursor-pointer text-center text-stone-500">Что на колесе ({parts.length})</summary>
@@ -129,6 +133,7 @@ function Legend({ parts }: { parts: Slice[] }) {
         {parts.map((p, i) => (
           <li key={i} className="flex items-center gap-2">
             <span className="size-3 shrink-0 rounded-full border border-stone-900" style={{ background: p.color }} />
+            {p.sector.defId && <ItemIcon defId={p.sector.defId} kind={p.sector.kind} icons={icons} size="sm" />}
             <span className="flex-1 truncate">{p.sector.label}</span>
             <span className="text-xs text-stone-500">{Math.round(((p.end - p.start) / 360) * 100)}%</span>
           </li>

@@ -134,11 +134,7 @@ func (s *Service) turnView(ss *session, t *game.Turn, entries []game.Entry) api.
 		} else {
 			wv := api.WheelView{Kind: string(kind), Sectors: make([]api.Sector, 0, len(sectors))}
 			for _, sec := range sectors {
-				out := api.Sector{Label: sec.Label, Weight: sec.Weight}
-				if d := s.def(sec.DefID); d != nil {
-					out.Kind = string(d.Kind)
-				}
-				wv.Sectors = append(wv.Sectors, out)
+				wv.Sectors = append(wv.Sectors, s.sectorView(sec))
 			}
 			tv.Wheel = &wv
 		}
@@ -155,6 +151,14 @@ func (s *Service) turnView(ss *session, t *game.Turn, entries []game.Entry) api.
 		}
 	}
 	return tv
+}
+
+func (s *Service) sectorView(sec game.Sector) api.Sector {
+	out := api.Sector{Label: sec.Label, Weight: sec.Weight}
+	if d := s.def(sec.DefID); d != nil {
+		out.Kind, out.DefID = string(d.Kind), d.ID
+	}
+	return out
 }
 
 func isSpin(k game.StepKind) bool {

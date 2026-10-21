@@ -12,7 +12,7 @@ const spinEntry = (id: number, label: string): ActivityEntry => ({
   message: `Алиса крутит колесо игр: ${label}`,
   actorName: 'Алиса',
   createdAt: '2026-10-19T10:00:00Z',
-  spin: { player: 'Алиса', wheel: { kind: 'games', sectors: [{ label: 'GTA', weight: 1, kind: '' }, { label: label, weight: 1, kind: '' }] }, result: 1, label },
+  spin: { player: 'Алиса', wheel: { kind: 'games', sectors: [{ label: 'GTA', weight: 1, kind: '', defId: '' }, { label: label, weight: 1, kind: '', defId: '' }] }, result: 1, label },
 })
 
 describe('OBS overlay', () => {

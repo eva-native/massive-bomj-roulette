@@ -5,6 +5,7 @@ import { exportUrl, useFinishEvent } from '@/api/play'
 import type { EventDetail, ItemDef, SpinsRow } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
+import { ItemIcon } from '@/components/ItemIcon'
 import { Card, ErrorText, Field, Input, Loading } from '@/components/ui'
 import { kindLabels } from '@/lib/items'
 import { DEFAULT_WHEEL_SECONDS } from '@/lib/wheel'
@@ -75,6 +76,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [recordPoints, setRecordPoints] = useState(event.settings.recordPoints ?? DEFAULT_RECORD_POINTS)
   const [maxGames, setMaxGames] = useState(event.settings.maxGamesPerMember)
   const [inviteOnly, setInviteOnly] = useState(event.settings.inviteOnly)
+  const [icons, setIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
   const [itemRows, setItemRows] = useState<Record<string, ItemRow>>(() =>
     Object.fromEntries(
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
@@ -118,6 +120,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
           recordPoints,
           maxGamesPerMember: maxGames,
           inviteOnly,
+          icons: Object.fromEntries(Object.entries(icons).filter(([, v]) => v.trim() !== '')),
         },
       },
       { onSuccess: () => setSaved(true) },
@@ -202,7 +205,9 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
 
       <Card className="flex flex-col gap-4">
         <h2 className="font-semibold">Предметы</h2>
-        <p className="text-xs text-stone-500">Вес — относительная частота на колесе. Эффекты и бонусы делят одно колесо.</p>
+        <p className="text-xs text-stone-500">
+          Вес — относительная частота на колесе. Эффекты и бонусы делят одно колесо. Иконка — ссылка на картинку; без неё показывается эмодзи.
+        </p>
         {Object.entries(kindLabels).map(([kind, label]) => (
           <div key={kind} className="flex flex-col gap-1">
             <h3 className="text-sm font-medium text-stone-500">{label}</h3>
@@ -215,8 +220,17 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                     <div className="flex items-center gap-3">
                       <label className="flex flex-1 items-center gap-2">
                         <input type="checkbox" checked={row.enabled} onChange={(e) => setItem(it.id, { enabled: e.target.checked })} />
+                        <ItemIcon defId={it.id} kind={it.kind} icons={icons} size="sm" />
                         {it.name}
                       </label>
+                      <Input
+                        type="url"
+                        className="w-40 text-xs"
+                        placeholder="иконка: https://…"
+                        aria-label={`Иконка «${it.name}»`}
+                        value={icons[it.id] ?? ''}
+                        onChange={(e) => setIcons((m) => ({ ...m, [it.id]: e.target.value }))}
+                      />
                       <Input
                         type="number"
                         min={0}

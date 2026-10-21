@@ -413,6 +413,9 @@ func decodeSettings(raw []byte) (api.EventSettings, error) {
 	if st.Params == nil {
 		st.Params = map[string]map[string]int{}
 	}
+	if st.Icons == nil {
+		st.Icons = map[string]string{}
+	}
 	return st, nil
 }
 
@@ -434,6 +437,20 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 
 		MaxGamesPerMember: in.MaxGamesPerMember,
 		InviteOnly:        in.InviteOnly,
+		Icons:             map[string]string{},
+	}
+	for id, link := range in.Icons {
+		d := s.cat.Def(id)
+		if d == nil {
+			return out, invalid("неизвестный предмет %q", id)
+		}
+		clean, err := cleanImageURL(link, "иконка «"+d.Name+"»")
+		if err != nil {
+			return out, err
+		}
+		if clean != "" {
+			out.Icons[id] = clean
+		}
 	}
 	if out.MaxGamesPerMember < 0 || out.MaxGamesPerMember > 1000 {
 		return out, invalid("лимит игр на участника: от 0 до 1000")

@@ -75,7 +75,7 @@ describe('my turn', () => {
   it('spins the wheel, animates to the server result and shows the next step', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
-    const wheel = { kind: 'items', sectors: [{ label: 'ОПАААА', weight: 1, kind: 'effect' }, { label: 'Парашют', weight: 1, kind: 'bonus' }] }
+    const wheel = { kind: 'items', sectors: [{ label: 'ОПАААА', weight: 1, kind: 'effect', defId: 'opaaa' }, { label: 'Парашют', weight: 1, kind: 'bonus', defId: 'parachute' }] }
     let current = view(turn([step(11, 'spin_items'), step(12, 'spin_game'), step(13, 'play')], { wheel }))
     const after = view(turn([step(11, 'spin_items', { done: true, result: 'ОПАААА' }), step(12, 'spin_game'), step(13, 'play')], { items: [opaaa] }))
     backend.on('GET', /\/players\/2$/, () => current)

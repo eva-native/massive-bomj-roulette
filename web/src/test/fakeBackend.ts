@@ -47,7 +47,7 @@ export function fakeBackend(opts: { config?: AppConfig; me?: Me | null; items?: 
       me = user
     },
     addEvent(slug: string, title: string, judge: Me, extra: Partial<FakeEvent> = {}) {
-      const settings: EventSettings = { startSpins: 3, spinsByHours: [], weights: {}, disabled: [], params: {}, gameWheelSeconds: 0, itemWheelSeconds: 0, maxGamesPerMember: 0, inviteOnly: false }
+      const settings: EventSettings = { startSpins: 3, spinsByHours: [], weights: {}, disabled: [], params: {}, gameWheelSeconds: 0, itemWheelSeconds: 0, maxGamesPerMember: 0, inviteOnly: false, icons: {} }
       events.set(slug, {
         detail: {
           slug,

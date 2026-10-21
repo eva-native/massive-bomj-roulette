@@ -70,6 +70,9 @@ type EventSettings struct {
 	// made by the server and visible to judges only.
 	InviteOnly bool   `json:"inviteOnly"`
 	InviteCode string `json:"inviteCode,omitempty"`
+	// Icons are pictures for items, by item id (https links). Items without
+	// one show their default emoji.
+	Icons map[string]string `json:"icons"`
 }
 
 type SpinsRow struct {
@@ -250,6 +253,8 @@ type Sector struct {
 	Weight int    `json:"weight"`
 	// Kind of the item for item wheels ("effect" | "bonus" | "drop"), empty otherwise.
 	Kind string `json:"kind"`
+	// DefID is the item's id on item wheels, for its icon; empty otherwise.
+	DefID string `json:"defId"`
 }
 
 type PlaythroughView struct {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import { useEvent } from '@/api/events'
 import { useActivity, useEventStream, useLeaderboard } from '@/api/play'
+import { ItemIcon } from '@/components/ItemIcon'
 import { Wheel } from '@/components/Wheel'
 import { wheelSeconds } from '@/lib/wheel'
 
@@ -67,7 +68,18 @@ export function OverlayPage() {
                   setTimeout(() => setHidden(current.id), RESULT_MS)
                 }}
               />
-              {stopped === current.id && <p className="rounded-xl bg-black/60 px-4 py-2 text-2xl font-bold">{current.spin.label}</p>}
+              {stopped === current.id && (
+                <p className="flex items-center gap-2 rounded-xl bg-black/60 px-4 py-2 text-2xl font-bold">
+                  {current.spin.wheel.sectors[current.spin.result]?.defId && (
+                    <ItemIcon
+                      defId={current.spin.wheel.sectors[current.spin.result]!.defId}
+                      kind={current.spin.wheel.sectors[current.spin.result]!.kind}
+                      icons={event.data?.settings.icons}
+                    />
+                  )}
+                  {current.spin.label}
+                </p>
+              )}
             </>
           )}
         </div>

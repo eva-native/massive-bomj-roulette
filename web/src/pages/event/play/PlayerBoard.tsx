@@ -80,6 +80,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                 sectors={spinning.result.wheel.sectors}
                 target={spinning.result.result}
                 seconds={wheelSeconds(event.settings, spinning.result.wheel.kind)}
+                icons={event.settings.icons}
                 onStop={finishSpin}
               />
               <p className="text-sm text-stone-500">Крутится…</p>
@@ -186,7 +187,7 @@ function CurrentStep({
     return (
       <div className="flex flex-col items-center gap-3">
         <p className="font-medium">{stepNames[step.kind]}</p>
-        {turn.wheel && <Wheel sectors={turn.wheel.sectors} target={null} />}
+        {turn.wheel && <Wheel sectors={turn.wheel.sectors} target={null} icons={event.settings.icons} />}
         {view.canAct && (
           <Button onClick={() => onSpin(step.id)} disabled={spinPending}>
             Крутить

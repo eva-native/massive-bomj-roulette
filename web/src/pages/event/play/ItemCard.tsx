@@ -2,9 +2,11 @@ import { useState, type FormEvent } from 'react'
 import { useItemInput, useUseItem } from '@/api/play'
 import type { FieldView, ItemView, Member } from '@/api/types.gen'
 import { Button } from '@/components/Button'
+import { ItemIcon } from '@/components/ItemIcon'
 import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Input, Select } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { useEventContext } from '../context'
 
 const kindTone: Record<string, 'amber' | 'green' | 'stone'> = { effect: 'amber', bonus: 'green', drop: 'stone' }
 const kindName: Record<string, string> = { effect: 'эффект', bonus: 'бонус', drop: 'дроп-дебафф' }
@@ -27,10 +29,12 @@ export function ItemCard({
   canUse: boolean
 }) {
   const use = useUseItem(slug)
+  const { event } = useEventContext()
 
   return (
     <article className={cn('rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900', item.blocked && 'opacity-60')}>
       <div className="flex flex-wrap items-center gap-2">
+        <ItemIcon defId={item.defId} kind={item.kind} icons={event.settings.icons} />
         <h4 className="font-medium">{item.name}</h4>
         <Badge tone={kindTone[item.kind]}>{kindName[item.kind] ?? item.kind}</Badge>
         {item.status && <Badge>{item.status}</Badge>}

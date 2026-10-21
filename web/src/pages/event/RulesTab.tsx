@@ -1,5 +1,6 @@
 import { useItems } from '@/api/events'
 import type { ItemDef } from '@/api/types.gen'
+import { ItemIcon } from '@/components/ItemIcon'
 import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Loading } from '@/components/ui'
 import { kindLabels } from '@/lib/items'
@@ -21,7 +22,7 @@ export function RulesTab() {
           <section key={kind} className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold">{label}</h2>
             {list.map((it) => (
-              <ItemCard key={it.id} item={it} />
+              <ItemCard key={it.id} item={it} icons={event.settings.icons} />
             ))}
           </section>
         )
@@ -30,13 +31,16 @@ export function RulesTab() {
   )
 }
 
-function ItemCard({ item }: { item: ItemDef }) {
+function ItemCard({ item, icons }: { item: ItemDef; icons: Record<string, string> }) {
   return (
     <article
       className={`rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900 ${item.enabled ? '' : 'opacity-50'}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-medium">{item.name}</h3>
+        <h3 className="flex items-center gap-2 font-medium">
+          <ItemIcon defId={item.id} kind={item.kind} icons={icons} />
+          {item.name}
+        </h3>
         <div className="flex gap-2">
           {!item.enabled && <Badge>выключен</Badge>}
           <Badge>вес {item.weight}</Badge>
