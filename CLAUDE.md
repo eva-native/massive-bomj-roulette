@@ -33,6 +33,14 @@ Database tests create and drop their own database on the server from `MBR_TEST_D
 
 Generated code is committed: `server/internal/store/db` (sqlc), `web/src/api/types.gen.ts` (tygo from `server/internal/api`), `server/internal/game/items/texts_gen.go` (from `docs/rules`). Never edit these by hand.
 
+## Git workflow
+
+Git flow; never commit or push to `main` or `develop` directly.
+
+- `develop` is the integration branch. Work in `feature/<name>` or `fix/<name>` from `develop`, open a PR into `develop` (`gh pr create --base develop`).
+- Releases: `release/<version>` from `develop` → PR into `main`, tag the merge, merge back into `develop`. Urgent production fixes: `hotfix/<name>` from `main` → PR into `main` and into `develop`.
+- CI runs on PRs and on pushes to `main` and `develop`. Open the PR and wait for green CI; the repo owner reviews and merges.
+
 ## Rules come first
 
 `docs/rules/` is the single source of truth for the game rules (item names, kinds, texts, scoring, defaults). Change the rules there first, then the code. Item texts reach the code only through `make gen`; `TestCatalogMatchesDocs` fails if `docs/rules` and the catalog disagree. When a rule is ambiguous, pick the simplest unambiguous behaviour and record it in `docs/rules/README.md`, section «Решения по умолчанию». How to add or change an item: `docs/dev/items.md`. Full developer guide: `docs/dev/README.md`.
