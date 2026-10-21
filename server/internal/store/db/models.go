@@ -68,6 +68,17 @@ type Movie struct {
 	CreatedAt time.Time
 }
 
+type PlaySession struct {
+	ID            int64
+	EventID       int64
+	UserID        int64
+	PlaythroughID int64
+	StartedAt     time.Time
+	DurationMs    int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type Session struct {
 	TokenHash []byte
 	UserID    int64

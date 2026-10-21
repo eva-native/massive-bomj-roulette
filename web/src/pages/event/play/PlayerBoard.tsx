@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
-import { playKeys, useChoose, useFinish, useSpin } from '@/api/play'
-import type { EventDetail, PlayerView, PlaythroughView, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import { playKeys, useChoose, useFinish, usePlaySessionMutations, usePlaySessions, useSpin } from '@/api/play'
+import type { EventDetail, PlayerView, PlaySessions, PlaythroughView, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
@@ -10,10 +10,11 @@ import { GameCover } from '@/components/GameCover'
 import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
+import { timerKey, useLocalTimer } from '@/lib/localTimer'
 import { wheelSeconds } from '@/lib/wheel'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
-import { Timer } from './Timer'
+import { PlayTime } from './PlayTime'
 
 const stepNames: Record<string, string> = {
   spin_items: 'Колесо эффектов и бонусов',
@@ -205,10 +206,10 @@ function CurrentStep({
   return null
 }
 
+const noSessions: PlaySessions = { playthrough: 0, sessions: [], totalMs: 0, canEdit: false }
+
 function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; view: PlayerView; playthrough: PlaythroughView; stepId: number }) {
-  // The timer's «Стоп» fills the time in the outcome form.
-  const [time, setTime] = useState<HMS>(emptyHMS)
-  const judge = (event.me?.isJudge ?? false) && event.status === 'active'
+  const sessions = usePlaySessions(event.slug, view.player.id).data ?? noSessions
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
@@ -220,18 +221,31 @@ function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; vi
           </p>
         </div>
       </div>
-      {view.timer && (view.canAct || judge || view.timer.elapsedMs > 0 || view.timer.running) && (
-        <Timer
-          slug={event.slug}
-          playerId={view.player.id}
-          timer={view.timer}
-          canRun={view.canAct}
-          canSet={judge}
-          onStop={(ms) => setTime(hoursToHMS(ms / 3600000))}
-        />
+      {view.canAct ? (
+        // A new game remounts the timer, so it starts from zero.
+        <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthroughId={playthrough.id} stepId={stepId} sessions={sessions} />
+      ) : (
+        <PlayTime slug={event.slug} playerId={view.player.id} sessions={sessions} timer={null} />
       )}
-      {view.canAct && <FinishForm slug={event.slug} stepId={stepId} time={time} setTime={setTime} />}
     </div>
+  )
+}
+
+/** The player's own game: the timer, the sessions and the outcome form. */
+function OwnPlay({ slug, playerId, playthroughId, stepId, sessions }: { slug: string; playerId: number; playthroughId: number; stepId: number; sessions: PlaySessions }) {
+  const timer = useLocalTimer(timerKey(slug, playthroughId))
+  const { add } = usePlaySessionMutations(slug, playerId)
+  // Time still on the timer is saved as a session before the outcome goes to the judge.
+  const saveTimer = async () => {
+    timer.pause()
+    if (timer.ms >= 1000) await add.mutateAsync({ startedAt: '', durationMs: Math.round(timer.ms) })
+    timer.reset()
+  }
+  return (
+    <>
+      <PlayTime slug={slug} playerId={playerId} sessions={sessions} timer={timer} />
+      <FinishForm slug={slug} stepId={stepId} timerMs={sessions.totalMs + timer.ms} beforeSend={saveTimer} />
+    </>
   )
 }
 
@@ -255,17 +269,25 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
   )
 }
 
-function FinishForm({ slug, stepId, time, setTime }: { slug: string; stepId: number; time: HMS; setTime: (v: HMS) => void }) {
+function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepId: number; timerMs: number; beforeSend: () => Promise<void> }) {
   const finish = useFinish(slug)
   const [outcome, setOutcome] = useState<'completed' | 'dropped' | 'tech'>('completed')
+  const [time, setTime] = useState<HMS>(emptyHMS)
   const [proof, setProof] = useState('')
   const [review, setReview] = useState('')
+  const [sending, setSending] = useState(false)
   const hours = hmsToHours(time)
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (hours === null) return
-    finish.mutate({ stepId, outcome, hours, proof, review })
+    setSending(true)
+    try {
+      await beforeSend()
+      finish.mutate({ stepId, outcome, hours, proof, review })
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -290,7 +312,14 @@ function FinishForm({ slug, stepId, time, setTime }: { slug: string; stepId: num
           только колесо игр. Опишите проблему ссылкой на скриншот или видео.
         </p>
       )}
-      <DurationInput label={outcome === 'completed' ? 'Время в игре' : 'Время в игре (необязательно)'} value={time} onChange={setTime} />
+      <div className="flex flex-wrap items-end gap-3">
+        <DurationInput label={outcome === 'completed' ? 'Время в игре' : 'Время в игре (необязательно)'} value={time} onChange={setTime} />
+        {timerMs >= 1000 && (
+          <Button variant="secondary" onClick={() => setTime(hoursToHMS(timerMs / 3600000))}>
+            Взять из таймера: {formatHours(timerMs / 3600000)}
+          </Button>
+        )}
+      </div>
       {hours === null && <p className="text-xs text-red-600">Минуты и секунды — от 0 до 59.</p>}
       <Field label="Доказательство (ссылка)">
         <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
@@ -299,7 +328,7 @@ function FinishForm({ slug, stepId, time, setTime }: { slug: string; stepId: num
         <Textarea value={review} maxLength={2000} onChange={(e) => setReview(e.target.value)} />
       </Field>
       <ErrorText error={finish.error} />
-      <Button type="submit" className="self-start" disabled={finish.isPending || hours === null || (outcome === 'completed' && !hours)}>
+      <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours)}>
         Отправить судье
       </Button>
     </form>

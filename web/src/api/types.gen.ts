@@ -232,10 +232,6 @@ export interface PlayerView {
   history: PlaythroughView[];
   points: number /* int */;
   entries: PointEntry[];
-  /**
-   * Timer is set while the player is playing a game.
-   */
-  timer: TimerView | null;
 }
 export interface PlayerRef {
   id: number /* int64 */;
@@ -316,6 +312,11 @@ export interface PlaythroughView {
   review: string;
   confirmed: boolean;
   points: number /* int */;
+  /**
+   * TimerMs is the time of the player's saved play sessions; set in the
+   * judge's queue to compare with the hours.
+   */
+  timerMs: number /* int64 */;
 }
 export interface ItemView {
   id: number /* int64 */;
@@ -385,6 +386,37 @@ export interface FinishRequest {
   proof: string;
   review: string;
 }
+/**
+ * PlaySession is time spent on a game in one sitting: saved from the
+ * timer in the app or typed in by hand.
+ */
+export interface PlaySession {
+  id: number /* int64 */;
+  startedAt: string; // RFC 3339
+  durationMs: number /* int64 */;
+}
+/**
+ * PlaySessions are the sessions of the game a player is playing now.
+ * Playthrough is 0 when the player is not playing. CanEdit says whether the
+ * viewer may add, change and delete sessions.
+ */
+export interface PlaySessions {
+  playthrough: number /* int64 */;
+  sessions: PlaySession[];
+  totalMs: number /* int64 */;
+  canEdit: boolean;
+}
+/**
+ * AddPlaySessionRequest saves a session. StartedAt (RFC 3339) may be empty:
+ * then the session ends now.
+ */
+export interface AddPlaySessionRequest {
+  startedAt: string;
+  durationMs: number /* int64 */;
+}
+export interface UpdatePlaySessionRequest {
+  durationMs: number /* int64 */;
+}
 export interface InputRequest {
   values: { [key: string]: any};
 }
@@ -392,22 +424,6 @@ export interface EditPlaythroughRequest {
   hours: number /* float64 */;
   proof: string;
   review: string;
-}
-/**
- * TimerRequest drives a player's stopwatch: "start" and "pause" by the
- * player, "set" (to Ms) by a judge.
- */
-export interface TimerRequest {
-  action: string;
-  ms: number /* int64 */;
-}
-/**
- * TimerView is the stopwatch of the game being played. The client keeps it
- * ticking from the moment it got the view while Running.
- */
-export interface TimerView {
-  elapsedMs: number /* int64 */;
-  running: boolean;
 }
 export interface ConfirmRequest {
   accept: boolean;

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -26,7 +25,6 @@ type Service struct {
 	eng    *game.Engine
 	live   *live.Broker
 	notify Sender
-	now    func() time.Time // the clock of the timers; tests replace it
 }
 
 // Sender posts a message to an event's Discord webhook (notify.Notifier).
@@ -35,14 +33,14 @@ type Sender interface {
 }
 
 func New(st *store.Store, eng *game.Engine, broker *live.Broker) *Service {
-	return &Service{st: st, eng: eng, live: broker, now: time.Now}
+	return &Service{st: st, eng: eng, live: broker}
 }
 
 // SetNotifier plugs in Discord notifications.
 func (s *Service) SetNotifier(n Sender) { s.notify = n }
 
 // quietKinds are journal entries not worth a Discord message.
-var quietKinds = map[string]bool{"input": true, "timer": true}
+var quietKinds = map[string]bool{"input": true}
 
 // stateDoc is the part of game.State that is stored as a document.
 type stateDoc struct {
@@ -53,8 +51,6 @@ type stateDoc struct {
 	WheelResets  []game.WheelReset   `json:"wheelResets"`
 	NextID       int64               `json:"nextId"`
 	NextSeq      int64               `json:"nextSeq"`
-	// Timers are the players' stopwatches by player id.
-	Timers map[int64]*playTimer `json:"timers,omitempty"`
 }
 
 // frozenDoc keeps the final standings of a finished event: every view the
@@ -82,8 +78,7 @@ type session struct {
 	freeze  *frozenDoc // set by FinishEvent; saved with the snapshot
 	q       *db.Queries
 	acts    []activity
-	dirty   bool // the snapshot changed while loading (new players got turns)
-	timers  map[int64]*playTimer
+	dirty   bool             // the snapshot changed while loading (new players got turns)
 	covers  map[int64]string // game id → cover link
 }
 
@@ -135,7 +130,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, slug string, viewer *
 	}
 	st := &game.State{Settings: toGameSettings(settings)}
 	ss := &session{ev: ev, viewer: viewer, st: st, q: q, webhook: settings.WebhookURL,
-		names: map[game.PlayerID]api.PlayerRef{}, members: map[game.PlayerID]db.ListMembersRow{}, timers: map[int64]*playTimer{}, covers: map[int64]string{}}
+		names: map[game.PlayerID]api.PlayerRef{}, members: map[game.PlayerID]db.ListMembersRow{}, covers: map[int64]string{}}
 
 	members, err := q.ListMembers(ctx, ev.ID)
 	if err != nil {
@@ -188,9 +183,6 @@ func (s *Service) load(ctx context.Context, q *db.Queries, slug string, viewer *
 		}
 		st.Turns, st.Spins, st.Items, st.Playthroughs = doc.Turns, doc.Spins, doc.Items, doc.Playthroughs
 		st.WheelResets, st.NextID, st.NextSeq = doc.WheelResets, doc.NextID, doc.NextSeq
-		if doc.Timers != nil {
-			ss.timers = doc.Timers
-		}
 	}
 
 	if err := s.addFormerPlayers(ctx, ss); err != nil {
@@ -294,7 +286,7 @@ func (s *Service) write(ctx context.Context, slug string, viewer *auth.User, fn 
 	}
 	doc, err := json.Marshal(stateDoc{
 		Turns: ss.st.Turns, Spins: ss.st.Spins, Items: ss.st.Items, Playthroughs: ss.st.Playthroughs,
-		WheelResets: ss.st.WheelResets, NextID: ss.st.NextID, NextSeq: ss.st.NextSeq, Timers: ss.timers,
+		WheelResets: ss.st.WheelResets, NextID: ss.st.NextID, NextSeq: ss.st.NextSeq,
 	})
 	if err != nil {
 		return err

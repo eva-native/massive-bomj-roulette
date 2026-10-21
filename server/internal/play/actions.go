@@ -107,7 +107,6 @@ func (s *Service) Finish(ctx context.Context, slug string, viewer *auth.User, st
 		}
 		pt := ss.st.Playthrough(ss.st.CurrentTurn(me).Playthrough)
 		pt.Review = review
-		s.pauseTimer(ss, int64(me))
 		title := s.gameTitle(ss, pt.Game)
 		switch game.Outcome(req.Outcome) {
 		case game.OutcomeCompleted:
@@ -430,7 +429,21 @@ func (s *Service) Queue(ctx context.Context, slug string, viewer *auth.User) ([]
 	if ss.frozen != nil {
 		return []api.QueueEntry{}, nil
 	}
-	return s.queue(ss), nil
+	out := s.queue(ss)
+	totals, err := s.st.PlaySessionTotals(ctx, ss.ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	byPt := map[int64]int64{}
+	for _, t := range totals {
+		byPt[t.PlaythroughID] = t.TotalMs
+	}
+	for _, e := range out {
+		if e.Playthrough != nil {
+			e.Playthrough.TimerMs = byPt[e.Playthrough.ID]
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) Activity(ctx context.Context, slug string, limit int) ([]api.ActivityEntry, error) {

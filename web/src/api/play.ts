@@ -4,13 +4,15 @@ import { api } from './client'
 import { eventKeys } from './events'
 import type {
   ActivityEntry,
+  AddPlaySessionRequest,
   EditPlaythroughRequest,
   FinishRequest,
   LeaderboardRow,
+  PlaySession,
+  PlaySessions,
   PlayerView,
   QueueEntry,
   SpinResult,
-  TimerRequest,
 } from './types.gen'
 
 export const playKeys = {
@@ -18,6 +20,7 @@ export const playKeys = {
   leaderboard: (slug: string) => ['events', slug, 'leaderboard'] as const,
   queue: (slug: string) => ['events', slug, 'queue'] as const,
   activity: (slug: string) => ['events', slug, 'activity'] as const,
+  sessions: (slug: string, id: number) => ['events', slug, 'sessions', id] as const,
 }
 
 const base = (slug: string) => `/api/events/${encodeURIComponent(slug)}`
@@ -133,9 +136,34 @@ export function useEditPlaythrough(slug: string) {
   )
 }
 
-/** The player's stopwatch: start/pause by the player, set by a judge. */
-export function useTimer(slug: string, playerId: number) {
-  return usePlayerAction(slug, (req: TimerRequest) => api<PlayerView>(`${base(slug)}/players/${playerId}/timer`, { method: 'POST', json: req }))
+/** Saved play sessions of the game the player is playing now. */
+export function usePlaySessions(slug: string, playerId: number) {
+  return useQuery({
+    queryKey: playKeys.sessions(slug, playerId),
+    queryFn: () => api<PlaySessions>(`${base(slug)}/players/${playerId}/sessions`),
+  })
+}
+
+/** Adding, changing and deleting play sessions; each refreshes the list. */
+export function usePlaySessionMutations(slug: string, playerId: number) {
+  const qc = useQueryClient()
+  const onSuccess = () => qc.invalidateQueries({ queryKey: playKeys.sessions(slug, playerId) })
+  return {
+    add: useMutation({
+      mutationFn: (req: AddPlaySessionRequest) =>
+        api<PlaySession>(`${base(slug)}/players/${playerId}/sessions`, { method: 'POST', json: req }),
+      onSuccess,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, durationMs }: { id: number; durationMs: number }) =>
+        api<PlaySession>(`${base(slug)}/sessions/${id}`, { method: 'PATCH', json: { durationMs } }),
+      onSuccess,
+    }),
+    remove: useMutation({
+      mutationFn: (id: number) => api<void>(`${base(slug)}/sessions/${id}`, { method: 'DELETE' }),
+      onSuccess,
+    }),
+  }
 }
 
 export function useFinishEvent(slug: string) {

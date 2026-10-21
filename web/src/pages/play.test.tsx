@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { FieldView, ItemView, Me, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import type { FieldView, ItemView, Me, PlaySessions, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { renderApp } from '@/test/renderApp'
 
@@ -34,7 +34,7 @@ function turn(steps: StepView[], extra: Partial<TurnView> = {}): TurnView {
 }
 
 function view(t: TurnView | null, extra: Partial<PlayerView> = {}): PlayerView {
-  return { player: { id: alice.id, name: alice.name, avatarUrl: '' }, canAct: true, turn: t, pocket: [], history: [], points: 0, entries: [], timer: null, ...extra }
+  return { player: { id: alice.id, name: alice.name, avatarUrl: '' }, canAct: true, turn: t, pocket: [], history: [], points: 0, entries: [], ...extra }
 }
 
 const opaaa: ItemView = {
@@ -105,7 +105,7 @@ describe('my turn', () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
     })
     let current = view(playing)
     backend.on('GET', /\/players\/2$/, () => current)
@@ -133,23 +133,47 @@ describe('my turn', () => {
     expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x', review: 'Классика' })
   })
 
-  it('fills the time from the timer on «Стоп»', async () => {
+  it('keeps the running session in the browser and saves it as a play session', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
     })
-    backend.on('GET', /\/players\/2$/, () => view(playing, { timer: { elapsedMs: (90 * 60 + 5) * 1000, running: false } }))
+    backend.on('GET', /\/players\/2$/, () => view(playing))
+    let sessions: PlaySessions = {
+      playthrough: 70,
+      sessions: [{ id: 1, startedAt: '2026-10-20T18:00:00Z', durationMs: 3600_000 }],
+      totalMs: 3600_000,
+      canEdit: true,
+    }
+    backend.on('GET', /\/players\/2\/sessions$/, () => sessions)
+    backend.on('POST', /\/players\/2\/sessions$/, (body) => {
+      const { durationMs } = body as { durationMs: number }
+      sessions = { ...sessions, sessions: [...sessions.sessions, { id: 2, startedAt: '2026-10-21T10:00:00Z', durationMs }], totalMs: sessions.totalMs + durationMs }
+      return sessions.sessions[1]
+    })
+    // A paused session from an earlier visit.
+    localStorage.setItem('mbr:timer:lbr:70', JSON.stringify({ elapsedMs: (90 * 60 + 5) * 1000, startedAt: null }))
     vi.stubGlobal('fetch', backend.fetch)
     const user = userEvent.setup()
     renderApp('/e/lbr/play')
 
     expect(await screen.findByRole('timer')).toHaveTextContent('1:30:05')
-    await user.click(screen.getByRole('button', { name: 'Стоп' }))
-    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('1')
+    const panel = screen.getByRole('region', { name: 'Время в игре' })
+    expect(await within(panel).findByText('2 ч 30 мин 5 с')).toBeInTheDocument() // saved hour + current session
+
+    await user.click(screen.getByRole('button', { name: 'Взять из таймера: 2 ч 30 мин 5 с' }))
+    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('2')
     expect(screen.getByLabelText('Время в игре: минуты')).toHaveValue('30')
     expect(screen.getByLabelText('Время в игре: секунды')).toHaveValue('5')
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить сессию' }))
+    expect(await screen.findByRole('timer')).toHaveTextContent('0:00:00')
+    expect(backend.requests.find((r) => r.method === 'POST' && r.url.endsWith('/sessions'))?.body).toEqual({ startedAt: '', durationMs: 5405_000 })
+    expect(localStorage.getItem('mbr:timer:lbr:70')).toBeNull()
+    expect(await within(panel).findByText(/1 ч 30 мин 5 с/)).toBeInTheDocument() // the new session in the list
   })
+
 
   it('locks item fields once they are sent to the judge', async () => {
     const backend = setup(alice)
@@ -195,7 +219,7 @@ describe('judge queue', () => {
       id: 70,
       player: { id: 2, name: 'Алиса', avatarUrl: '' },
       title: 'GTA San Andreas',
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: 'completed', hours: 25, proof: 'https://imgur.com/x', review: '', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: 'completed', hours: 25, proof: 'https://imgur.com/x', review: '', confirmed: false, points: 0, timerMs: 0 },
       item: null,
       game: 'GTA San Andreas',
     }

@@ -21,7 +21,10 @@ func (s *Server) routePlay(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events/{slug}/playthroughs/{id}/confirm", s.confirmGame)
 	mux.HandleFunc("PATCH /api/events/{slug}/playthroughs/{id}", s.editPlaythrough)
 	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/undo", s.undoStep)
-	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/timer", s.timer)
+	mux.HandleFunc("GET /api/events/{slug}/players/{userID}/sessions", s.playSessions)
+	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/sessions", s.addPlaySession)
+	mux.HandleFunc("PATCH /api/events/{slug}/sessions/{id}", s.updatePlaySession)
+	mux.HandleFunc("DELETE /api/events/{slug}/sessions/{id}", s.deletePlaySession)
 	mux.HandleFunc("POST /api/events/{slug}/finish", s.finishEvent)
 	mux.HandleFunc("GET /api/events/{slug}/export", s.exportEvent)
 	mux.HandleFunc("GET /api/events/{slug}/leaderboard", s.leaderboard)
@@ -270,15 +273,49 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) timer(w http.ResponseWriter, r *http.Request) {
+func (s *Server) playSessions(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "userID")
+	if !ok {
+		return
+	}
+	v, err := s.play.PlaySessions(r.Context(), r.PathValue("slug"), user(r), id)
+	respond(s, w, http.StatusOK, v, err)
+}
+
+func (s *Server) addPlaySession(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r, "userID")
 	if !ok || !requireLogin(w, r) {
 		return
 	}
-	var req api.TimerRequest
+	var req api.AddPlaySessionRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	v, err := s.play.Timer(r.Context(), r.PathValue("slug"), user(r), id, req)
+	v, err := s.play.AddPlaySession(r.Context(), r.PathValue("slug"), user(r), id, req)
+	respond(s, w, http.StatusCreated, v, err)
+}
+
+func (s *Server) updatePlaySession(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok || !requireLogin(w, r) {
+		return
+	}
+	var req api.UpdatePlaySessionRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	v, err := s.play.UpdatePlaySession(r.Context(), r.PathValue("slug"), user(r), id, req)
 	respond(s, w, http.StatusOK, v, err)
+}
+
+func (s *Server) deletePlaySession(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok || !requireLogin(w, r) {
+		return
+	}
+	if err := s.play.DeletePlaySession(r.Context(), r.PathValue("slug"), user(r), id); err != nil {
+		s.serviceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

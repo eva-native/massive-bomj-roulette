@@ -62,7 +62,6 @@ func (s *Service) playerView(ss *session, p game.PlayerID) api.PlayerView {
 		tv := s.turnView(ss, t, entries)
 		v.Turn = &tv
 		v.CanAct = ss.viewerID() == p && ss.member.IsParticipant && ss.ev.Status == "active" && tv.Current != nil
-		v.Timer = s.timerView(ss, t)
 	}
 	for _, it := range ss.st.Items {
 		if it.Player == p && it.Placement == game.PlacePocket {

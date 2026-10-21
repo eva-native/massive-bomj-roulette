@@ -491,58 +491,70 @@ func TestRulesVersionAndExport(t *testing.T) {
 	}
 }
 
-func TestTimerAndReview(t *testing.T) {
+func TestPlaySessionsAndReview(t *testing.T) {
 	f := newFixture(t)
-	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	f.play.now = func() time.Time { return now }
 	f.addGame(f.alice, "G1", 10, 80, 2015)
 	f.addGame(f.alice, "G2", 10, 80, 2015)
-
-	timer := func(u *auth.User, action string, ms int64) (api.PlayerView, error) {
-		return f.play.Timer(f.ctx, "lbr", u, f.alice.ID, api.TimerRequest{Action: action, Ms: ms})
+	add := func(u *auth.User, ms int64) (api.PlaySession, error) {
+		return f.play.AddPlaySession(f.ctx, "lbr", u, f.alice.ID, api.AddPlaySessionRequest{DurationMs: ms})
 	}
-	// No game yet: nothing to time.
-	if _, err := timer(f.alice, "start", 0); !errors.Is(err, events.ErrConflict) {
-		t.Fatalf("timer before the game: %v", err)
+	list := func(u *auth.User) api.PlaySessions {
+		t.Helper()
+		v, err := f.play.PlaySessions(f.ctx, "lbr", u, f.alice.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+
+	// No game yet: nothing to save.
+	if _, err := add(f.alice, 60_000); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("session before the game: %v", err)
 	}
 	for range 3 {
 		f.spin(f.alice, "reflex")
 	}
 	f.spin(f.alice, "G1")
-	if v := f.view(f.alice); v.Timer == nil || v.Timer.Running || v.Timer.ElapsedMs != 0 {
-		t.Fatalf("fresh timer = %+v", v.Timer)
-	}
 
-	if _, err := timer(f.bob, "start", 0); !errors.Is(err, events.ErrForbidden) {
-		t.Fatalf("bob started alice's timer: %v", err)
-	}
-	if _, err := timer(f.alice, "set", 1); !errors.Is(err, events.ErrForbidden) {
-		t.Fatalf("a player set the timer: %v", err)
-	}
-	if _, err := timer(f.alice, "start", 0); err != nil {
+	hour := int64(time.Hour / time.Millisecond)
+	first, err := add(f.alice, hour)
+	if err != nil {
 		t.Fatal(err)
 	}
-	now = now.Add(90 * time.Minute)
-	if v := f.view(f.alice); !v.Timer.Running || v.Timer.ElapsedMs != 90*60*1000 {
-		t.Fatalf("running timer = %+v", v.Timer)
+	if _, err := add(f.alice, 500); err == nil {
+		t.Fatal("a session shorter than a second was saved")
 	}
-	v, err := timer(f.alice, "pause", 0)
-	if err != nil || v.Timer.Running || v.Timer.ElapsedMs != 90*60*1000 {
-		t.Fatalf("paused timer = %+v, %v", v.Timer, err)
+	if _, err := add(f.bob, hour); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("bob saved alice's session: %v", err)
 	}
-	now = now.Add(time.Hour) // a pause does not count
-	if v := f.view(f.alice); v.Timer.ElapsedMs != 90*60*1000 {
-		t.Fatalf("timer moved while paused: %+v", v.Timer)
+	if _, err := add(f.admin, hour/2); err != nil { // a judge adds forgotten time
+		t.Fatal(err)
 	}
-	// A judge corrects it.
-	if v, err := timer(f.admin, "set", 2*3600*1000); err != nil || v.Timer.ElapsedMs != 2*3600*1000 {
-		t.Fatalf("judge set = %+v, %v", v.Timer, err)
+	if v := list(f.bob); len(v.Sessions) != 2 || v.TotalMs != hour+hour/2 || v.CanEdit {
+		t.Fatalf("bob sees %+v", v)
+	}
+	if v := list(f.alice); !v.CanEdit {
+		t.Fatal("alice cannot edit her sessions")
 	}
 
-	// The review goes with the outcome; finishing stops the clock.
-	long := strings.Repeat("я", 2001)
+	// The owner corrects and deletes her sessions; others cannot.
+	if _, err := f.play.UpdatePlaySession(f.ctx, "lbr", f.bob, first.ID, api.UpdatePlaySessionRequest{DurationMs: 1000}); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("bob changed a session: %v", err)
+	}
+	if s, err := f.play.UpdatePlaySession(f.ctx, "lbr", f.alice, first.ID, api.UpdatePlaySessionRequest{DurationMs: 2 * hour}); err != nil || s.DurationMs != 2*hour {
+		t.Fatalf("update = %+v, %v", s, err)
+	}
+	second := list(f.alice).Sessions[1]
+	if err := f.play.DeletePlaySession(f.ctx, "lbr", f.alice, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	if v := list(f.alice); v.TotalMs != 2*hour {
+		t.Fatalf("total after edits = %d", v.TotalMs)
+	}
+
+	// The review goes with the outcome.
 	step := f.view(f.alice).Turn.Current.ID
-	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: long}); err == nil {
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: strings.Repeat("я", 2001)}); err == nil {
 		t.Fatal("a too long review was accepted")
 	}
 	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: " Отличная игра "}); err != nil {
@@ -551,6 +563,15 @@ func TestTimerAndReview(t *testing.T) {
 	pt := f.view(f.alice).Turn.Playthrough
 	if pt.Review != "Отличная игра" {
 		t.Fatalf("review = %q", pt.Review)
+	}
+	// The judge sees the timer time next to the hours.
+	q, err := f.play.Queue(f.ctx, "lbr", f.admin)
+	if err != nil || len(q) == 0 || q[0].Playthrough == nil || q[0].Playthrough.TimerMs != 2*hour {
+		t.Fatalf("queue = %+v, %v", q, err)
+	}
+	// Sent to the judge: the player can no longer change the sessions.
+	if err := f.play.DeletePlaySession(f.ctx, "lbr", f.alice, first.ID); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("changed a session of a sent game: %v", err)
 	}
 	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, pt.ID, true); err != nil {
 		t.Fatal(err)
@@ -564,10 +585,10 @@ func TestTimerAndReview(t *testing.T) {
 		t.Errorf("journal has no «за 2 ч»: %+v", acts)
 	}
 
-	// The next game starts from zero.
+	// The next game starts with no sessions.
 	f.spin(f.alice, "reflex")
 	f.spin(f.alice, "G2")
-	if v := f.view(f.alice); v.Timer == nil || v.Timer.ElapsedMs != 0 || v.Timer.Running {
-		t.Fatalf("timer on the next game = %+v", v.Timer)
+	if v := list(f.alice); len(v.Sessions) != 0 || v.TotalMs != 0 || v.Playthrough == pt.ID {
+		t.Fatalf("sessions on the next game = %+v", v)
 	}
 }

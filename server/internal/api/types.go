@@ -199,8 +199,6 @@ type PlayerView struct {
 	History []PlaythroughView `json:"history"`
 	Points  int               `json:"points"`
 	Entries []PointEntry      `json:"entries"`
-	// Timer is set while the player is playing a game.
-	Timer *TimerView `json:"timer" tstype:"TimerView | null,required"`
 }
 
 type PlayerRef struct {
@@ -270,6 +268,9 @@ type PlaythroughView struct {
 	Review     string  `json:"review"`
 	Confirmed  bool    `json:"confirmed"`
 	Points     int     `json:"points"`
+	// TimerMs is the time of the player's saved play sessions; set in the
+	// judge's queue to compare with the hours.
+	TimerMs int64 `json:"timerMs"`
 }
 
 type ItemView struct {
@@ -334,6 +335,35 @@ type FinishRequest struct {
 	Review  string  `json:"review"`
 }
 
+// PlaySession is time spent on a game in one sitting: saved from the
+// timer in the app or typed in by hand.
+type PlaySession struct {
+	ID         int64  `json:"id"`
+	StartedAt  string `json:"startedAt"` // RFC 3339
+	DurationMs int64  `json:"durationMs"`
+}
+
+// PlaySessions are the sessions of the game a player is playing now.
+// Playthrough is 0 when the player is not playing. CanEdit says whether the
+// viewer may add, change and delete sessions.
+type PlaySessions struct {
+	Playthrough int64         `json:"playthrough"`
+	Sessions    []PlaySession `json:"sessions"`
+	TotalMs     int64         `json:"totalMs"`
+	CanEdit     bool          `json:"canEdit"`
+}
+
+// AddPlaySessionRequest saves a session. StartedAt (RFC 3339) may be empty:
+// then the session ends now.
+type AddPlaySessionRequest struct {
+	StartedAt  string `json:"startedAt"`
+	DurationMs int64  `json:"durationMs"`
+}
+
+type UpdatePlaySessionRequest struct {
+	DurationMs int64 `json:"durationMs"`
+}
+
 type InputRequest struct {
 	Values map[string]any `json:"values"`
 }
@@ -342,20 +372,6 @@ type EditPlaythroughRequest struct {
 	Hours  float64 `json:"hours"`
 	Proof  string  `json:"proof"`
 	Review string  `json:"review"`
-}
-
-// TimerRequest drives a player's stopwatch: "start" and "pause" by the
-// player, "set" (to Ms) by a judge.
-type TimerRequest struct {
-	Action string `json:"action"`
-	Ms     int64  `json:"ms"`
-}
-
-// TimerView is the stopwatch of the game being played. The client keeps it
-// ticking from the moment it got the view while Running.
-type TimerView struct {
-	ElapsedMs int64 `json:"elapsedMs"`
-	Running   bool  `json:"running"`
 }
 
 type ConfirmRequest struct {

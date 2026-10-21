@@ -45,6 +45,56 @@ func (q *Queries) AddActivity(ctx context.Context, arg AddActivityParams) (Activ
 	return i, err
 }
 
+const addPlaySession = `-- name: AddPlaySession :one
+INSERT INTO play_sessions (event_id, user_id, playthrough_id, started_at, duration_ms)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, event_id, user_id, playthrough_id, started_at, duration_ms, created_at, updated_at
+`
+
+type AddPlaySessionParams struct {
+	EventID       int64
+	UserID        int64
+	PlaythroughID int64
+	StartedAt     time.Time
+	DurationMs    int64
+}
+
+func (q *Queries) AddPlaySession(ctx context.Context, arg AddPlaySessionParams) (PlaySession, error) {
+	row := q.db.QueryRow(ctx, addPlaySession,
+		arg.EventID,
+		arg.UserID,
+		arg.PlaythroughID,
+		arg.StartedAt,
+		arg.DurationMs,
+	)
+	var i PlaySession
+	err := row.Scan(
+		&i.ID,
+		&i.EventID,
+		&i.UserID,
+		&i.PlaythroughID,
+		&i.StartedAt,
+		&i.DurationMs,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deletePlaySession = `-- name: DeletePlaySession :exec
+DELETE FROM play_sessions WHERE id = $1 AND event_id = $2
+`
+
+type DeletePlaySessionParams struct {
+	ID      int64
+	EventID int64
+}
+
+func (q *Queries) DeletePlaySession(ctx context.Context, arg DeletePlaySessionParams) error {
+	_, err := q.db.Exec(ctx, deletePlaySession, arg.ID, arg.EventID)
+	return err
+}
+
 const freezeEvent = `-- name: FreezeEvent :exec
 UPDATE event_states SET frozen = $2 WHERE event_id = $1
 `
@@ -84,6 +134,31 @@ func (q *Queries) GetFrozen(ctx context.Context, eventID int64) ([]byte, error) 
 	var frozen []byte
 	err := row.Scan(&frozen)
 	return frozen, err
+}
+
+const getPlaySession = `-- name: GetPlaySession :one
+SELECT id, event_id, user_id, playthrough_id, started_at, duration_ms, created_at, updated_at FROM play_sessions WHERE id = $1 AND event_id = $2
+`
+
+type GetPlaySessionParams struct {
+	ID      int64
+	EventID int64
+}
+
+func (q *Queries) GetPlaySession(ctx context.Context, arg GetPlaySessionParams) (PlaySession, error) {
+	row := q.db.QueryRow(ctx, getPlaySession, arg.ID, arg.EventID)
+	var i PlaySession
+	err := row.Scan(
+		&i.ID,
+		&i.EventID,
+		&i.UserID,
+		&i.PlaythroughID,
+		&i.StartedAt,
+		&i.DurationMs,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getUsers = `-- name: GetUsers :many
@@ -201,6 +276,46 @@ func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]L
 	return items, nil
 }
 
+const listPlaySessions = `-- name: ListPlaySessions :many
+SELECT id, event_id, user_id, playthrough_id, started_at, duration_ms, created_at, updated_at FROM play_sessions
+WHERE event_id = $1 AND playthrough_id = $2
+ORDER BY started_at, id
+`
+
+type ListPlaySessionsParams struct {
+	EventID       int64
+	PlaythroughID int64
+}
+
+func (q *Queries) ListPlaySessions(ctx context.Context, arg ListPlaySessionsParams) ([]PlaySession, error) {
+	rows, err := q.db.Query(ctx, listPlaySessions, arg.EventID, arg.PlaythroughID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PlaySession{}
+	for rows.Next() {
+		var i PlaySession
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventID,
+			&i.UserID,
+			&i.PlaythroughID,
+			&i.StartedAt,
+			&i.DurationMs,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockEvent = `-- name: LockEvent :exec
 SELECT pg_advisory_xact_lock($1)
 `
@@ -209,6 +324,39 @@ SELECT pg_advisory_xact_lock($1)
 func (q *Queries) LockEvent(ctx context.Context, pgAdvisoryXactLock int64) error {
 	_, err := q.db.Exec(ctx, lockEvent, pgAdvisoryXactLock)
 	return err
+}
+
+const playSessionTotals = `-- name: PlaySessionTotals :many
+SELECT playthrough_id, sum(duration_ms)::bigint AS total_ms
+FROM play_sessions
+WHERE event_id = $1
+GROUP BY playthrough_id
+`
+
+type PlaySessionTotalsRow struct {
+	PlaythroughID int64
+	TotalMs       int64
+}
+
+// Time per playthrough of the event, for the judge's queue.
+func (q *Queries) PlaySessionTotals(ctx context.Context, eventID int64) ([]PlaySessionTotalsRow, error) {
+	rows, err := q.db.Query(ctx, playSessionTotals, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PlaySessionTotalsRow{}
+	for rows.Next() {
+		var i PlaySessionTotalsRow
+		if err := rows.Scan(&i.PlaythroughID, &i.TotalMs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const saveEventState = `-- name: SaveEventState :exec
@@ -254,4 +402,32 @@ type SetRulesVersionParams struct {
 func (q *Queries) SetRulesVersion(ctx context.Context, arg SetRulesVersionParams) error {
 	_, err := q.db.Exec(ctx, setRulesVersion, arg.ID, arg.RulesVersion)
 	return err
+}
+
+const updatePlaySession = `-- name: UpdatePlaySession :one
+UPDATE play_sessions SET duration_ms = $3, updated_at = now()
+WHERE id = $1 AND event_id = $2
+RETURNING id, event_id, user_id, playthrough_id, started_at, duration_ms, created_at, updated_at
+`
+
+type UpdatePlaySessionParams struct {
+	ID         int64
+	EventID    int64
+	DurationMs int64
+}
+
+func (q *Queries) UpdatePlaySession(ctx context.Context, arg UpdatePlaySessionParams) (PlaySession, error) {
+	row := q.db.QueryRow(ctx, updatePlaySession, arg.ID, arg.EventID, arg.DurationMs)
+	var i PlaySession
+	err := row.Scan(
+		&i.ID,
+		&i.EventID,
+		&i.UserID,
+		&i.PlaythroughID,
+		&i.StartedAt,
+		&i.DurationMs,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
