@@ -65,7 +65,9 @@ export function EventLayout() {
         <p className="rounded-lg bg-stone-100 px-3 py-2 text-sm dark:bg-stone-800">Ивент завершён — итоги заморожены.</p>
       )}
 
-      <nav className="flex gap-1 overflow-x-auto border-b border-stone-200 dark:border-stone-800">
+      {/* Scrolls sideways on narrow screens, never up and down. The bottom line is an inset
+          shadow, so the active tab's underline covers it without sticking out of the box. */}
+      <nav className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-stone-200)] dark:shadow-[inset_0_-1px_0_var(--color-stone-800)]">
         {tabs.map((t) => (
           <NavLink
             key={t.to}
@@ -73,7 +75,7 @@ export function EventLayout() {
             end={t.end}
             className={({ isActive }) =>
               cn(
-                '-mb-px border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap',
+                'border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap',
                 isActive ? 'border-amber-500 text-stone-900 dark:text-stone-100' : 'border-transparent text-stone-500 hover:text-stone-800',
               )
             }
