@@ -430,7 +430,7 @@ func (s *Service) Queue(ctx context.Context, slug string, viewer *auth.User) ([]
 		return []api.QueueEntry{}, nil
 	}
 	out := s.queue(ss)
-	totals, err := s.st.PlaySessionTotals(ctx, ss.ev.ID)
+	totals, err := s.st.PlayTimeTotals(ctx, ss.ev.ID)
 	if err != nil {
 		return nil, err
 	}

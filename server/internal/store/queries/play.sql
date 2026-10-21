@@ -42,30 +42,24 @@ SELECT id, slug, rules_version FROM events WHERE status = 'active' ORDER BY id;
 -- name: SetRulesVersion :exec
 UPDATE events SET rules_version = $2 WHERE id = $1;
 
--- name: ListPlaySessions :many
-SELECT * FROM play_sessions
-WHERE event_id = $1 AND playthrough_id = $2
-ORDER BY started_at, id;
+-- name: GetPlayTime :one
+SELECT total_ms FROM play_times WHERE event_id = $1 AND playthrough_id = $2;
 
--- name: PlaySessionTotals :many
--- Time per playthrough of the event, for the judge's queue.
-SELECT playthrough_id, sum(duration_ms)::bigint AS total_ms
-FROM play_sessions
-WHERE event_id = $1
-GROUP BY playthrough_id;
+-- name: AddPlayTime :one
+-- Adds time to the game's total (a saved session).
+INSERT INTO play_times (event_id, playthrough_id, user_id, total_ms)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (event_id, playthrough_id) DO UPDATE
+SET total_ms = play_times.total_ms + EXCLUDED.total_ms, updated_at = now()
+RETURNING total_ms;
 
--- name: GetPlaySession :one
-SELECT * FROM play_sessions WHERE id = $1 AND event_id = $2;
+-- name: SetPlayTime :one
+INSERT INTO play_times (event_id, playthrough_id, user_id, total_ms)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (event_id, playthrough_id) DO UPDATE
+SET total_ms = EXCLUDED.total_ms, updated_at = now()
+RETURNING total_ms;
 
--- name: AddPlaySession :one
-INSERT INTO play_sessions (event_id, user_id, playthrough_id, started_at, duration_ms)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING *;
-
--- name: UpdatePlaySession :one
-UPDATE play_sessions SET duration_ms = $3, updated_at = now()
-WHERE id = $1 AND event_id = $2
-RETURNING *;
-
--- name: DeletePlaySession :exec
-DELETE FROM play_sessions WHERE id = $1 AND event_id = $2;
+-- name: PlayTimeTotals :many
+-- Saved time per playthrough of the event, for the judge's queue.
+SELECT playthrough_id, total_ms FROM play_times WHERE event_id = $1;

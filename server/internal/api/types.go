@@ -268,7 +268,7 @@ type PlaythroughView struct {
 	Review     string  `json:"review"`
 	Confirmed  bool    `json:"confirmed"`
 	Points     int     `json:"points"`
-	// TimerMs is the time of the player's saved play sessions; set in the
+	// TimerMs is the time the player saved with the timer; set in the
 	// judge's queue to compare with the hours.
 	TimerMs int64 `json:"timerMs"`
 }
@@ -335,33 +335,21 @@ type FinishRequest struct {
 	Review  string  `json:"review"`
 }
 
-// PlaySession is time spent on a game in one sitting: saved from the
-// timer in the app or typed in by hand.
-type PlaySession struct {
-	ID         int64  `json:"id"`
-	StartedAt  string `json:"startedAt"` // RFC 3339
-	DurationMs int64  `json:"durationMs"`
+// PlayTime is the time a player saved for the game they are playing now:
+// the sum of the timer sessions plus anything typed in. Playthrough is 0
+// when the player is not playing. CanEdit says whether the viewer may add
+// to it or change it.
+type PlayTime struct {
+	Playthrough int64 `json:"playthrough"`
+	TotalMs     int64 `json:"totalMs"`
+	CanEdit     bool  `json:"canEdit"`
 }
 
-// PlaySessions are the sessions of the game a player is playing now.
-// Playthrough is 0 when the player is not playing. CanEdit says whether the
-// viewer may add, change and delete sessions.
-type PlaySessions struct {
-	Playthrough int64         `json:"playthrough"`
-	Sessions    []PlaySession `json:"sessions"`
-	TotalMs     int64         `json:"totalMs"`
-	CanEdit     bool          `json:"canEdit"`
-}
-
-// AddPlaySessionRequest saves a session. StartedAt (RFC 3339) may be empty:
-// then the session ends now.
-type AddPlaySessionRequest struct {
-	StartedAt  string `json:"startedAt"`
-	DurationMs int64  `json:"durationMs"`
-}
-
-type UpdatePlaySessionRequest struct {
-	DurationMs int64 `json:"durationMs"`
+// PlayTimeRequest either adds a session to the total (AddMs) or replaces
+// the total (SetMs, when not null).
+type PlayTimeRequest struct {
+	AddMs int64  `json:"addMs"`
+	SetMs *int64 `json:"setMs" tstype:"number | null"`
 }
 
 type InputRequest struct {

@@ -491,65 +491,58 @@ func TestRulesVersionAndExport(t *testing.T) {
 	}
 }
 
-func TestPlaySessionsAndReview(t *testing.T) {
+func TestPlayTimeAndReview(t *testing.T) {
 	f := newFixture(t)
 	f.addGame(f.alice, "G1", 10, 80, 2015)
 	f.addGame(f.alice, "G2", 10, 80, 2015)
-	add := func(u *auth.User, ms int64) (api.PlaySession, error) {
-		return f.play.AddPlaySession(f.ctx, "lbr", u, f.alice.ID, api.AddPlaySessionRequest{DurationMs: ms})
+	hour := int64(time.Hour / time.Millisecond)
+	update := func(u *auth.User, req api.PlayTimeRequest) (api.PlayTime, error) {
+		return f.play.UpdatePlayTime(f.ctx, "lbr", u, f.alice.ID, req)
 	}
-	list := func(u *auth.User) api.PlaySessions {
+	get := func(u *auth.User) api.PlayTime {
 		t.Helper()
-		v, err := f.play.PlaySessions(f.ctx, "lbr", u, f.alice.ID)
+		v, err := f.play.PlayTime(f.ctx, "lbr", u, f.alice.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return v
 	}
+	set := func(ms int64) api.PlayTimeRequest { return api.PlayTimeRequest{SetMs: &ms} }
 
 	// No game yet: nothing to save.
-	if _, err := add(f.alice, 60_000); !errors.Is(err, events.ErrConflict) {
-		t.Fatalf("session before the game: %v", err)
+	if _, err := update(f.alice, api.PlayTimeRequest{AddMs: hour}); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("time before the game: %v", err)
 	}
 	for range 3 {
 		f.spin(f.alice, "reflex")
 	}
 	f.spin(f.alice, "G1")
 
-	hour := int64(time.Hour / time.Millisecond)
-	first, err := add(f.alice, hour)
-	if err != nil {
-		t.Fatal(err)
+	// Sessions add up.
+	if v, err := update(f.alice, api.PlayTimeRequest{AddMs: hour}); err != nil || v.TotalMs != hour {
+		t.Fatalf("first session = %+v, %v", v, err)
 	}
-	if _, err := add(f.alice, 500); err == nil {
+	if v, err := update(f.alice, api.PlayTimeRequest{AddMs: hour / 2}); err != nil || v.TotalMs != hour+hour/2 {
+		t.Fatalf("second session = %+v, %v", v, err)
+	}
+	if _, err := update(f.alice, api.PlayTimeRequest{AddMs: 500}); err == nil {
 		t.Fatal("a session shorter than a second was saved")
 	}
-	if _, err := add(f.bob, hour); !errors.Is(err, events.ErrForbidden) {
-		t.Fatalf("bob saved alice's session: %v", err)
+	if _, err := update(f.alice, set(-1)); err == nil {
+		t.Fatal("negative time was saved")
 	}
-	if _, err := add(f.admin, hour/2); err != nil { // a judge adds forgotten time
-		t.Fatal(err)
+	if _, err := update(f.bob, api.PlayTimeRequest{AddMs: hour}); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("bob changed alice's time: %v", err)
 	}
-	if v := list(f.bob); len(v.Sessions) != 2 || v.TotalMs != hour+hour/2 || v.CanEdit {
+	if v := get(f.bob); v.TotalMs != hour+hour/2 || v.CanEdit {
 		t.Fatalf("bob sees %+v", v)
 	}
-	if v := list(f.alice); !v.CanEdit {
-		t.Fatal("alice cannot edit her sessions")
+	// The player and a judge may correct the total.
+	if v, err := update(f.alice, set(3*hour)); err != nil || v.TotalMs != 3*hour || !get(f.alice).CanEdit {
+		t.Fatalf("set = %+v, %v", v, err)
 	}
-
-	// The owner corrects and deletes her sessions; others cannot.
-	if _, err := f.play.UpdatePlaySession(f.ctx, "lbr", f.bob, first.ID, api.UpdatePlaySessionRequest{DurationMs: 1000}); !errors.Is(err, events.ErrForbidden) {
-		t.Fatalf("bob changed a session: %v", err)
-	}
-	if s, err := f.play.UpdatePlaySession(f.ctx, "lbr", f.alice, first.ID, api.UpdatePlaySessionRequest{DurationMs: 2 * hour}); err != nil || s.DurationMs != 2*hour {
-		t.Fatalf("update = %+v, %v", s, err)
-	}
-	second := list(f.alice).Sessions[1]
-	if err := f.play.DeletePlaySession(f.ctx, "lbr", f.alice, second.ID); err != nil {
-		t.Fatal(err)
-	}
-	if v := list(f.alice); v.TotalMs != 2*hour {
-		t.Fatalf("total after edits = %d", v.TotalMs)
+	if v, err := update(f.admin, set(2*hour)); err != nil || v.TotalMs != 2*hour {
+		t.Fatalf("judge set = %+v, %v", v, err)
 	}
 
 	// The review goes with the outcome.
@@ -564,14 +557,13 @@ func TestPlaySessionsAndReview(t *testing.T) {
 	if pt.Review != "Отличная игра" {
 		t.Fatalf("review = %q", pt.Review)
 	}
-	// The judge sees the timer time next to the hours.
+	// The judge sees the saved time next to the hours; the player cannot change it any more.
 	q, err := f.play.Queue(f.ctx, "lbr", f.admin)
 	if err != nil || len(q) == 0 || q[0].Playthrough == nil || q[0].Playthrough.TimerMs != 2*hour {
 		t.Fatalf("queue = %+v, %v", q, err)
 	}
-	// Sent to the judge: the player can no longer change the sessions.
-	if err := f.play.DeletePlaySession(f.ctx, "lbr", f.alice, first.ID); !errors.Is(err, events.ErrConflict) {
-		t.Fatalf("changed a session of a sent game: %v", err)
+	if _, err := update(f.alice, api.PlayTimeRequest{AddMs: hour}); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("time changed after sending: %v", err)
 	}
 	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, pt.ID, true); err != nil {
 		t.Fatal(err)
@@ -585,10 +577,10 @@ func TestPlaySessionsAndReview(t *testing.T) {
 		t.Errorf("journal has no «за 2 ч»: %+v", acts)
 	}
 
-	// The next game starts with no sessions.
+	// The next game starts from zero.
 	f.spin(f.alice, "reflex")
 	f.spin(f.alice, "G2")
-	if v := list(f.alice); len(v.Sessions) != 0 || v.TotalMs != 0 || v.Playthrough == pt.ID {
-		t.Fatalf("sessions on the next game = %+v", v)
+	if v := get(f.alice); v.TotalMs != 0 || v.Playthrough == pt.ID || v.Playthrough == 0 {
+		t.Fatalf("time on the next game = %+v", v)
 	}
 }

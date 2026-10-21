@@ -313,7 +313,7 @@ export interface PlaythroughView {
   confirmed: boolean;
   points: number /* int */;
   /**
-   * TimerMs is the time of the player's saved play sessions; set in the
+   * TimerMs is the time the player saved with the timer; set in the
    * judge's queue to compare with the hours.
    */
   timerMs: number /* int64 */;
@@ -387,35 +387,23 @@ export interface FinishRequest {
   review: string;
 }
 /**
- * PlaySession is time spent on a game in one sitting: saved from the
- * timer in the app or typed in by hand.
+ * PlayTime is the time a player saved for the game they are playing now:
+ * the sum of the timer sessions plus anything typed in. Playthrough is 0
+ * when the player is not playing. CanEdit says whether the viewer may add
+ * to it or change it.
  */
-export interface PlaySession {
-  id: number /* int64 */;
-  startedAt: string; // RFC 3339
-  durationMs: number /* int64 */;
-}
-/**
- * PlaySessions are the sessions of the game a player is playing now.
- * Playthrough is 0 when the player is not playing. CanEdit says whether the
- * viewer may add, change and delete sessions.
- */
-export interface PlaySessions {
+export interface PlayTime {
   playthrough: number /* int64 */;
-  sessions: PlaySession[];
   totalMs: number /* int64 */;
   canEdit: boolean;
 }
 /**
- * AddPlaySessionRequest saves a session. StartedAt (RFC 3339) may be empty:
- * then the session ends now.
+ * PlayTimeRequest either adds a session to the total (AddMs) or replaces
+ * the total (SetMs, when not null).
  */
-export interface AddPlaySessionRequest {
-  startedAt: string;
-  durationMs: number /* int64 */;
-}
-export interface UpdatePlaySessionRequest {
-  durationMs: number /* int64 */;
+export interface PlayTimeRequest {
+  addMs: number /* int64 */;
+  setMs?: number | null;
 }
 export interface InputRequest {
   values: { [key: string]: any};

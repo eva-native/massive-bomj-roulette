@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { FieldView, ItemView, Me, PlaySessions, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import type { FieldView, ItemView, Me, PlayTime, PlayTimeRequest, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { renderApp } from '@/test/renderApp'
 
@@ -133,24 +133,19 @@ describe('my turn', () => {
     expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x', review: 'Классика' })
   })
 
-  it('keeps the running session in the browser and saves it as a play session', async () => {
+  it('keeps the running session in the browser and adds it to the saved time', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
       playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
     })
     backend.on('GET', /\/players\/2$/, () => view(playing))
-    let sessions: PlaySessions = {
-      playthrough: 70,
-      sessions: [{ id: 1, startedAt: '2026-10-20T18:00:00Z', durationMs: 3600_000 }],
-      totalMs: 3600_000,
-      canEdit: true,
-    }
-    backend.on('GET', /\/players\/2\/sessions$/, () => sessions)
-    backend.on('POST', /\/players\/2\/sessions$/, (body) => {
-      const { durationMs } = body as { durationMs: number }
-      sessions = { ...sessions, sessions: [...sessions.sessions, { id: 2, startedAt: '2026-10-21T10:00:00Z', durationMs }], totalMs: sessions.totalMs + durationMs }
-      return sessions.sessions[1]
+    let saved: PlayTime = { playthrough: 70, totalMs: 3600_000, canEdit: true }
+    backend.on('GET', /\/players\/2\/playtime$/, () => saved)
+    backend.on('POST', /\/players\/2\/playtime$/, (body) => {
+      const req = body as PlayTimeRequest
+      saved = { ...saved, totalMs: req.setMs ?? saved.totalMs + req.addMs }
+      return saved
     })
     // A paused session from an earlier visit.
     localStorage.setItem('mbr:timer:lbr:70', JSON.stringify({ elapsedMs: (90 * 60 + 5) * 1000, startedAt: null }))
@@ -169,10 +164,20 @@ describe('my turn', () => {
 
     await user.click(screen.getByRole('button', { name: 'Сохранить сессию' }))
     expect(await screen.findByRole('timer')).toHaveTextContent('0:00:00')
-    expect(backend.requests.find((r) => r.method === 'POST' && r.url.endsWith('/sessions'))?.body).toEqual({ startedAt: '', durationMs: 5405_000 })
+    expect(backend.requests.find((r) => r.method === 'POST' && r.url.endsWith('/playtime'))?.body).toEqual({ addMs: 5405_000, setMs: null })
     expect(localStorage.getItem('mbr:timer:lbr:70')).toBeNull()
-    expect(await within(panel).findByText(/1 ч 30 мин 5 с/)).toBeInTheDocument() // the new session in the list
+    expect(within(panel).getByText('Сохранено:').parentElement).toHaveTextContent('2 ч 30 мин 5 с')
+
+    // The saved total can be corrected.
+    await user.click(within(panel).getAllByRole('button', { name: 'Изменить' })[1]!)
+    const hours = within(panel).getByLabelText('Сохранено: часы')
+    await user.clear(hours)
+    await user.type(hours, '3')
+    await user.click(within(panel).getByRole('button', { name: 'Сохранить' }))
+    await vi.waitFor(() => expect(within(panel).getByText('Сохранено:').parentElement).toHaveTextContent('3 ч 30 мин 5 с'))
+    expect(backend.requests.filter((r) => r.url.endsWith('/playtime') && r.method === 'POST').at(-1)?.body).toEqual({ addMs: 0, setMs: 12605_000 })
   })
+
 
 
   it('locks item fields once they are sent to the judge', async () => {

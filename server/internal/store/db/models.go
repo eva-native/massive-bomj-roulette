@@ -68,14 +68,11 @@ type Movie struct {
 	CreatedAt time.Time
 }
 
-type PlaySession struct {
-	ID            int64
+type PlayTime struct {
 	EventID       int64
-	UserID        int64
 	PlaythroughID int64
-	StartedAt     time.Time
-	DurationMs    int64
-	CreatedAt     time.Time
+	UserID        int64
+	TotalMs       int64
 	UpdatedAt     time.Time
 }
 

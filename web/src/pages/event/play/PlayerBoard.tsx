@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
-import { playKeys, useChoose, useFinish, usePlaySessionMutations, usePlaySessions, useSpin } from '@/api/play'
-import type { EventDetail, PlayerView, PlaySessions, PlaythroughView, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import { playKeys, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
+import type { EventDetail, PlayerView, PlaythroughView, PlayTime as SavedPlayTime, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
@@ -206,10 +206,10 @@ function CurrentStep({
   return null
 }
 
-const noSessions: PlaySessions = { playthrough: 0, sessions: [], totalMs: 0, canEdit: false }
+const nothingSaved: SavedPlayTime = { playthrough: 0, totalMs: 0, canEdit: false }
 
 function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; view: PlayerView; playthrough: PlaythroughView; stepId: number }) {
-  const sessions = usePlaySessions(event.slug, view.player.id).data ?? noSessions
+  const saved = usePlayTime(event.slug, view.player.id).data ?? nothingSaved
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
@@ -223,28 +223,28 @@ function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; vi
       </div>
       {view.canAct ? (
         // A new game remounts the timer, so it starts from zero.
-        <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthroughId={playthrough.id} stepId={stepId} sessions={sessions} />
+        <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthroughId={playthrough.id} stepId={stepId} saved={saved} />
       ) : (
-        <PlayTime slug={event.slug} playerId={view.player.id} sessions={sessions} timer={null} />
+        <PlayTime slug={event.slug} playerId={view.player.id} saved={saved} timer={null} />
       )}
     </div>
   )
 }
 
 /** The player's own game: the timer, the sessions and the outcome form. */
-function OwnPlay({ slug, playerId, playthroughId, stepId, sessions }: { slug: string; playerId: number; playthroughId: number; stepId: number; sessions: PlaySessions }) {
+function OwnPlay({ slug, playerId, playthroughId, stepId, saved }: { slug: string; playerId: number; playthroughId: number; stepId: number; saved: SavedPlayTime }) {
   const timer = useLocalTimer(timerKey(slug, playthroughId))
-  const { add } = usePlaySessionMutations(slug, playerId)
-  // Time still on the timer is saved as a session before the outcome goes to the judge.
+  const update = useUpdatePlayTime(slug, playerId)
+  // Time still on the timer is saved before the outcome goes to the judge.
   const saveTimer = async () => {
     timer.pause()
-    if (timer.ms >= 1000) await add.mutateAsync({ startedAt: '', durationMs: Math.round(timer.ms) })
+    if (timer.ms >= 1000) await update.mutateAsync({ addMs: Math.round(timer.ms) })
     timer.reset()
   }
   return (
     <>
-      <PlayTime slug={slug} playerId={playerId} sessions={sessions} timer={timer} />
-      <FinishForm slug={slug} stepId={stepId} timerMs={sessions.totalMs + timer.ms} beforeSend={saveTimer} />
+      <PlayTime slug={slug} playerId={playerId} saved={saved} timer={timer} />
+      <FinishForm slug={slug} stepId={stepId} timerMs={saved.totalMs + timer.ms} beforeSend={saveTimer} />
     </>
   )
 }
