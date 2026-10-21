@@ -124,8 +124,12 @@ describe('my turn', () => {
     await user.type(screen.getByLabelText('Время в игре: часы'), 'abc25ч')
     expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('25')
     await user.type(screen.getByLabelText('Время в игре: минуты'), '30')
-    await user.type(screen.getByLabelText('Обзор (необязательно)'), 'Классика')
     await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
+    expect(send).toBeDisabled() // a review is required for a completed or dropped game
+    await user.click(screen.getByLabelText('Тех. дроп'))
+    expect(screen.getByLabelText('Обзор (необязательно)')).toBeInTheDocument() // but not for a technical drop
+    await user.click(screen.getByLabelText('Прошёл'))
+    await user.type(screen.getByLabelText('Обзор'), 'Классика')
     await user.click(send)
 
     expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()

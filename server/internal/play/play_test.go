@@ -163,12 +163,12 @@ func TestFullTurn(t *testing.T) {
 		t.Fatalf("items on the game = %d, want 3", len(res.View.Turn.Items))
 	}
 
-	_, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "not a link"})
+	_, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "not a link", Review: "Классика"})
 	var ie *events.InvalidError
 	if !errors.As(err, &ie) {
 		t.Fatalf("bad proof: %v", err)
 	}
-	v, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "https://imgur.com/x"})
+	v, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "https://imgur.com/x", Review: "Классика"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestJudgeTools(t *testing.T) {
 	}
 	f.spin(f.alice, "G1")
 	v := f.view(f.alice)
-	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 20}); err != nil {
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 20, Review: "Норм"}); err != nil {
 		t.Fatal(err)
 	}
 	ptID := f.view(f.alice).Turn.Playthrough.ID
@@ -396,7 +396,7 @@ func TestFinishFreezesTheEvent(t *testing.T) {
 	}
 	f.spin(f.alice, "G")
 	v := f.view(f.alice)
-	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 10}); err != nil {
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 10, Review: "Норм"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, f.view(f.alice).Turn.Playthrough.ID, true); err != nil {
@@ -550,6 +550,12 @@ func TestPlayTimeAndReview(t *testing.T) {
 	step := f.view(f.alice).Turn.Current.ID
 	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: strings.Repeat("я", 2001)}); err == nil {
 		t.Fatal("a too long review was accepted")
+	}
+	for _, outcome := range []string{"completed", "dropped"} {
+		var invalid *events.InvalidError
+		if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: outcome, Hours: 2, Review: "  "}); !errors.As(err, &invalid) {
+			t.Fatalf("%s without a review: %v", outcome, err)
+		}
 	}
 	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: " Отличная игра "}); err != nil {
 		t.Fatal(err)

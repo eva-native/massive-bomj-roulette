@@ -101,6 +101,9 @@ func (s *Service) Finish(ctx context.Context, slug string, viewer *auth.User, st
 	if err != nil {
 		return api.PlayerView{}, err
 	}
+	if review == "" && game.Outcome(req.Outcome) != game.OutcomeTech {
+		return api.PlayerView{}, &events.InvalidError{Msg: "напишите обзор игры"}
+	}
 	return s.act(ctx, slug, viewer, func(ss *session, me game.PlayerID) error {
 		if err := s.eng.FinishGame(ss.st, me, stepID, game.Outcome(req.Outcome), req.Hours, proof); err != nil {
 			return err
@@ -382,7 +385,8 @@ func (s *Service) UndoStep(ctx context.Context, slug string, viewer *auth.User, 
 	})
 }
 
-// EditPlaythrough lets a judge correct the hours and proof of a finished game.
+// EditPlaythrough lets a judge correct the hours, proof and review of a finished game.
+// The review may be left empty here: games finished before reviews were required have none.
 func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, req api.EditPlaythroughRequest) error {
 	proof := strings.TrimSpace(req.Proof)
 	if proof != "" && !strings.HasPrefix(proof, "http://") && !strings.HasPrefix(proof, "https://") {

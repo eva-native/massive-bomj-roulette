@@ -277,6 +277,7 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
   const [review, setReview] = useState('')
   const [sending, setSending] = useState(false)
   const hours = hmsToHours(time)
+  const reviewRequired = outcome !== 'tech'
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -324,11 +325,11 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
       <Field label="Доказательство (ссылка)">
         <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
       </Field>
-      <Field label="Обзор (необязательно)" hint="Пара слов об игре: что понравилось, что нет. Увидят все.">
-        <Textarea value={review} maxLength={2000} onChange={(e) => setReview(e.target.value)} />
+      <Field label={reviewRequired ? 'Обзор' : 'Обзор (необязательно)'} hint="Пара слов об игре: что понравилось, что нет. Увидят все.">
+        <Textarea value={review} maxLength={2000} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
       </Field>
       <ErrorText error={finish.error} />
-      <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours)}>
+      <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours) || (reviewRequired && !review.trim())}>
         Отправить судье
       </Button>
     </form>
