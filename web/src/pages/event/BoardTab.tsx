@@ -53,7 +53,12 @@ export function BoardTab() {
         {activity.isPending && <Loading />}
         <ErrorText error={activity.error} />
         {activity.data?.length === 0 && <p className="text-sm text-stone-500">Пока ничего не произошло.</p>}
-        <ul className="flex flex-col gap-2 text-sm">
+        {/* The feed scrolls inside its own box, so a long feed does not stretch the page. */}
+        <ul
+          aria-label="Лента событий"
+          tabIndex={0}
+          className="flex max-h-80 flex-col gap-2 overflow-y-auto overscroll-contain pr-2 text-sm lg:max-h-[32rem]"
+        >
           {activity.data?.map((a) => (
             <li key={a.id}>
               <span className="text-xs text-stone-500">{timeFormat.format(new Date(a.createdAt))}</span>
