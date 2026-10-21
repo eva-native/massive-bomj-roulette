@@ -115,7 +115,7 @@ export interface UpdateEventRequest {
 }
 /**
  * UpdateMemberRequest changes only the roles that are set. A member without
- * any role is removed from the event.
+ * any role stays in the list but neither plays nor judges.
  */
 export interface UpdateMemberRequest {
   isParticipant?: boolean;
@@ -296,6 +296,11 @@ export interface ItemView {
   needsConfirm: boolean;
   confirmed: boolean;
   rejected: boolean;
+  /**
+   * Locked: the owner sent the fields to the judge and cannot change them
+   * until the judge rejects. Judges can always edit.
+   */
+  locked: boolean;
   /**
    * UseLabel is set for items that can be used by hand; CanUse says
    * whether it is possible right now, UseHint why not.

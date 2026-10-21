@@ -25,6 +25,7 @@ export function MembersTab() {
               </span>
               {m.isJudge && <Badge tone="amber">Судья</Badge>}
               {m.isParticipant && <Badge tone="green">Участник</Badge>}
+              {!m.isParticipant && !m.isJudge && <Badge>без роли</Badge>}
             </div>
             {isJudge && (
               <RoleControls

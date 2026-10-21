@@ -200,6 +200,9 @@ type Item struct {
 	Input     map[string]any
 	Confirmed bool
 	Rejected  bool
+	// Submitted marks an item whose owner sent all required fields to the
+	// judge. Until the judge rejects it, the owner cannot change them.
+	Submitted bool
 	// Forced marks a bonus activated at once instead of going to the pocket.
 	Forced bool
 	// Finished ends a listening item («Голосование за Путина»). FinishedBy is

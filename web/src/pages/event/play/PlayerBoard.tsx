@@ -7,6 +7,7 @@ import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { Badge, Card, ErrorText, Field, Input } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { cleanHoursInput, parseHours } from '@/lib/hours'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
 
@@ -226,10 +227,12 @@ function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
   const [outcome, setOutcome] = useState<'completed' | 'dropped'>('completed')
   const [hours, setHours] = useState('')
   const [proof, setProof] = useState('')
+  const parsed = parseHours(hours)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    finish.mutate({ stepId, outcome, hours: hours === '' ? 0 : Number(hours.replace(',', '.')), proof })
+    if (parsed === null) return
+    finish.mutate({ stepId, outcome, hours: parsed, proof })
   }
 
   return (
@@ -246,14 +249,14 @@ function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Часов в игре">
-          <Input inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} placeholder={outcome === 'completed' ? 'например, 25' : 'необязательно'} />
+          <Input inputMode="decimal" value={hours} onChange={(e) => setHours(cleanHoursInput(e.target.value))} placeholder={outcome === 'completed' ? 'например, 25' : 'необязательно'} />
         </Field>
         <Field label="Доказательство (ссылка)">
           <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
         </Field>
       </div>
       <ErrorText error={finish.error} />
-      <Button type="submit" className="self-start" disabled={finish.isPending || (outcome === 'completed' && !hours)}>
+      <Button type="submit" className="self-start" disabled={finish.isPending || parsed === null || (outcome === 'completed' && !parsed)}>
         Отправить судье
       </Button>
     </form>

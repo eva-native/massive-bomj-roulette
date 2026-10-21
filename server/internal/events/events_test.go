@@ -124,12 +124,36 @@ func TestJoinAndRoles(t *testing.T) {
 		t.Fatalf("admin roles = %+v, %v", d.Me, err)
 	}
 
-	// A member without roles is removed.
+	// A member without roles stays in the list as a visitor.
 	f.join(f.bob, "lbr")
+	d, err = f.svc.UpdateMember(f.ctx, f.alice, "lbr", f.bob.ID, api.UpdateMemberRequest{IsParticipant: &fl, IsJudge: &fl})
+	if err != nil || len(d.Members) != 3 {
+		t.Fatalf("after taking bob's roles: %d members, %v", len(d.Members), err)
+	}
+	for _, m := range d.Members {
+		if m.UserID == f.bob.ID && (m.IsParticipant || m.IsJudge) {
+			t.Fatalf("bob still has roles: %+v", m)
+		}
+	}
+	if d, err = f.svc.Get(f.ctx, "lbr", f.bob); err != nil || d.Me != nil {
+		t.Fatalf("bob without roles: me = %+v, %v", d.Me, err)
+	}
+	if _, err := f.svc.AddGame(f.ctx, f.bob, "lbr", api.GameInput{Title: "Portal", HLTBHours: 3, Rating: 90, Year: 2007}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("bob without roles adds a game: %v", err)
+	}
+	// Joining again makes him a participant.
+	if d, err = f.svc.Join(f.ctx, f.bob, "lbr"); err != nil || d.Me == nil || !d.Me.IsParticipant {
+		t.Fatalf("bob after rejoin: %+v, %v", d.Me, err)
+	}
+
+	// «Убрать» removes the member.
 	d, err = f.svc.RemoveMember(f.ctx, f.alice, "lbr", f.bob.ID)
 	if err != nil || len(d.Members) != 2 {
 		t.Fatalf("after removing bob: %d members, %v", len(d.Members), err)
 	}
+	// Alice is now the only judge and cannot be removed either.
+	_, err = f.svc.RemoveMember(f.ctx, f.alice, "lbr", f.alice.ID)
+	expect(t, err, ErrConflict)
 	_, err = f.svc.RemoveMember(f.ctx, f.alice, "lbr", 999999)
 	expect(t, err, ErrNotFound)
 }

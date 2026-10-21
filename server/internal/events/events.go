@@ -185,7 +185,8 @@ func (s *Service) Get(ctx context.Context, slug string, u *auth.User) (api.Event
 			UserID: r.UserID, Name: r.Name, AvatarURL: r.AvatarURL, IsParticipant: r.IsParticipant, IsJudge: r.IsJudge,
 		})
 	}
-	if m.EventID != 0 {
+	// A member without roles is shown in the list but acts as a visitor.
+	if m.IsParticipant || m.IsJudge {
 		d.Me = &api.Membership{IsParticipant: m.IsParticipant, IsJudge: m.IsJudge}
 	}
 	return d, nil
@@ -237,8 +238,9 @@ func (s *Service) Join(ctx context.Context, u *auth.User, slug string) (api.Even
 	return s.Get(ctx, slug, u)
 }
 
-// UpdateMember changes a member's roles. A member left without roles is
-// removed. The last judge cannot lose the role. Judges only.
+// UpdateMember changes a member's roles. A member without roles stays in the
+// event but neither plays nor judges. The last judge cannot lose the role.
+// Judges only.
 func (s *Service) UpdateMember(ctx context.Context, u *auth.User, slug string, userID int64, req api.UpdateMemberRequest) (api.EventDetail, error) {
 	ev, err := s.judgeEvent(ctx, slug, u)
 	if err != nil {
@@ -264,10 +266,6 @@ func (s *Service) UpdateMember(ctx context.Context, u *auth.User, slug string, u
 				return err
 			}
 		}
-		if !participant && !judge {
-			_, err = q.DeleteMember(ctx, db.DeleteMemberParams{EventID: ev.ID, UserID: userID})
-			return err
-		}
 		_, err = q.SetMemberRoles(ctx, db.SetMemberRolesParams{EventID: ev.ID, UserID: userID, IsParticipant: participant, IsJudge: judge})
 		return err
 	})
@@ -279,8 +277,30 @@ func (s *Service) UpdateMember(ctx context.Context, u *auth.User, slug string, u
 
 // RemoveMember removes a member from the event. Judges only.
 func (s *Service) RemoveMember(ctx context.Context, u *auth.User, slug string, userID int64) (api.EventDetail, error) {
-	f := false
-	return s.UpdateMember(ctx, u, slug, userID, api.UpdateMemberRequest{IsParticipant: &f, IsJudge: &f})
+	ev, err := s.judgeEvent(ctx, slug, u)
+	if err != nil {
+		return api.EventDetail{}, err
+	}
+	err = s.inTx(ctx, func(q *db.Queries) error {
+		m, err := q.GetMember(ctx, db.GetMemberParams{EventID: ev.ID, UserID: userID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if m.IsJudge {
+			if err := lastJudgeCheck(ctx, q, ev.ID); err != nil {
+				return err
+			}
+		}
+		_, err = q.DeleteMember(ctx, db.DeleteMemberParams{EventID: ev.ID, UserID: userID})
+		return err
+	})
+	if err != nil {
+		return api.EventDetail{}, err
+	}
+	return s.Get(ctx, slug, u)
 }
 
 func lastJudgeCheck(ctx context.Context, q *db.Queries, eventID int64) error {

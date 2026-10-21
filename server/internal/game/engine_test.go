@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 )
 
@@ -139,6 +140,54 @@ func TestInputPointsForTwoPlayersAfterRoundTrip(t *testing.T) {
 	}
 }
 
+func TestInputLockedOnceSentToJudge(t *testing.T) {
+	e, s := testEngine(t)
+	play(t, e, s, 1)
+	it := s.Items[0]
+
+	// The optional field alone does not send the item.
+	if err := e.SetInput(s, 1, it.ID, map[string]any{"proof": "https://youtu.be/x"}); err != nil {
+		t.Fatal(err)
+	}
+	if e.InputLocked(s, it.ID) {
+		t.Fatal("locked before the required fields were filled")
+	}
+	if err := e.SetInput(s, 1, it.ID, map[string]any{"opponent": 2}); err != nil {
+		t.Fatal(err)
+	}
+	if !e.InputLocked(s, it.ID) {
+		t.Fatal("not locked after sending to the judge")
+	}
+	// The owner cannot send again while the judge decides (issue #2).
+	if err := e.SetInput(s, 1, it.ID, map[string]any{"opponent": 2}); !errors.Is(err, ErrNotAllowed) {
+		t.Fatalf("second send: %v", err)
+	}
+	// The judge can always edit; that keeps the lock.
+	if err := e.SetInput(s, 3, it.ID, map[string]any{"won": true}); err != nil {
+		t.Fatal(err)
+	}
+	if !e.InputLocked(s, it.ID) {
+		t.Fatal("judge's edit unlocked the item")
+	}
+	// A rejection opens the fields again, and the lock survives saving.
+	if err := e.ConfirmItem(s, 3, it.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if e.InputLocked(s, it.ID) {
+		t.Fatal("still locked after a rejection")
+	}
+	if err := e.SetInput(s, 1, it.ID, map[string]any{"opponent": 2}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.ConfirmItem(s, 3, it.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	s = roundTrip(t, s)
+	if err := e.SetInput(s, 1, it.ID, map[string]any{"opponent": 2}); !errors.Is(err, ErrNotAllowed) {
+		t.Fatalf("changed a confirmed item: %v", err)
+	}
+}
+
 func TestFinishGameValidation(t *testing.T) {
 	e, s := testEngine(t)
 	play(t, e, s, 1)
@@ -146,7 +195,7 @@ func TestFinishGameValidation(t *testing.T) {
 	for _, c := range []struct {
 		outcome Outcome
 		hours   float64
-	}{{"won", 1}, {OutcomeCompleted, 0}, {OutcomeDropped, -1}} {
+	}{{"won", 1}, {OutcomeCompleted, 0}, {OutcomeDropped, -1}, {OutcomeCompleted, MaxHours + 1}, {OutcomeDropped, math.NaN()}, {OutcomeCompleted, math.Inf(1)}} {
 		if err := e.FinishGame(s, 1, step, c.outcome, c.hours, ""); !errors.Is(err, ErrBadInput) {
 			t.Errorf("%v: err = %v, want ErrBadInput", c, err)
 		}

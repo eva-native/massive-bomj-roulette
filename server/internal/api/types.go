@@ -95,7 +95,7 @@ type UpdateEventRequest struct {
 }
 
 // UpdateMemberRequest changes only the roles that are set. A member without
-// any role is removed from the event.
+// any role stays in the list but neither plays nor judges.
 type UpdateMemberRequest struct {
 	IsParticipant *bool `json:"isParticipant,omitempty"`
 	IsJudge       *bool `json:"isJudge,omitempty"`
@@ -263,6 +263,9 @@ type ItemView struct {
 	NeedsConfirm bool        `json:"needsConfirm"`
 	Confirmed    bool        `json:"confirmed"`
 	Rejected     bool        `json:"rejected"`
+	// Locked: the owner sent the fields to the judge and cannot change them
+	// until the judge rejects. Judges can always edit.
+	Locked bool `json:"locked"`
 	// UseLabel is set for items that can be used by hand; CanUse says
 	// whether it is possible right now, UseHint why not.
 	UseLabel string `json:"useLabel"`

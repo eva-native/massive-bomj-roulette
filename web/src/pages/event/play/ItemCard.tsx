@@ -60,7 +60,8 @@ export function ItemCard({
 
 function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemView; members: Member[]; editAs: 'player' | 'judge' | null }) {
   const input = useItemInput(slug)
-  const editable = (f: FieldView) => editAs === 'judge' || (editAs === 'player' && f.by === 'player')
+  // Once sent to the judge, the owner waits for the decision (issue #2).
+  const editable = (f: FieldView) => editAs === 'judge' || (editAs === 'player' && f.by === 'player' && !item.locked)
   const [values, setValues] = useState<Record<string, unknown>>(() => Object.fromEntries(item.fields.map((f) => [f.name, f.value])))
   const anyEditable = item.fields.some(editable)
 
@@ -84,9 +85,10 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
       ))}
       {anyEditable && (
         <Button type="submit" variant="secondary" className="self-start" disabled={input.isPending}>
-          Сохранить
+          {editAs === 'player' && item.needsConfirm ? 'Отправить судье' : 'Сохранить'}
         </Button>
       )}
+      {editAs === 'player' && item.locked && !item.confirmed && <p className="text-xs text-stone-500">Отправлено судье. Изменить можно, если судья отклонит.</p>}
       <ErrorText error={input.error} />
     </form>
   )

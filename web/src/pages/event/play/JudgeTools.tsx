@@ -3,6 +3,7 @@ import { useEditPlaythrough, useUndoStep } from '@/api/play'
 import type { PlaythroughView, TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { ErrorText, Input } from '@/components/ui'
+import { cleanHoursInput, parseHours } from '@/lib/hours'
 
 /** A judge's controls for a player's turn: take back the last step. */
 export function UndoStep({ slug, playerId, turn }: { slug: string; playerId: number; turn: TurnView }) {
@@ -39,15 +40,17 @@ export function EditPlaythrough({ slug, pt }: { slug: string; pt: PlaythroughVie
       </button>
     )
   }
+  const parsed = parseHours(hours)
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    edit.mutate({ id: pt.id, hours: Number(hours.replace(',', '.')) || 0, proof }, { onSuccess: () => setOpen(false) })
+    if (parsed === null) return
+    edit.mutate({ id: pt.id, hours: parsed, proof }, { onSuccess: () => setOpen(false) })
   }
   return (
     <form onSubmit={submit} className="flex w-full flex-wrap items-center gap-2">
-      <Input aria-label="Часы" inputMode="decimal" className="w-24" value={hours} onChange={(e) => setHours(e.target.value)} />
+      <Input aria-label="Часы" inputMode="decimal" className="w-24" value={hours} onChange={(e) => setHours(cleanHoursInput(e.target.value))} />
       <Input aria-label="Ссылка" type="url" className="min-w-40 flex-1" value={proof} onChange={(e) => setProof(e.target.value)} />
-      <Button type="submit" variant="secondary" disabled={edit.isPending}>
+      <Button type="submit" variant="secondary" disabled={edit.isPending || parsed === null}>
         Сохранить
       </Button>
       <Button variant="secondary" onClick={() => setOpen(false)}>

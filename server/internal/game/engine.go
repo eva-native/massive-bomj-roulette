@@ -3,6 +3,7 @@ package game
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 )
@@ -569,17 +570,33 @@ func (e *Engine) FinishGame(s *State, actor PlayerID, stepID int64, outcome Outc
 	if st.Kind != StepPlay {
 		return fmt.Errorf("%w: сейчас не идёт игра", ErrWrongStep)
 	}
-	switch {
-	case outcome != OutcomeCompleted && outcome != OutcomeDropped:
+	if outcome != OutcomeCompleted && outcome != OutcomeDropped {
 		return fmt.Errorf("%w: итог — «прошёл» или «дропнул»", ErrBadInput)
-	case outcome == OutcomeCompleted && hours <= 0:
-		return fmt.Errorf("%w: укажите, за сколько часов пройдена игра", ErrBadInput)
-	case hours < 0:
-		return fmt.Errorf("%w: часы не могут быть отрицательными", ErrBadInput)
+	}
+	if err := checkHours(outcome, hours); err != nil {
+		return err
 	}
 	pt := s.Playthrough(t.Playthrough)
 	pt.Outcome, pt.Hours, pt.Proof = outcome, hours, strings.TrimSpace(proof)
 	r.finishStep(st)
+	return nil
+}
+
+// MaxHours caps the hours a game can take, to catch typos.
+const MaxHours = 10000
+
+// checkHours validates the hours of a finished game.
+func checkHours(outcome Outcome, hours float64) error {
+	switch {
+	case math.IsNaN(hours) || math.IsInf(hours, 0):
+		return fmt.Errorf("%w: часы — это число", ErrBadInput)
+	case outcome == OutcomeCompleted && hours <= 0:
+		return fmt.Errorf("%w: укажите, за сколько часов пройдена игра", ErrBadInput)
+	case hours < 0:
+		return fmt.Errorf("%w: часы не могут быть отрицательными", ErrBadInput)
+	case hours > MaxHours:
+		return fmt.Errorf("%w: не больше %d часов", ErrBadInput, MaxHours)
+	}
 	return nil
 }
 
@@ -629,7 +646,20 @@ func (e *Engine) ConfirmItem(s *State, actor PlayerID, itemID int64, accept bool
 		return fmt.Errorf("%w: предмет не найден", ErrNotAllowed)
 	}
 	it.Confirmed, it.Rejected = accept, !accept
+	if !accept {
+		it.Submitted = false // the owner may fix the input and send it again
+	}
 	return nil
+}
+
+// InputLocked reports whether the owner can no longer change the item's
+// fields: they were sent to the judge, who has not rejected them.
+func (e *Engine) InputLocked(s *State, itemID int64) bool {
+	it := s.Item(itemID)
+	if it == nil {
+		return false
+	}
+	return e.on(s).def(it).NeedsConfirm && (it.Confirmed || it.Submitted)
 }
 
 // SetInput fills an item's input fields. Player fields belong to the item's
@@ -643,6 +673,9 @@ func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[str
 		return fmt.Errorf("%w: предмет не найден", ErrNotAllowed)
 	}
 	d := r.def(it)
+	if !judge && d.NeedsConfirm && (it.Confirmed || it.Submitted) {
+		return fmt.Errorf("%w: уже отправлено судье, ждите решения", ErrNotAllowed)
+	}
 	clean := map[string]any{}
 	for name, v := range values {
 		f := d.field(name)
@@ -665,7 +698,23 @@ func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[str
 		it.Input[k] = v
 	}
 	it.Confirmed, it.Rejected = false, false
+	if !judge && d.NeedsConfirm {
+		it.Submitted = playerFieldsFilled(d, it)
+	}
 	return nil
+}
+
+// playerFieldsFilled reports whether every required player field has a value.
+func playerFieldsFilled(d *Def, it *Item) bool {
+	for _, f := range d.Input {
+		if f.By != RolePlayer || f.Optional {
+			continue
+		}
+		if _, ok := it.Input[f.Name]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *run) checkField(f *Field, v any, owner PlayerID) (any, error) {

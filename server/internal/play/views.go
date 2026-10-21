@@ -243,6 +243,7 @@ func (s *Service) itemView(ss *session, it *game.Item, t *game.Turn) api.ItemVie
 	}
 	v.Name, v.Concept, v.Kind, v.NeedsConfirm = d.Name, d.Concept, string(d.Kind), d.NeedsConfirm
 	v.Note = s.eng.Note(ss.st, it.ID)
+	v.Locked = s.eng.InputLocked(ss.st, it.ID)
 	for _, f := range d.Input {
 		v.Fields = append(v.Fields, api.FieldView{
 			Name: f.Name, Label: f.Label, Type: string(f.Type), By: string(f.By), Optional: f.Optional, Value: it.Input[f.Name],

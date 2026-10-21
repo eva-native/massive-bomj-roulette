@@ -46,11 +46,8 @@ func (e *Engine) EditPlaythrough(s *State, judge PlayerID, playthroughID int64, 
 	if pt == nil || pt.Outcome == OutcomeNone {
 		return fmt.Errorf("%w: игра ещё не завершена", ErrNotAllowed)
 	}
-	switch {
-	case pt.Outcome == OutcomeCompleted && hours <= 0:
-		return fmt.Errorf("%w: укажите, за сколько часов пройдена игра", ErrBadInput)
-	case hours < 0:
-		return fmt.Errorf("%w: часы не могут быть отрицательными", ErrBadInput)
+	if err := checkHours(pt.Outcome, hours); err != nil {
+		return err
 	}
 	pt.Hours, pt.Proof = hours, strings.TrimSpace(proof)
 	return nil

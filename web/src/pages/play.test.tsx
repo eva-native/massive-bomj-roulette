@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { ItemView, Me, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import type { FieldView, ItemView, Me, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { renderApp } from '@/test/renderApp'
 
@@ -51,6 +51,7 @@ const opaaa: ItemView = {
   needsConfirm: false,
   confirmed: false,
   rejected: false,
+  locked: false,
   useLabel: '',
   canUse: false,
   useHint: '',
@@ -115,13 +116,49 @@ describe('my turn', () => {
     expect(await screen.findByText('GTA San Andreas')).toBeInTheDocument()
     const send = screen.getByRole('button', { name: 'Отправить судье' })
     expect(send).toBeDisabled() // hours are required for a completed game
-    await user.type(screen.getByLabelText('Часов в игре'), '25,5')
+    // Only a number can be typed in (issue #3).
+    await user.type(screen.getByLabelText('Часов в игре'), 'abc25,5ч')
+    expect(screen.getByLabelText('Часов в игре')).toHaveValue('25.5')
     await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
     await user.click(send)
 
     expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
     const post = backend.requests.find((r) => r.url.endsWith('/finish'))
     expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x' })
+  })
+
+  it('locks item fields once they are sent to the judge', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const wonField: FieldView = { name: 'won', label: 'Победа', type: 'bool', by: 'player', optional: false, value: null }
+    const duel: ItemView = {
+      ...opaaa,
+      id: 51,
+      defId: 'sto_k_odnomu',
+      name: '100 к 1',
+      concept: 'Вызови человека на поединок.',
+      needsConfirm: true,
+      fields: [wonField],
+    }
+    const playing = (it: ItemView) =>
+      view(turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], { items: [it] }))
+    let current = playing(duel)
+    backend.on('GET', /\/players\/2$/, () => current)
+    backend.on('POST', /\/items\/51\/input$/, () => {
+      current = playing({ ...duel, locked: true, fields: [{ ...wonField, value: true }] })
+      return undefined
+    })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+
+    const card = (await screen.findByRole('heading', { name: '100 к 1' })).closest('article')!
+    await user.click(within(card).getByRole('checkbox', { name: 'Победа' }))
+    await user.click(within(card).getByRole('button', { name: 'Отправить судье' }))
+
+    expect(await within(card).findByText(/Отправлено судье/)).toBeInTheDocument()
+    expect(within(card).getByRole('checkbox', { name: 'Победа' })).toBeDisabled()
+    expect(within(card).queryByRole('button', { name: 'Отправить судье' })).not.toBeInTheDocument()
   })
 })
 
