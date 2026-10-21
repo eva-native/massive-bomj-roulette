@@ -207,11 +207,11 @@ describe('my turn', () => {
 
     const card = (await screen.findByRole('heading', { name: '100 к 1' })).closest('article')!
     await user.click(within(card).getByRole('checkbox', { name: 'Победа' }))
-    await user.click(within(card).getByRole('button', { name: 'Отправить судье' }))
+    await user.click(within(card).getByRole('button', { name: 'Отправить результат' }))
 
     expect(await within(card).findByText(/Отправлено судье/)).toBeInTheDocument()
     expect(within(card).getByRole('checkbox', { name: 'Победа' })).toBeDisabled()
-    expect(within(card).queryByRole('button', { name: 'Отправить судье' })).not.toBeInTheDocument()
+    expect(within(card).queryByRole('button', { name: 'Отправить результат' })).not.toBeInTheDocument()
   })
 })
 

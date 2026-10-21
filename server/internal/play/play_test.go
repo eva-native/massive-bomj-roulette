@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -582,5 +583,48 @@ func TestPlayTimeAndReview(t *testing.T) {
 	f.spin(f.alice, "G2")
 	if v := get(f.alice); v.TotalMs != 0 || v.Playthrough == pt.ID || v.Playthrough == 0 {
 		t.Fatalf("time on the next game = %+v", v)
+	}
+}
+
+func TestJudgeQueueWaitsForThePlayersPart(t *testing.T) {
+	f := newFixture(t)
+	// Add «100 к 1» to the wheel: the player enters the opponent and the result.
+	ev, err := f.events.Get(f.ctx, "lbr", f.admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := ev.Settings
+	s.Disabled = slices.DeleteFunc(slices.Clone(s.Disabled), func(id string) bool { return id == "sto_k_odnomu" })
+	if _, err := f.events.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); err != nil {
+		t.Fatal(err)
+	}
+	f.addGame(f.alice, "G1", 10, 80, 2015)
+	f.spin(f.alice, "100 к 1")
+	f.spin(f.alice, "reflex")
+	f.spin(f.alice, "reflex")
+	f.spin(f.alice, "G1")
+
+	items := func() int {
+		q, err := f.play.Queue(f.ctx, "lbr", f.admin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, e := range q {
+			if e.Kind == "item" {
+				n++
+			}
+		}
+		return n
+	}
+	if n := items(); n != 0 {
+		t.Fatalf("an empty «100 к 1» waits for the judge: %d items", n)
+	}
+	duel := f.view(f.alice).Turn.Items[0]
+	if err := f.play.Input(f.ctx, "lbr", f.alice, duel.ID, map[string]any{"opponent": float64(f.bob.ID), "won": true}); err != nil {
+		t.Fatal(err)
+	}
+	if n := items(); n != 1 {
+		t.Fatalf("a filled «100 к 1» is not in the queue: %d items", n)
 	}
 }

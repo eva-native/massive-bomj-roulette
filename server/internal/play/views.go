@@ -152,6 +152,19 @@ func (s *Service) turnView(ss *session, t *game.Turn, entries []game.Entry) api.
 	return tv
 }
 
+// playerPartFilled reports whether every required player field of the item
+// has a value.
+func playerPartFilled(d *game.Def, it *game.Item) bool {
+	for _, f := range d.Input {
+		if f.By == game.RolePlayer && !f.Optional {
+			if _, ok := it.Input[f.Name]; !ok {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (s *Service) sectorView(sec game.Sector) api.Sector {
 	out := api.Sector{Label: sec.Label, Weight: sec.Weight}
 	if d := s.def(sec.DefID); d != nil {
@@ -321,6 +334,10 @@ func (s *Service) queue(ss *session) []api.QueueEntry {
 		}
 		judgeField := slices.ContainsFunc(d.Input, func(f game.Field) bool { return f.By == game.RoleJudge })
 		if !d.NeedsConfirm && !judgeField {
+			continue
+		}
+		// Nothing to check until the player has filled their part.
+		if !playerPartFilled(d, it) {
 			continue
 		}
 		iv := s.itemView(ss, it, ss.st.Turn(it.TurnID))

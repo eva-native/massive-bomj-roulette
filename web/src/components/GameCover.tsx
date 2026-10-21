@@ -1,13 +1,21 @@
-/** A small cover picture, or nothing when the game has none. */
+import { useState } from 'react'
+import { cn } from '@/lib/cn'
+
+/**
+ * A game's cover. A grey box holds its place while it loads; a broken link
+ * hides it. Nothing when the game has no cover.
+ */
 export function GameCover({ url, title, size = 'sm' }: { url: string; title: string; size?: 'sm' | 'lg' }) {
-  if (!url) return null
+  const [broken, setBroken] = useState<string | null>(null)
+  if (!url || broken === url) return null
   return (
     <img
       src={url}
       alt={`Обложка «${title}»`}
       loading="lazy"
       referrerPolicy="no-referrer"
-      className={size === 'sm' ? 'h-14 w-10 shrink-0 rounded object-cover' : 'h-36 w-24 shrink-0 rounded-lg object-cover'}
+      onError={() => setBroken(url)}
+      className={cn('shrink-0 bg-stone-200 object-cover dark:bg-stone-700', size === 'sm' ? 'h-14 w-10 rounded' : 'h-36 w-24 rounded-lg')}
     />
   )
 }

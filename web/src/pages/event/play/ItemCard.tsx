@@ -40,7 +40,7 @@ export function ItemCard({
         {item.status && <Badge>{item.status}</Badge>}
         {item.note && <Badge tone="amber">{item.note}</Badge>}
         {item.blocked && <Badge>заблокирован</Badge>}
-        {item.needsConfirm && !item.confirmed && !item.rejected && <Badge>ждёт судью</Badge>}
+        {item.needsConfirm && !item.confirmed && !item.rejected && playerPartFilled(item) && <Badge>ждёт судью</Badge>}
         {item.confirmed && <Badge tone="green">подтверждено</Badge>}
         {item.rejected && <Badge>отклонено</Badge>}
         {item.placement === 'used' && <Badge>использован</Badge>}
@@ -89,7 +89,7 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
       ))}
       {anyEditable && (
         <Button type="submit" variant="secondary" className="self-start" disabled={input.isPending}>
-          {editAs === 'player' && item.needsConfirm ? 'Отправить судье' : 'Сохранить'}
+          {editAs === 'player' && item.needsConfirm ? 'Отправить результат' : 'Сохранить'}
         </Button>
       )}
       {editAs === 'player' && item.locked && !item.confirmed && <p className="text-xs text-stone-500">Отправлено судье. Изменить можно, если судья отклонит.</p>}
@@ -184,4 +184,9 @@ function FieldControl({
         </label>
       )
   }
+}
+
+/** Whether the player has filled every required field of theirs: only then the judge has something to check. */
+function playerPartFilled(item: ItemView) {
+  return item.fields.every((f) => f.by !== 'player' || f.optional || (f.value !== null && f.value !== undefined))
 }
