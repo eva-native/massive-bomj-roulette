@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/eva-native/massive-bomj-roulette/server/internal/api"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
@@ -487,5 +488,86 @@ func TestRulesVersionAndExport(t *testing.T) {
 	}
 	if strings.Contains(string(b), "secret") {
 		t.Fatal("the webhook leaked into the export")
+	}
+}
+
+func TestTimerAndReview(t *testing.T) {
+	f := newFixture(t)
+	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	f.play.now = func() time.Time { return now }
+	f.addGame(f.alice, "G1", 10, 80, 2015)
+	f.addGame(f.alice, "G2", 10, 80, 2015)
+
+	timer := func(u *auth.User, action string, ms int64) (api.PlayerView, error) {
+		return f.play.Timer(f.ctx, "lbr", u, f.alice.ID, api.TimerRequest{Action: action, Ms: ms})
+	}
+	// No game yet: nothing to time.
+	if _, err := timer(f.alice, "start", 0); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("timer before the game: %v", err)
+	}
+	for range 3 {
+		f.spin(f.alice, "reflex")
+	}
+	f.spin(f.alice, "G1")
+	if v := f.view(f.alice); v.Timer == nil || v.Timer.Running || v.Timer.ElapsedMs != 0 {
+		t.Fatalf("fresh timer = %+v", v.Timer)
+	}
+
+	if _, err := timer(f.bob, "start", 0); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("bob started alice's timer: %v", err)
+	}
+	if _, err := timer(f.alice, "set", 1); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("a player set the timer: %v", err)
+	}
+	if _, err := timer(f.alice, "start", 0); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(90 * time.Minute)
+	if v := f.view(f.alice); !v.Timer.Running || v.Timer.ElapsedMs != 90*60*1000 {
+		t.Fatalf("running timer = %+v", v.Timer)
+	}
+	v, err := timer(f.alice, "pause", 0)
+	if err != nil || v.Timer.Running || v.Timer.ElapsedMs != 90*60*1000 {
+		t.Fatalf("paused timer = %+v, %v", v.Timer, err)
+	}
+	now = now.Add(time.Hour) // a pause does not count
+	if v := f.view(f.alice); v.Timer.ElapsedMs != 90*60*1000 {
+		t.Fatalf("timer moved while paused: %+v", v.Timer)
+	}
+	// A judge corrects it.
+	if v, err := timer(f.admin, "set", 2*3600*1000); err != nil || v.Timer.ElapsedMs != 2*3600*1000 {
+		t.Fatalf("judge set = %+v, %v", v.Timer, err)
+	}
+
+	// The review goes with the outcome; finishing stops the clock.
+	long := strings.Repeat("я", 2001)
+	step := f.view(f.alice).Turn.Current.ID
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: long}); err == nil {
+		t.Fatal("a too long review was accepted")
+	}
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: " Отличная игра "}); err != nil {
+		t.Fatal(err)
+	}
+	pt := f.view(f.alice).Turn.Playthrough
+	if pt.Review != "Отличная игра" {
+		t.Fatalf("review = %q", pt.Review)
+	}
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, pt.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	acts, _ := f.play.Activity(f.ctx, "lbr", 10)
+	found := false
+	for _, a := range acts {
+		found = found || a.Message == "Алиса прошёл «G1» за 2 ч"
+	}
+	if !found {
+		t.Errorf("journal has no «за 2 ч»: %+v", acts)
+	}
+
+	// The next game starts from zero.
+	f.spin(f.alice, "reflex")
+	f.spin(f.alice, "G2")
+	if v := f.view(f.alice); v.Timer == nil || v.Timer.ElapsedMs != 0 || v.Timer.Running {
+		t.Fatalf("timer on the next game = %+v", v.Timer)
 	}
 }

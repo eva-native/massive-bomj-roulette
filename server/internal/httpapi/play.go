@@ -21,6 +21,7 @@ func (s *Server) routePlay(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events/{slug}/playthroughs/{id}/confirm", s.confirmGame)
 	mux.HandleFunc("PATCH /api/events/{slug}/playthroughs/{id}", s.editPlaythrough)
 	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/undo", s.undoStep)
+	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/timer", s.timer)
 	mux.HandleFunc("POST /api/events/{slug}/finish", s.finishEvent)
 	mux.HandleFunc("GET /api/events/{slug}/export", s.exportEvent)
 	mux.HandleFunc("GET /api/events/{slug}/leaderboard", s.leaderboard)
@@ -267,4 +268,17 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func (s *Server) timer(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "userID")
+	if !ok || !requireLogin(w, r) {
+		return
+	}
+	var req api.TimerRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	v, err := s.play.Timer(r.Context(), r.PathValue("slug"), user(r), id, req)
+	respond(s, w, http.StatusOK, v, err)
 }

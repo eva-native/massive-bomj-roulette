@@ -186,6 +186,8 @@ type PlayerView struct {
 	History []PlaythroughView `json:"history"`
 	Points  int               `json:"points"`
 	Entries []PointEntry      `json:"entries"`
+	// Timer is set while the player is playing a game.
+	Timer *TimerView `json:"timer" tstype:"TimerView | null,required"`
 }
 
 type PlayerRef struct {
@@ -249,6 +251,7 @@ type PlaythroughView struct {
 	Outcome    string  `json:"outcome"` // "" | "completed" | "dropped" | "tech"
 	Hours      float64 `json:"hours"`
 	Proof      string  `json:"proof"`
+	Review     string  `json:"review"`
 	Confirmed  bool    `json:"confirmed"`
 	Points     int     `json:"points"`
 }
@@ -312,6 +315,7 @@ type FinishRequest struct {
 	Outcome string  `json:"outcome"` // "completed" | "dropped" | "tech"
 	Hours   float64 `json:"hours"`
 	Proof   string  `json:"proof"`
+	Review  string  `json:"review"`
 }
 
 type InputRequest struct {
@@ -319,8 +323,23 @@ type InputRequest struct {
 }
 
 type EditPlaythroughRequest struct {
-	Hours float64 `json:"hours"`
-	Proof string  `json:"proof"`
+	Hours  float64 `json:"hours"`
+	Proof  string  `json:"proof"`
+	Review string  `json:"review"`
+}
+
+// TimerRequest drives a player's stopwatch: "start" and "pause" by the
+// player, "set" (to Ms) by a judge.
+type TimerRequest struct {
+	Action string `json:"action"`
+	Ms     int64  `json:"ms"`
+}
+
+// TimerView is the stopwatch of the game being played. The client keeps it
+// ticking from the moment it got the view while Running.
+type TimerView struct {
+	ElapsedMs int64 `json:"elapsedMs"`
+	Running   bool  `json:"running"`
 }
 
 type ConfirmRequest struct {

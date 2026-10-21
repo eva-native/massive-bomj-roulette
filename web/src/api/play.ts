@@ -4,11 +4,13 @@ import { api } from './client'
 import { eventKeys } from './events'
 import type {
   ActivityEntry,
+  EditPlaythroughRequest,
   FinishRequest,
   LeaderboardRow,
   PlayerView,
   QueueEntry,
   SpinResult,
+  TimerRequest,
 } from './types.gen'
 
 export const playKeys = {
@@ -126,9 +128,14 @@ export function useUndoStep(slug: string) {
 }
 
 export function useEditPlaythrough(slug: string) {
-  return useEventAction(slug, ({ id, hours, proof }: { id: number; hours: number; proof: string }) =>
-    api<void>(`${base(slug)}/playthroughs/${id}`, { method: 'PATCH', json: { hours, proof } }),
+  return useEventAction(slug, ({ id, ...req }: EditPlaythroughRequest & { id: number }) =>
+    api<void>(`${base(slug)}/playthroughs/${id}`, { method: 'PATCH', json: req }),
   )
+}
+
+/** The player's stopwatch: start/pause by the player, set by a judge. */
+export function useTimer(slug: string, playerId: number) {
+  return usePlayerAction(slug, (req: TimerRequest) => api<PlayerView>(`${base(slug)}/players/${playerId}/timer`, { method: 'POST', json: req }))
 }
 
 export function useFinishEvent(slug: string) {

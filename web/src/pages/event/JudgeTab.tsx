@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Card, ErrorText, Loading } from '@/components/ui'
 import { useEventContext } from './context'
 import { ItemCard } from './play/ItemCard'
+import { formatHours } from '@/lib/hours'
 
 const outcomeNames: Record<string, string> = { completed: 'прошёл', dropped: 'дропнул', tech: 'просит тех. дроп' }
 
@@ -38,8 +39,9 @@ function GameEntry({ entry }: { entry: QueueEntry }) {
     <Card className="flex flex-col gap-2">
       <p>
         <span className="font-medium">{entry.player.name}</span> {outcomeNames[pt.outcome]} «{pt.game}»
-        {pt.outcome === 'completed' && ` за ${pt.hours} ч (HLTB ${pt.hltbHours} ч)`}
+        {pt.outcome === 'completed' && ` за ${formatHours(pt.hours)} (HLTB ${pt.hltbHours} ч)`}
       </p>
+      {pt.review && <p className="text-sm whitespace-pre-line text-stone-600 dark:text-stone-300">{pt.review}</p>}
       {pt.proof ? (
         <a href={pt.proof} target="_blank" rel="noreferrer" className="text-sm break-all text-amber-700 underline">
           {pt.proof}

@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -100,14 +101,21 @@ func (s *Service) Finish(ctx context.Context, slug string, viewer *auth.User, st
 	if proof != "" && !strings.HasPrefix(proof, "http://") && !strings.HasPrefix(proof, "https://") {
 		return api.PlayerView{}, &events.InvalidError{Msg: "доказательство — ссылка (http:// или https://)"}
 	}
+	review, err := cleanReview(req.Review)
+	if err != nil {
+		return api.PlayerView{}, err
+	}
 	return s.act(ctx, slug, viewer, func(ss *session, me game.PlayerID) error {
 		if err := s.eng.FinishGame(ss.st, me, stepID, game.Outcome(req.Outcome), req.Hours, proof); err != nil {
 			return err
 		}
-		title := s.gameTitle(ss, ss.st.Playthrough(ss.st.CurrentTurn(me).Playthrough).Game)
+		pt := ss.st.Playthrough(ss.st.CurrentTurn(me).Playthrough)
+		pt.Review = review
+		s.pauseTimer(ss, int64(me))
+		title := s.gameTitle(ss, pt.Game)
 		switch game.Outcome(req.Outcome) {
 		case game.OutcomeCompleted:
-			ss.log("finish", "%s прошёл «%s» за %s ч", ss.name(me), title, formatHours(req.Hours))
+			ss.log("finish", "%s прошёл «%s» за %s", ss.name(me), title, formatHours(req.Hours))
 		case game.OutcomeTech:
 			ss.log("finish", "%s просит тех. дроп «%s»", ss.name(me), title)
 		default:
@@ -117,8 +125,32 @@ func (s *Service) Finish(ctx context.Context, slug string, viewer *auth.User, st
 	})
 }
 
+// formatHours writes hours as «25 ч 30 мин 12 с», leaving out zero parts.
 func formatHours(h float64) string {
-	return strings.Replace(strconv.FormatFloat(h, 'f', -1, 64), ".", ",", 1)
+	total := int64(math.Round(h * 3600))
+	hh, mm, ss := total/3600, total/60%60, total%60
+	var parts []string
+	if hh > 0 {
+		parts = append(parts, fmt.Sprintf("%d ч", hh))
+	}
+	if mm > 0 {
+		parts = append(parts, fmt.Sprintf("%d мин", mm))
+	}
+	if ss > 0 || len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%d с", ss))
+	}
+	return strings.Join(parts, " ")
+}
+
+// maxReview caps the length of a game review, in characters.
+const maxReview = 2000
+
+func cleanReview(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if utf8.RuneCountInString(s) > maxReview {
+		return "", &events.InvalidError{Msg: fmt.Sprintf("обзор не длиннее %d символов", maxReview)}
+	}
+	return s, nil
 }
 
 // Use uses one of the viewer's items.
@@ -358,6 +390,10 @@ func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth
 	if proof != "" && !strings.HasPrefix(proof, "http://") && !strings.HasPrefix(proof, "https://") {
 		return &events.InvalidError{Msg: "доказательство — ссылка (http:// или https://)"}
 	}
+	review, err := cleanReview(req.Review)
+	if err != nil {
+		return err
+	}
 	return s.write(ctx, slug, viewer, func(ss *session) error {
 		if err := requireJudgeAction(ss); err != nil {
 			return err
@@ -369,7 +405,8 @@ func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth
 		if err := s.eng.EditPlaythrough(ss.st, ss.viewerID(), playthroughID, req.Hours, proof); err != nil {
 			return err
 		}
-		ss.log("edit", "Судья %s исправляет «%s» у %s: %s ч", ss.viewer.Name, s.gameTitle(ss, pt.Game), ss.name(pt.Player), formatHours(req.Hours))
+		pt.Review = review
+		ss.log("edit", "Судья %s исправляет «%s» у %s: %s", ss.viewer.Name, s.gameTitle(ss, pt.Game), ss.name(pt.Player), formatHours(req.Hours))
 		return nil
 	})
 }

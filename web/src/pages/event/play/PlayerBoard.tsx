@@ -2,15 +2,17 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
 import { playKeys, useChoose, useFinish, useSpin } from '@/api/play'
-import type { EventDetail, PlayerView, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import type { EventDetail, PlayerView, PlaythroughView, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
-import { Badge, Card, ErrorText, Field, Input } from '@/components/ui'
+import { DurationInput } from '@/components/DurationInput'
+import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
-import { cleanHoursInput, parseHours } from '@/lib/hours'
+import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
 import { wheelSeconds } from '@/lib/wheel'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
+import { Timer } from './Timer'
 
 const stepNames: Record<string, string> = {
   spin_items: 'Колесо эффектов и бонусов',
@@ -196,19 +198,36 @@ function CurrentStep({
     return <ChoiceStep slug={event.slug} step={step} canAct={view.canAct} />
   }
   if (step.kind === 'play' && turn.playthrough) {
-    return (
-      <div className="flex flex-col gap-3">
-        <div>
-          <p className="text-lg font-semibold">{turn.playthrough.game}</p>
-          <p className="text-sm text-stone-500">
-            {turn.playthrough.hltbHours} ч HLTB · база {turn.playthrough.basePoints}
-          </p>
-        </div>
-        {view.canAct && <FinishForm slug={event.slug} stepId={step.id} />}
-      </div>
-    )
+    return <PlayStep event={event} view={view} playthrough={turn.playthrough} stepId={step.id} />
   }
   return null
+}
+
+function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; view: PlayerView; playthrough: PlaythroughView; stepId: number }) {
+  // The timer's «Стоп» fills the time in the outcome form.
+  const [time, setTime] = useState<HMS>(emptyHMS)
+  const judge = (event.me?.isJudge ?? false) && event.status === 'active'
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <p className="text-lg font-semibold">{playthrough.game}</p>
+        <p className="text-sm text-stone-500">
+          {playthrough.hltbHours} ч HLTB · база {playthrough.basePoints}
+        </p>
+      </div>
+      {view.timer && (view.canAct || judge || view.timer.elapsedMs > 0 || view.timer.running) && (
+        <Timer
+          slug={event.slug}
+          playerId={view.player.id}
+          timer={view.timer}
+          canRun={view.canAct}
+          canSet={judge}
+          onStop={(ms) => setTime(hoursToHMS(ms / 3600000))}
+        />
+      )}
+      {view.canAct && <FinishForm slug={event.slug} stepId={stepId} time={time} setTime={setTime} />}
+    </div>
+  )
 }
 
 function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canAct: boolean }) {
@@ -231,22 +250,22 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
   )
 }
 
-function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
+function FinishForm({ slug, stepId, time, setTime }: { slug: string; stepId: number; time: HMS; setTime: (v: HMS) => void }) {
   const finish = useFinish(slug)
   const [outcome, setOutcome] = useState<'completed' | 'dropped' | 'tech'>('completed')
-  const [hours, setHours] = useState('')
   const [proof, setProof] = useState('')
-  const parsed = parseHours(hours)
+  const [review, setReview] = useState('')
+  const hours = hmsToHours(time)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (parsed === null) return
-    finish.mutate({ stepId, outcome, hours: parsed, proof })
+    if (hours === null) return
+    finish.mutate({ stepId, outcome, hours, proof, review })
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3 border-t border-stone-200 pt-3 dark:border-stone-800">
-      <div className="flex gap-4 text-sm">
+      <div className="flex flex-wrap gap-4 text-sm">
         <label className="flex items-center gap-2">
           <input type="radio" name="outcome" checked={outcome === 'completed'} onChange={() => setOutcome('completed')} />
           Прошёл
@@ -266,16 +285,16 @@ function FinishForm({ slug, stepId }: { slug: string; stepId: number }) {
           только колесо игр. Опишите проблему ссылкой на скриншот или видео.
         </p>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Часов в игре">
-          <Input inputMode="decimal" value={hours} onChange={(e) => setHours(cleanHoursInput(e.target.value))} placeholder={outcome === 'completed' ? 'например, 25' : 'необязательно'} />
-        </Field>
-        <Field label="Доказательство (ссылка)">
-          <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
-        </Field>
-      </div>
+      <DurationInput label={outcome === 'completed' ? 'Время в игре' : 'Время в игре (необязательно)'} value={time} onChange={setTime} />
+      {hours === null && <p className="text-xs text-red-600">Минуты и секунды — от 0 до 59.</p>}
+      <Field label="Доказательство (ссылка)">
+        <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
+      </Field>
+      <Field label="Обзор (необязательно)" hint="Пара слов об игре: что понравилось, что нет. Увидят все.">
+        <Textarea value={review} maxLength={2000} onChange={(e) => setReview(e.target.value)} />
+      </Field>
       <ErrorText error={finish.error} />
-      <Button type="submit" className="self-start" disabled={finish.isPending || parsed === null || (outcome === 'completed' && !parsed)}>
+      <Button type="submit" className="self-start" disabled={finish.isPending || hours === null || (outcome === 'completed' && !hours)}>
         Отправить судье
       </Button>
     </form>
@@ -294,13 +313,14 @@ function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | nu
           <li key={pt.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 text-sm dark:border-stone-800">
             <span>
               {pt.game} — {outcomeNames[pt.outcome]}
-              {pt.outcome === 'completed' && ` за ${pt.hours} ч`}
+              {pt.outcome === 'completed' && ` за ${formatHours(pt.hours)}`}
               {!pt.confirmed && <Badge>ждёт судью</Badge>}
             </span>
             <span className="flex items-center gap-3">
               {judgeSlug && <EditPlaythrough slug={judgeSlug} pt={pt} />}
               <span className="font-semibold">{pt.points > 0 ? `+${pt.points}` : pt.points}</span>
             </span>
+            {pt.review && <p className="w-full whitespace-pre-line text-stone-600 dark:text-stone-300">{pt.review}</p>}
           </li>
         ))}
       </ul>

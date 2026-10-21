@@ -211,6 +211,10 @@ export interface PlayerView {
   history: PlaythroughView[];
   points: number /* int */;
   entries: PointEntry[];
+  /**
+   * Timer is set while the player is playing a game.
+   */
+  timer: TimerView | null;
 }
 export interface PlayerRef {
   id: number /* int64 */;
@@ -283,6 +287,7 @@ export interface PlaythroughView {
   outcome: string; // "" | "completed" | "dropped" | "tech"
   hours: number /* float64 */;
   proof: string;
+  review: string;
   confirmed: boolean;
   points: number /* int */;
 }
@@ -352,6 +357,7 @@ export interface FinishRequest {
   outcome: string; // "completed" | "dropped" | "tech"
   hours: number /* float64 */;
   proof: string;
+  review: string;
 }
 export interface InputRequest {
   values: { [key: string]: any};
@@ -359,6 +365,23 @@ export interface InputRequest {
 export interface EditPlaythroughRequest {
   hours: number /* float64 */;
   proof: string;
+  review: string;
+}
+/**
+ * TimerRequest drives a player's stopwatch: "start" and "pause" by the
+ * player, "set" (to Ms) by a judge.
+ */
+export interface TimerRequest {
+  action: string;
+  ms: number /* int64 */;
+}
+/**
+ * TimerView is the stopwatch of the game being played. The client keeps it
+ * ticking from the moment it got the view while Running.
+ */
+export interface TimerView {
+  elapsedMs: number /* int64 */;
+  running: boolean;
 }
 export interface ConfirmRequest {
   accept: boolean;

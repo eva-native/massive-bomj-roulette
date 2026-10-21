@@ -34,7 +34,7 @@ function turn(steps: StepView[], extra: Partial<TurnView> = {}): TurnView {
 }
 
 function view(t: TurnView | null, extra: Partial<PlayerView> = {}): PlayerView {
-  return { player: { id: alice.id, name: alice.name, avatarUrl: '' }, canAct: true, turn: t, pocket: [], history: [], points: 0, entries: [], ...extra }
+  return { player: { id: alice.id, name: alice.name, avatarUrl: '' }, canAct: true, turn: t, pocket: [], history: [], points: 0, entries: [], timer: null, ...extra }
 }
 
 const opaaa: ItemView = {
@@ -105,7 +105,7 @@ describe('my turn', () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: '', hours: 0, proof: '', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
     })
     let current = view(playing)
     backend.on('GET', /\/players\/2$/, () => current)
@@ -120,15 +120,35 @@ describe('my turn', () => {
     expect(await screen.findByText('GTA San Andreas')).toBeInTheDocument()
     const send = screen.getByRole('button', { name: 'Отправить судье' })
     expect(send).toBeDisabled() // hours are required for a completed game
-    // Only a number can be typed in (issue #3).
-    await user.type(screen.getByLabelText('Часов в игре'), 'abc25,5ч')
-    expect(screen.getByLabelText('Часов в игре')).toHaveValue('25.5')
+    // Only digits can be typed in (issue #3).
+    await user.type(screen.getByLabelText('Время в игре: часы'), 'abc25ч')
+    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('25')
+    await user.type(screen.getByLabelText('Время в игре: минуты'), '30')
+    await user.type(screen.getByLabelText('Обзор (необязательно)'), 'Классика')
     await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
     await user.click(send)
 
     expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
     const post = backend.requests.find((r) => r.url.endsWith('/finish'))
-    expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x' })
+    expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x', review: 'Классика' })
+  })
+
+  it('fills the time from the timer on «Стоп»', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0 },
+    })
+    backend.on('GET', /\/players\/2$/, () => view(playing, { timer: { elapsedMs: (90 * 60 + 5) * 1000, running: false } }))
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+
+    expect(await screen.findByRole('timer')).toHaveTextContent('1:30:05')
+    await user.click(screen.getByRole('button', { name: 'Стоп' }))
+    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('1')
+    expect(screen.getByLabelText('Время в игре: минуты')).toHaveValue('30')
+    expect(screen.getByLabelText('Время в игре: секунды')).toHaveValue('5')
   })
 
   it('locks item fields once they are sent to the judge', async () => {
@@ -175,7 +195,7 @@ describe('judge queue', () => {
       id: 70,
       player: { id: 2, name: 'Алиса', avatarUrl: '' },
       title: 'GTA San Andreas',
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: 'completed', hours: 25, proof: 'https://imgur.com/x', confirmed: false, points: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, outcome: 'completed', hours: 25, proof: 'https://imgur.com/x', review: '', confirmed: false, points: 0 },
       item: null,
       game: 'GTA San Andreas',
     }

@@ -183,14 +183,16 @@ const (
 )
 
 type Playthrough struct {
-	ID        int64
-	Seq       int64
-	Player    PlayerID
-	Game      int64
-	TurnID    int64
-	Outcome   Outcome
-	Hours     float64
-	Proof     string
+	ID      int64
+	Seq     int64
+	Player  PlayerID
+	Game    int64
+	TurnID  int64
+	Outcome Outcome
+	Hours   float64
+	Proof   string
+	// Review is the player's own words about the game; it does not affect points.
+	Review    string `json:",omitempty"`
 	Confirmed bool
 }
 
