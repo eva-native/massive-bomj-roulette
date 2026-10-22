@@ -28,16 +28,20 @@ export function ScrollToBottom() {
     }
   }, [])
 
-  if (!show) return null
+  // When hidden, the button stays in the page, only invisible: removing it would drop the
+  // keyboard focus to the top of the page right after a press scrolled to the bottom.
   const smooth = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   return (
     <button
       type="button"
       aria-label="Вниз страницы"
       title="Вниз страницы"
+      tabIndex={show ? 0 : -1}
+      data-shown={show}
       onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })}
       className={cn(
-        'fixed right-4 bottom-4 z-40 flex size-11 items-center justify-center rounded-full shadow-lg transition-colors',
+        'fixed right-4 bottom-4 z-40 flex size-11 items-center justify-center rounded-full shadow-lg transition',
+        !show && 'pointer-events-none opacity-0',
         'bg-stone-200 text-stone-900 hover:bg-stone-300 dark:bg-stone-800 dark:text-stone-100 dark:hover:bg-stone-700',
       )}
     >

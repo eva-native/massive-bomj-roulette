@@ -46,7 +46,7 @@ export function Badge({ children, tone = 'stone' }: { children: ReactNode; tone?
     amber: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
     green: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
   }
-  return <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', tones[tone])}>{children}</span>
+  return <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium wrap-normal', tones[tone])}>{children}</span>
 }
 
 export function ErrorText({ error }: { error: Error | null | undefined }) {

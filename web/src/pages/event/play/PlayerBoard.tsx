@@ -346,7 +346,7 @@ function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | nu
       <ul className="flex flex-col gap-1">
         {view.history.map((pt) => (
           <li key={pt.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 text-sm dark:border-stone-800">
-            <span className="min-w-0 wrap-anywhere">
+            <span>
               {pt.game} — {outcomeNames[pt.outcome]}
               {pt.outcome === 'completed' && ` за ${formatHours(pt.hours)}`}
               {!pt.confirmed && <Badge>ждёт судью</Badge>}
@@ -355,7 +355,7 @@ function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | nu
               {judgeSlug && <EditPlaythrough slug={judgeSlug} pt={pt} />}
               <span className="font-semibold">{pt.points > 0 ? `+${pt.points}` : pt.points}</span>
             </span>
-            {pt.review && <p className="w-full whitespace-pre-line wrap-anywhere text-stone-600 dark:text-stone-300">{pt.review}</p>}
+            {pt.review && <p className="w-full whitespace-pre-line text-stone-600 dark:text-stone-300">{pt.review}</p>}
           </li>
         ))}
       </ul>
