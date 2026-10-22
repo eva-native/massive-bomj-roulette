@@ -38,7 +38,8 @@ Generated code is committed: `server/internal/store/db` (sqlc), `web/src/api/typ
 Git flow; never commit or push to `main` or `develop` directly.
 
 - `develop` is the integration branch. Work in `feature/<name>` or `fix/<name>` from `develop`, open a PR into `develop` (`gh pr create --base develop`).
-- Releases: `release/<version>` from `develop` → PR into `main`, tag the merge, merge back into `develop`. Urgent production fixes: `hotfix/<name>` from `main` → PR into `main` and into `develop`.
+- Releases: `release/<version>` from `develop` → PR into `main`, tag the merge. Urgent production fixes: `hotfix/<name>` from `main` → PR into `main`.
+- Anything that lands in `main` reaches `develop` only through `main`: once the PR into `main` is merged, open a PR `main` → `develop` (`gh pr create --base develop --head main`). Never open a second PR from the release/hotfix branch into `develop`. Merge both with «Create a merge commit» (no squash or rebase), so the fix keeps one commit hash and `develop` always contains `main`.
 - CI runs on PRs and on pushes to `main` and `develop`. Open the PR and wait for green CI; the repo owner reviews and merges.
 
 ## Rules come first
