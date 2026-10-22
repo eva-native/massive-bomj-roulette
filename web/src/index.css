@@ -6,6 +6,9 @@
 
 body {
   @apply min-h-screen bg-stone-50 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
+  /* A long word (a review, a game title) breaks instead of running out of its card.
+     Badges and buttons opt out with wrap-normal. */
+  overflow-wrap: anywhere;
 }
 
 /* The OBS overlay draws over the stream. */
