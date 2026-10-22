@@ -1,6 +1,14 @@
 .env
 .DS_Store
 
+# Claude Code: share the project hooks and skills, keep the rest local
+# (this also overrides a global ignore of .claude).
+!/.claude/
+/.claude/*
+!/.claude/settings.json
+!/.claude/hooks/
+!/.claude/skills/
+
 # Frontend
 web/node_modules/
 web/dist/
