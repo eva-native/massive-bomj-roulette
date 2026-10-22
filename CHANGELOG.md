@@ -2,6 +2,11 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [Не выпущено]
+
+### Лицензия
+- Код открыт под лицензией AGPL-3.0-only (`LICENSE`), правообладатель — eva-native.
+
 ## [0.1.0] — 2026-10-21
 
 Первая версия приложения для ивента ЛБР.
