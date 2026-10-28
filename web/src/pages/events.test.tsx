@@ -67,6 +67,18 @@ describe('events', () => {
     expect(post?.body).toMatchObject({ title: 'GTA San Andreas', hltbHours: 30 })
   })
 
+  it('links participants in the members tab to their boards (issue #11)', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/members')
+
+    await user.click(await screen.findByRole('button', { name: 'Участвовать' }))
+    expect(await screen.findByRole('link', { name: 'Алиса' })).toHaveAttribute('href', '/e/lbr/players/2')
+    expect(screen.queryByRole('link', { name: 'Админ' })).not.toBeInTheDocument() // a judge only, no board
+  })
+
   it('joins an invite-only event only with the link', async () => {
     const backend = fakeBackend({ me: alice, items })
     backend.addEvent('lbr', 'ЛБР', admin)

@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { useMe } from '@/api/hooks'
 import { useRemoveMember, useUpdateMember } from '@/api/events'
 import type { Member } from '@/api/types.gen'
@@ -20,7 +21,14 @@ export function MembersTab() {
             <div className="flex items-center gap-3">
               <Avatar name={m.name} url={m.avatarUrl} size="sm" />
               <span className="font-medium">
-                {m.name}
+                {/* Only participants have a board to open. */}
+                {m.isParticipant ? (
+                  <Link to={`/e/${event.slug}/players/${m.userId}`} className="hover:text-amber-700 hover:underline">
+                    {m.name}
+                  </Link>
+                ) : (
+                  m.name
+                )}
                 {m.userId === me?.id && <span className="text-stone-500"> (вы)</span>}
               </span>
               {m.isJudge && <Badge tone="amber">Судья</Badge>}
