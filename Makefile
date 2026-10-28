@@ -45,5 +45,8 @@ build: ## Build the frontend and a server binary with it embedded (bin/mbr)
 	cp -R web/dist/. server/internal/webui/dist/
 	cd server && CGO_ENABLED=0 go build -o ../bin/mbr ./cmd/mbr
 
+# The release tag of this commit, or the commit itself; the rules link points to it.
+VERSION = $(shell git describe --tags --exact-match 2>/dev/null || git rev-parse HEAD)
+
 docker: ## Build the Docker image
-	docker build -t mbr .
+	docker build --build-arg MBR_VERSION=$(VERSION) -t mbr .

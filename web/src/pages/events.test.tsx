@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EventDetail, ItemDef, Me } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
+import { RULES_URL } from '@/lib/links'
 import { renderApp } from '@/test/renderApp'
 
 const admin: Me = { id: 1, name: 'Админ', avatarUrl: '', isAdmin: true }
@@ -65,6 +66,41 @@ describe('events', () => {
     expect(within(row).getByRole('button', { name: 'Изменить' })).toBeInTheDocument()
     const post = backend.requests.find((r) => r.method === 'POST' && r.url.endsWith('/games'))
     expect(post?.body).toMatchObject({ title: 'GTA San Andreas', hltbHours: 30 })
+  })
+
+  it('links participants in the members tab to their boards (issue #11)', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/members')
+
+    await user.click(await screen.findByRole('button', { name: 'Участвовать' }))
+    expect(await screen.findByRole('link', { name: 'Алиса' })).toHaveAttribute('href', '/e/lbr/players/2')
+    // A judge only, with no board: the name is plain text.
+    expect(screen.getByText('Админ')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Админ' })).not.toBeInTheDocument()
+  })
+
+  it('links a former player who is still on the leaderboard', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    // The judge played some turns and then stopped being a participant.
+    backend.on('GET', /\/leaderboard$/, () => [{ player: { id: admin.id, name: admin.name, avatarUrl: '' }, points: 12, completed: 1, dropped: 0, playing: '' }])
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/members')
+
+    expect(await screen.findByRole('link', { name: 'Админ' })).toHaveAttribute('href', '/e/lbr/players/1')
+  })
+
+  it('links to the rules on GitHub (issue #11)', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/rules')
+
+    expect(await screen.findByRole('link', { name: 'Правила ↗' })).toHaveAttribute('href', RULES_URL)
+    expect(await screen.findByRole('link', { name: 'общих правилах ивента' })).toHaveAttribute('href', RULES_URL)
   })
 
   it('joins an invite-only event only with the link', async () => {

@@ -69,6 +69,15 @@ func TestTurnFlowAndCoreScoring(t *testing.T) {
 	sc.expectSteps(alice, game.StepSpinDrop, game.StepSpinGame, game.StepPlay)
 }
 
+func TestSlowCompletionGivesNoSpeedPenalty(t *testing.T) {
+	sc := newScenario(t)
+	a := sc.player("Алиса")
+	sc.addGame("G", 10, 80, 2015, a) // base 17
+	startGame(sc, a, "G")
+	sc.play(a, game.OutcomeCompleted, 15) // five hours over HLTB (issue #11)
+	sc.expectTotal(a, 17+rec)             // speed 0, not −5
+}
+
 func TestSpinsByHours(t *testing.T) {
 	sc := newScenario(t)
 	sc.s.Settings.SpinsByHours = []game.SpinsRow{{MinHours: 0, Spins: 1}, {MinHours: 20, Spins: 2}, {MinHours: 40, Spins: 3}}

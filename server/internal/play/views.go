@@ -2,6 +2,7 @@ package play
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"sort"
 
@@ -131,10 +132,7 @@ func (s *Service) turnView(ss *session, t *game.Turn, entries []game.Entry) api.
 		if err != nil {
 			tv.Waiting = emptyWheelHint(kind, cur.Kind)
 		} else {
-			wv := api.WheelView{Kind: string(kind), Sectors: make([]api.Sector, 0, len(sectors))}
-			for _, sec := range sectors {
-				wv.Sectors = append(wv.Sectors, s.sectorView(sec))
-			}
+			wv, _ := s.wheelView(kind, sectors, cur.ID)
 			tv.Wheel = &wv
 		}
 	}
@@ -152,18 +150,30 @@ func (s *Service) turnView(ss *session, t *game.Turn, entries []game.Entry) api.
 	return tv
 }
 
-// playerPartFilled reports whether every required player field of the item
-// has a value.
-func playerPartFilled(d *game.Def, it *game.Item) bool {
-	for _, f := range d.Input {
-		if f.By == game.RolePlayer && !f.Optional {
-			if _, ok := it.Input[f.Name]; !ok {
-				return false
-			}
-		}
+// wheelView shows an engine wheel. The engine lists sectors in catalog order,
+// so items of one kind stand in a block; the view shuffles them (issue #11).
+// The order depends only on the step, so the wheel before the spin and the
+// spinning one look the same, and every new spin gets a new order. It is only
+// a picture: the result is picked by the engine. pos[i] is where engine
+// sector i stands in the view.
+func (s *Service) wheelView(kind game.WheelKind, sectors []game.Sector, stepID int64) (wv api.WheelView, pos []int) {
+	order := wheelOrder(stepID, len(sectors))
+	wv = api.WheelView{Kind: string(kind), Sectors: make([]api.Sector, len(sectors))}
+	pos = make([]int, len(sectors))
+	for v, i := range order {
+		wv.Sectors[v] = s.sectorView(sectors[i])
+		pos[i] = v
 	}
-	return true
+	return wv, pos
 }
+
+// wheelOrder is the order of n sectors on the wheel of a step.
+func wheelOrder(stepID int64, n int) []int {
+	return rand.New(rand.NewPCG(uint64(stepID), wheelSalt)).Perm(n)
+}
+
+// wheelSalt is the second half of the shuffle seed; any constant will do.
+const wheelSalt = 0x6d6272
 
 func (s *Service) sectorView(sec game.Sector) api.Sector {
 	out := api.Sector{Label: sec.Label, Weight: sec.Weight}
@@ -337,7 +347,7 @@ func (s *Service) queue(ss *session) []api.QueueEntry {
 			continue
 		}
 		// Nothing to check until the player has filled their part.
-		if !playerPartFilled(d, it) {
+		if !game.PlayerFieldsFilled(d, it) {
 			continue
 		}
 		iv := s.itemView(ss, it, ss.st.Turn(it.TurnID))
