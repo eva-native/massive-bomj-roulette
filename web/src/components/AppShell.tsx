@@ -9,7 +9,7 @@ import { Avatar } from './ui'
 
 /** The page frame: header with the user and logout, or a login link. */
 export function AppShell() {
-  const { data: me, isPending } = useMe()
+  const { data: me, isPending, isError } = useMe()
   const logout = useLogout()
   const location = useLocation()
 
@@ -29,6 +29,9 @@ export function AppShell() {
               Выйти
             </Button>
           </div>
+        ) : isError ? (
+          // useMe turns 401 into null, so an error means the server did not answer, not a logout.
+          <span className="text-sm text-stone-500 dark:text-stone-400">Сервер недоступен</span>
         ) : (
           !isPending && (
             <Link to={`/login?next=${encodeURIComponent(location.pathname)}`} className={buttonClass('primary')}>
