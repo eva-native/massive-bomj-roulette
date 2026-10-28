@@ -32,6 +32,32 @@ function plainColor(i: number, n: number) {
   return plainColors[i % plainColors.length]!
 }
 
+/** Every colour a sector can have. */
+export const sectorColors = [...Object.values(kindColors).flat(), ...plainColors]
+
+/** WCAG relative luminance of a #rrggbb colour. */
+function luminance(hex: string) {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+
+/** WCAG contrast ratio of two #rrggbb colours. */
+export function contrast(a: string, b: string) {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi! + 0.05) / (lo! + 0.05)
+}
+
+const DARK_TEXT = '#1c1917'
+const LIGHT_TEXT = '#ffffff'
+
+/** The text colour that reads best on a sector of this colour. */
+export function labelColor(fill: string) {
+  return contrast(fill, DARK_TEXT) >= contrast(fill, LIGHT_TEXT) ? DARK_TEXT : LIGHT_TEXT
+}
+
 /** A sector with its place on the wheel: degrees clockwise from the top. */
 export type Slice = { start: number; end: number; sector: Sector; color: string }
 

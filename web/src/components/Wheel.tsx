@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
 import { itemEmoji, kindEmoji } from '@/lib/items'
-import { angleOf, fitLabel, ICON_RADIUS, LABEL_OUTER, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
+import { angleOf, fitLabel, ICON_RADIUS, LABEL_OUTER, labelColor, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
 import { ItemIcon } from './ItemIcon'
 
 const TURNS = 6 // full turns before stopping
@@ -117,7 +117,7 @@ function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; 
           y={y}
           fontSize={mode.font}
           fontWeight={600}
-          fill="#1c1917"
+          fill={labelColor(p.color)}
           textAnchor="end"
           dominantBaseline="middle"
           transform={`rotate(${mid - 90} ${x} ${y})`}

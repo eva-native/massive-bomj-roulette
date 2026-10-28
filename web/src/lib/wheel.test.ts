@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Sector } from '@/api/types.gen'
-import { angleOf, fitLabel, labelMode, sectorAt, slices } from './wheel'
+import { angleOf, contrast, fitLabel, labelColor, labelMode, sectorAt, sectorColors, slices } from './wheel'
 
 const sector = (label: string, weight = 1, kind = ''): Sector => ({ label, weight, kind, defId: '' })
 const items = (n: number) => slices(Array.from({ length: n }, (_, i) => ({ label: `Предмет ${i}`, weight: 1, kind: 'effect', defId: `item${i}` })))
@@ -17,6 +17,17 @@ describe('slices', () => {
   it('keeps the item kinds in their colours', () => {
     const parts = slices([sector('a', 1, 'effect'), sector('b', 1, 'bonus'), sector('c', 1, 'drop')])
     expect(parts.map((p) => p.color)).toEqual(['#f59e0b', '#22c55e', '#dc2626'])
+  })
+})
+
+describe('labelColor', () => {
+  it('reads at 4.5:1 or better on every sector colour', () => {
+    for (const fill of sectorColors) expect(contrast(fill, labelColor(fill)), fill).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('writes white on the red of drop debuffs and dark on amber effects', () => {
+    expect(labelColor('#dc2626')).toBe('#ffffff')
+    expect(labelColor('#f59e0b')).toBe('#1c1917')
   })
 })
 
