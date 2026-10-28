@@ -253,7 +253,8 @@ func (c *Catalog) All() []*Def { return c.order }
 // engineRules is the version of the rules built into the engine (turns,
 // scoring). Bump it when they change so running events note the change.
 // 2: speed record +5 by default, technical drop.
-const engineRules = 2
+// 3: speed points never go below zero.
+const engineRules = 3
 
 // Fingerprint identifies this version of the rules: the engine's rules, item
 // texts, flags, fields, parameters and the mechanics' type and settings. It

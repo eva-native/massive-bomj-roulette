@@ -44,7 +44,7 @@ func TestJudgeEditsHoursAfterConfirmation(t *testing.T) {
 	spinItems(sc, a, "reflex", "reflex", "reflex")
 	sc.spin(a, "G")
 	sc.play(a, game.OutcomeCompleted, 20)
-	sc.expectTotal(a, 17-10+rec)
+	sc.expectTotal(a, 17+rec) // 10 h over HLTB: speed 0
 
 	var pt *game.Playthrough
 	for _, p := range sc.s.Playthroughs {
