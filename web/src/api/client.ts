@@ -12,14 +12,27 @@ export class ApiError extends Error {
 
 type RequestOptions = Omit<RequestInit, 'body'> & { json?: unknown }
 
-/** Calls the MBR API and returns the parsed JSON body; throws ApiError on non-2xx. */
+/** The error text when a request never reached the server. */
+export const NETWORK_ERROR = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.'
+
+/**
+ * Calls the MBR API and returns the parsed JSON body; throws ApiError on
+ * non-2xx, and ApiError with status 0 when the server could not be reached.
+ */
 export async function api<T>(path: string, { json, headers, ...init }: RequestOptions = {}): Promise<T> {
-  const res = await fetch(path, {
-    credentials: 'same-origin',
-    ...init,
-    headers: json === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
-    body: json === undefined ? undefined : JSON.stringify(json),
-  })
+  let res: Response
+  try {
+    res = await fetch(path, {
+      credentials: 'same-origin',
+      ...init,
+      headers: json === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
+      body: json === undefined ? undefined : JSON.stringify(json),
+    })
+  } catch (err) {
+    // Without a connection fetch rejects with a TypeError worded by the browser ("Failed to fetch").
+    if (err instanceof TypeError) throw new ApiError(0, NETWORK_ERROR)
+    throw err
+  }
 
   if (!res.ok) {
     let message = res.statusText || `HTTP ${res.status}`
