@@ -6,6 +6,7 @@ import type {
   Game,
   GameInput,
   ItemDef,
+  LeaderboardRow,
   Me,
   Movie,
 } from '@/api/types.gen'
@@ -143,6 +144,12 @@ export function fakeBackend(opts: { config?: AppConfig; me?: Me | null; items?: 
         return new Response(null, { status: 204 })
       }
       if (sub === 'movies' && method === 'GET') return json(200, ev.movies)
+      if (sub === 'leaderboard') {
+        const rows: LeaderboardRow[] = ev.detail.members
+          .filter((m) => m.isParticipant)
+          .map((m) => ({ player: { id: m.userId, name: m.name, avatarUrl: m.avatarUrl }, points: 0, completed: 0, dropped: 0, playing: '' }))
+        return json(200, rows)
+      }
       return json(404, { error: 'не найдено' })
     }),
   }

@@ -54,15 +54,23 @@ export function useCreateEvent() {
   })
 }
 
-/** Mutations that return the updated event detail. */
-function useEventMutation<V>(slug: string, fn: (v: V) => Promise<EventDetail>) {
+/**
+ * Mutations that return the updated event detail. A change of members
+ * changes who plays, so it also refreshes the boards and the leaderboard.
+ */
+function useEventMutation<V>(slug: string, fn: (v: V) => Promise<EventDetail>, opts: { members?: boolean } = {}) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: fn,
     onSuccess: (ev) => {
-      qc.setQueryData(eventKeys.detail(slug), ev)
+      const detail = eventKeys.detail(slug)
+      qc.setQueryData(detail, ev)
       void qc.invalidateQueries({ queryKey: eventKeys.list, exact: true })
-      void qc.invalidateQueries({ queryKey: eventKeys.items(slug) })
+      if (opts.members) {
+        void qc.invalidateQueries({ queryKey: detail, predicate: (q) => q.queryKey.length > detail.length })
+      } else {
+        void qc.invalidateQueries({ queryKey: eventKeys.items(slug) })
+      }
     },
   })
 }
@@ -72,8 +80,10 @@ export function useUpdateEvent(slug: string) {
 }
 
 export function useJoinEvent(slug: string) {
-  return useEventMutation(slug, (invite: string) =>
-    api<EventDetail>(`${base(slug)}/join${invite ? `?invite=${encodeURIComponent(invite)}` : ''}`, { method: 'POST' }),
+  return useEventMutation(
+    slug,
+    (invite: string) => api<EventDetail>(`${base(slug)}/join${invite ? `?invite=${encodeURIComponent(invite)}` : ''}`, { method: 'POST' }),
+    { members: true },
   )
 }
 
@@ -88,15 +98,15 @@ export function inviteLink(slug: string, code: string) {
 }
 
 export function useUpdateMember(slug: string) {
-  return useEventMutation(slug, ({ userId, ...req }: UpdateMemberRequest & { userId: number }) =>
-    api<EventDetail>(`${base(slug)}/members/${userId}`, { method: 'PATCH', json: req }),
+  return useEventMutation(
+    slug,
+    ({ userId, ...req }: UpdateMemberRequest & { userId: number }) => api<EventDetail>(`${base(slug)}/members/${userId}`, { method: 'PATCH', json: req }),
+    { members: true },
   )
 }
 
 export function useRemoveMember(slug: string) {
-  return useEventMutation(slug, (userId: number) =>
-    api<EventDetail>(`${base(slug)}/members/${userId}`, { method: 'DELETE' }),
-  )
+  return useEventMutation(slug, (userId: number) => api<EventDetail>(`${base(slug)}/members/${userId}`, { method: 'DELETE' }), { members: true })
 }
 
 /** Create, update and delete mutations for a pool list (games or movies). */

@@ -1,13 +1,17 @@
 import { Link } from 'react-router'
 import { useMe } from '@/api/hooks'
 import { useRemoveMember, useUpdateMember } from '@/api/events'
+import { useLeaderboard } from '@/api/play'
 import type { Member } from '@/api/types.gen'
 import { Avatar, Badge, ErrorText } from '@/components/ui'
+import { playerPath } from '@/lib/paths'
 import { useEventContext } from './context'
 
 export function MembersTab() {
   const { event } = useEventContext()
   const { data: me } = useMe()
+  const board = useLeaderboard(event.slug)
+  const players = new Set(board.data?.map((r) => r.player.id))
   const update = useUpdateMember(event.slug)
   const remove = useRemoveMember(event.slug)
   const isJudge = event.me?.isJudge ?? false
@@ -21,9 +25,10 @@ export function MembersTab() {
             <div className="flex items-center gap-3">
               <Avatar name={m.name} url={m.avatarUrl} size="sm" />
               <span className="font-medium">
-                {/* Only participants have a board to open. */}
-                {m.isParticipant ? (
-                  <Link to={`/e/${event.slug}/players/${m.userId}`} className="hover:text-amber-700 hover:underline">
+                {/* Whoever is on the leaderboard has a board: participants,
+                    former players with turns, the frozen list of a finished event. */}
+                {players.has(m.userId) ? (
+                  <Link to={playerPath(event.slug, m.userId)} className="hover:text-amber-700 hover:underline">
                     {m.name}
                   </Link>
                 ) : (
