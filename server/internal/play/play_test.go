@@ -210,6 +210,62 @@ func TestFullTurn(t *testing.T) {
 	}
 }
 
+// The spinning wheel is the shuffled wheel shown before the spin, and the
+// result points at the picked sector on it. It uses the full item wheel: a
+// small wheel can come out of the shuffle in its old order.
+func TestSpinShowsTheShuffledWheel(t *testing.T) {
+	f := newFixture(t)
+	s := api.EventSettings{StartSpins: 3, Disabled: []string{}}
+	if _, err := f.events.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); err != nil {
+		t.Fatal(err)
+	}
+	cat, err := items.NewCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var engine []string // the item wheel in engine (catalog) order
+	for _, d := range cat.All() {
+		if (d.Kind == game.KindEffect || d.Kind == game.KindBonus) && d.Weight > 0 {
+			engine = append(engine, d.ID)
+		}
+	}
+
+	v := f.view(f.alice)
+	if v.Turn == nil || v.Turn.Wheel == nil {
+		t.Fatalf("start turn = %+v", v.Turn)
+	}
+	shown := v.Turn.Wheel.Sectors
+	ids := make([]string, len(shown))
+	for i, sec := range shown {
+		ids[i] = sec.DefID
+	}
+	if !slices.Equal(slices.Sorted(slices.Values(ids)), slices.Sorted(slices.Values(engine))) {
+		t.Fatalf("item wheel %v, want the items %v", ids, engine)
+	}
+	k := -1 // a sector the shuffle moved
+	for i := range ids {
+		if ids[i] != engine[i] {
+			k = i
+			break
+		}
+	}
+	if k < 0 {
+		t.Fatalf("the item wheel is in catalog order: %v", ids)
+	}
+
+	f.picker.push(ids[k])
+	res, err := f.play.Spin(f.ctx, "lbr", f.alice, v.Turn.Current.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(res.Wheel.Sectors, shown) {
+		t.Fatalf("wheel before the spin %v, while spinning %v", shown, res.Wheel.Sectors)
+	}
+	if res.Result != k || res.Label != shown[k].Label {
+		t.Fatalf("spin result %d (%q), want %d (%q)", res.Result, res.Label, k, shown[k].Label)
+	}
+}
+
 func TestEmptyGameWheelIsExplained(t *testing.T) {
 	f := newFixture(t)
 	for range 3 {
