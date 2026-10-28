@@ -56,6 +56,54 @@ func TestRPSWinnerTakesAll(t *testing.T) {
 	sc.expectTotal(b, 0)
 }
 
+func TestRPSLossGivesTheOpponentPoints(t *testing.T) {
+	sc := newScenario(t)
+	a, b := sc.player("Алиса"), sc.player("Боб")
+	sc.addGame("G", 10, 80, 2015, a)
+	startGame(sc, a, "G", "rps")
+	rps := sc.item(a, "rps")
+	// The player sends the result with «Победа» unticked: a loss (issue #11).
+	sc.input(a, rps, map[string]any{"opponent": int(b)})
+	if !rps.Submitted || rps.Input["won"] != false {
+		t.Fatalf("submitted = %v, input = %v, want a lost duel sent to the judge", rps.Submitted, rps.Input)
+	}
+	sc.confirmItem(rps)
+	sc.expectTotal(a, 0)
+	sc.expectTotal(b, 5)
+}
+
+func TestDuelLossWithAnUntickedBox(t *testing.T) {
+	sc := newScenario(t)
+	a, b := sc.player("Алиса"), sc.player("Боб")
+	sc.addGame("G", 10, 80, 2015, a)
+	startGame(sc, a, "G", "sto_k_odnomu")
+	duel := sc.item(a, "sto_k_odnomu")
+	sc.input(a, duel, map[string]any{"opponent": int(b)})
+	sc.confirmItem(duel)
+	sc.expectTotal(a, -5)
+	sc.expectTotal(b, 5)
+}
+
+// A judge's edit leaves the player's answer empty, and an empty result
+// cannot be confirmed.
+func TestJudgeEditDoesNotAnswerForThePlayer(t *testing.T) {
+	sc := newScenario(t)
+	a, b := sc.player("Алиса"), sc.player("Боб")
+	sc.addGame("G", 10, 80, 2015, a)
+	startGame(sc, a, "G", "rps")
+	rps := sc.item(a, "rps")
+	sc.input(sc.judge, rps, map[string]any{"opponent": int(b)})
+	if _, ok := rps.Input["won"]; ok {
+		t.Fatalf("the judge's edit filled «Победа»: %v", rps.Input)
+	}
+	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, rps.ID, true), game.ErrBadInput)
+	// The player still answers, and their win stands.
+	sc.input(a, rps, map[string]any{"won": true})
+	sc.confirmItem(rps)
+	sc.expectTotal(a, 5)
+	sc.expectTotal(b, 0)
+}
+
 func TestJesterNeedsTheJudge(t *testing.T) {
 	sc := newScenario(t)
 	a := sc.player("Алиса")
