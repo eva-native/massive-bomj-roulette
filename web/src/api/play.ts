@@ -110,16 +110,33 @@ export function useConfirmItem(slug: string) {
   )
 }
 
-/** Listens to the event's live stream and refetches whatever is shown. */
+/**
+ * Listens to the event's live stream and refetches whatever is shown. The
+ * server does not replay what happened while the stream was down, so after a
+ * reconnect, and when the tab comes back while the stream is still down,
+ * everything is fetched again.
+ */
 export function useEventStream(slug: string) {
   const qc = useQueryClient()
   useEffect(() => {
     if (typeof EventSource === 'undefined') return
     const es = new EventSource(`${base(slug)}/stream`)
-    const onChange = () => void qc.invalidateQueries({ queryKey: eventKeys.detail(slug) })
-    es.addEventListener('change', onChange)
+    const refresh = () => void qc.invalidateQueries({ queryKey: eventKeys.detail(slug) })
+    let opened = false
+    const onOpen = () => {
+      if (opened) refresh() // a reconnect: changes made meanwhile never reached us
+      opened = true
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && es.readyState !== EventSource.OPEN) refresh()
+    }
+    es.addEventListener('change', refresh)
+    es.addEventListener('open', onOpen)
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
-      es.removeEventListener('change', onChange)
+      es.removeEventListener('change', refresh)
+      es.removeEventListener('open', onOpen)
+      document.removeEventListener('visibilitychange', onVisible)
       es.close()
     }
   }, [slug, qc])
