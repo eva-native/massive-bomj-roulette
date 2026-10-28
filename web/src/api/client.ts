@@ -3,8 +3,8 @@ import type { ErrorResponse } from './types.gen'
 export class ApiError extends Error {
   readonly status: number
 
-  constructor(status: number, message: string) {
-    super(message)
+  constructor(status: number, message: string, options?: ErrorOptions) {
+    super(message, options)
     this.name = 'ApiError'
     this.status = status
   }
@@ -14,6 +14,14 @@ type RequestOptions = Omit<RequestInit, 'body'> & { json?: unknown }
 
 /** The error text when a request never reached the server. */
 export const NETWORK_ERROR = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.'
+
+/**
+ * How browsers word a fetch that failed for lack of a connection: Chrome,
+ * Firefox, Safari, React Native. fetch throws TypeError for a malformed
+ * request too (a header with Cyrillic, a body on GET); that is a bug, not a
+ * connection problem, and is passed on as is.
+ */
+const networkFailure = /^(Failed to fetch|NetworkError|Load failed|Network request failed)/
 
 /**
  * Calls the MBR API and returns the parsed JSON body; throws ApiError on
@@ -29,8 +37,7 @@ export async function api<T>(path: string, { json, headers, ...init }: RequestOp
       body: json === undefined ? undefined : JSON.stringify(json),
     })
   } catch (err) {
-    // Without a connection fetch rejects with a TypeError worded by the browser ("Failed to fetch").
-    if (err instanceof TypeError) throw new ApiError(0, NETWORK_ERROR)
+    if (err instanceof TypeError && networkFailure.test(err.message)) throw new ApiError(0, NETWORK_ERROR, { cause: err })
     throw err
   }
 

@@ -1,11 +1,21 @@
 import { expect, it, vi } from 'vitest'
 import { api, ApiError, NETWORK_ERROR } from './client'
 
-it('turns a failed connection into a readable error', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
-  const err = await api('/api/me').catch((e: unknown) => e)
-  expect(err).toBeInstanceOf(ApiError)
-  expect(err).toMatchObject({ status: 0, message: NETWORK_ERROR })
+it.each(['Failed to fetch', 'NetworkError when attempting to fetch resource.', 'Load failed'])(
+  'turns a failed connection (%s) into a readable error',
+  async (browserText) => {
+    const cause = new TypeError(browserText)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(cause))
+    const err = await api('/api/me').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err).toMatchObject({ status: 0, message: NETWORK_ERROR, cause })
+  },
+)
+
+it('passes a malformed request through: it is a bug, not a lost connection', async () => {
+  const bug = new TypeError("Failed to execute 'fetch' on 'Window': Invalid value")
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(bug))
+  await expect(api('/api/me')).rejects.toBe(bug)
 })
 
 it('passes other failures through', async () => {
