@@ -4,14 +4,7 @@ import { useEvent } from '@/api/events'
 import { useActivity, useEventStream, useLeaderboard } from '@/api/play'
 import { ItemIcon } from '@/components/ItemIcon'
 import { Wheel } from '@/components/Wheel'
-import { wheelSeconds } from '@/lib/wheel'
-
-const wheelNames: Record<string, string> = {
-  items: 'Колесо эффектов и бонусов',
-  drops: 'Колесо дроп-дебаффов',
-  games: 'Колесо игр',
-  movies: 'Киноколесо',
-}
+import { wheelNames, wheelSeconds } from '@/lib/wheel'
 
 /** How long the result stays on screen after the wheel stops. */
 const RESULT_MS = 6000
@@ -69,6 +62,7 @@ export function OverlayPage() {
                 sectors={current.spin.wheel.sectors}
                 target={current.spin.result}
                 legend={false}
+                name={wheelNames[current.spin.wheel.kind]}
                 seconds={wheelSeconds(event.data?.settings, current.spin.wheel.kind)}
                 onStop={() => {
                   setStopped(current.id)

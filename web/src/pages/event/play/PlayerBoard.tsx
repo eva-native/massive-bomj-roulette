@@ -13,7 +13,7 @@ import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
 import { timerKey, useLocalTimer } from '@/lib/localTimer'
 import { reviewTooLong } from '@/lib/review'
-import { wheelSeconds } from '@/lib/wheel'
+import { wheelNames, wheelSeconds } from '@/lib/wheel'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
 import { PlayTime } from './PlayTime'
@@ -84,6 +84,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                 target={spinning.result.result}
                 seconds={wheelSeconds(event.settings, spinning.result.wheel.kind)}
                 icons={event.settings.icons}
+                name={wheelNames[spinning.result.wheel.kind]}
                 onStop={finishSpin}
               />
               <p className="text-sm text-stone-500">Крутится…</p>
@@ -196,7 +197,11 @@ function CurrentStep({
       <div className="flex flex-col items-center gap-3">
         <p className="font-medium">{stepNames[step.kind]}</p>
         {/* The button goes right under the wheel, before the list of what is on it. */}
-        {turn.wheel ? <Wheel sectors={turn.wheel.sectors} target={null} icons={event.settings.icons} action={spinButton || undefined} /> : spinButton}
+        {turn.wheel ? (
+          <Wheel sectors={turn.wheel.sectors} target={null} icons={event.settings.icons} action={spinButton || undefined} name={wheelNames[turn.wheel.kind]} />
+        ) : (
+          spinButton
+        )}
       </div>
     )
   }

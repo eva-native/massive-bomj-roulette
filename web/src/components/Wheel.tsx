@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
 import { itemEmoji, kindEmoji } from '@/lib/items'
+import { plural } from '@/lib/plural'
 import { angleOf, chance, fitLabel, ICON_RADIUS, LABEL_OUTER, labelColor, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
 import { ItemIcon } from './ItemIcon'
 
@@ -57,6 +58,7 @@ export function Wheel({
   icons,
   legend = true,
   action,
+  name = 'Колесо',
 }: {
   sectors: Sector[]
   target: number | null
@@ -69,6 +71,8 @@ export function Wheel({
   legend?: boolean
   /** A control placed right under the wheel, above the list (the spin button). */
   action?: ReactNode
+  /** What the wheel is, for screen readers: «Колесо игр». */
+  name?: string
 }) {
   const parts = useMemo(() => slices(sectors), [sectors])
   const rotor = useRef<SVGGElement>(null)
@@ -83,7 +87,7 @@ export function Wheel({
   return (
     <div className="mx-auto w-full max-w-80">
       <Ticker rotor={rotor} parts={parts} spinning={spinning} icons={icons} />
-      <div ref={frame} className="relative" role="img" aria-label={`Колесо: ${sectors.length} секторов`}>
+      <div ref={frame} className="relative" role="img" aria-label={`${name}, ${sectors.length} ${plural(sectors.length, 'сектор', 'сектора', 'секторов')}`}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full drop-shadow">
           <g ref={rotor} className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
             {parts.map((p, i) => (

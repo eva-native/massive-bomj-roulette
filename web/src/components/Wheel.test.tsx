@@ -73,6 +73,11 @@ describe('sector marks', () => {
   })
 })
 
+it('tells screen readers which wheel it is and how many sectors it has', () => {
+  render(<Wheel sectors={sectors} target={null} name="Колесо игр" />)
+  expect(screen.getByRole('img', { name: 'Колесо игр, 4 сектора' })).toBeInTheDocument()
+})
+
 it('keeps the line empty at rest', () => {
   rotorAt(100)
   render(<Wheel sectors={sectors} target={null} />)

@@ -9,6 +9,14 @@ export function wheelSeconds(settings: EventSettings | undefined, kind: string):
   return s && s > 0 ? s : DEFAULT_WHEEL_SECONDS
 }
 
+/** The name of each kind of wheel (`WheelView.kind`). */
+export const wheelNames: Record<string, string> = {
+  items: 'Колесо эффектов и бонусов',
+  drops: 'Колесо дроп-дебаффов',
+  games: 'Колесо игр',
+  movies: 'Киноколесо',
+}
+
 /** The wheel's drawing in SVG units: the viewBox side and the radius of the sectors. */
 export const WHEEL_SIZE = 320
 export const WHEEL_R = WHEEL_SIZE / 2 - 6
