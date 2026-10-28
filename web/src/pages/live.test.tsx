@@ -1,7 +1,7 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { STREAM_DOWN_NOTICE_MS, STREAM_REOPEN_FIRST_MS, STREAM_REOPEN_NOTICE_AFTER } from '@/api/play'
-import type { Me } from '@/api/types.gen'
+import type { ActivityEntry, Me } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { FakeEventSource } from '@/test/fakeEventSource'
 import { renderApp } from '@/test/renderApp'
@@ -135,5 +135,42 @@ describe('live stream', () => {
     await act(() => router.navigate('/e/zima'))
     expect(await screen.findByRole('heading', { name: 'ЛБР Зима' })).toBeInTheDocument()
     expect(notice()).not.toBeInTheDocument()
+  })
+})
+
+describe('overlay', () => {
+  const spin = (id: number, player: string): ActivityEntry => ({
+    id,
+    kind: 'spin',
+    message: `${player} крутит колесо игр: Mario`,
+    actorName: player,
+    createdAt: new Date().toISOString(),
+    spin: { player, wheel: { kind: 'games', sectors: [{ label: 'Mario', weight: 1, kind: '', defId: '' }] }, result: 0, label: 'Mario' },
+  })
+
+  it('does not replay spins missed while the stream was down, but plays new ones', async () => {
+    const backend = fakeBackend()
+    backend.addEvent('osen', 'ЛБР Осень', judge)
+    let activity: ActivityEntry[] = []
+    backend.on('GET', /\/activity/, () => activity)
+    const feedFetches = () => backend.requests.filter((r) => r.url.includes('/activity')).length
+    vi.stubGlobal('fetch', backend.fetch)
+    vi.stubGlobal('EventSource', FakeEventSource)
+    renderApp('/e/osen/overlay')
+    await waitFor(() => expect(feedFetches()).toBe(1))
+    const es = FakeEventSource.last()
+    act(() => es.open())
+
+    act(() => es.fail())
+    activity = [spin(5, 'Боб')] // made while the overlay was offline
+    act(() => es.open())
+    await waitFor(() => expect(feedFetches()).toBe(2))
+    await tick()
+    expect(screen.getByText('Боб крутит колесо игр: Mario')).toBeInTheDocument() // the feed has it
+    expect(screen.queryByText('Боб: Колесо игр')).not.toBeInTheDocument() // the wheel does not replay it
+
+    activity = [spin(6, 'Алиса'), ...activity]
+    act(() => es.send())
+    expect(await screen.findByText('Алиса: Колесо игр')).toBeInTheDocument()
   })
 })
