@@ -150,19 +150,6 @@ func (s *Service) turnView(ss *session, t *game.Turn, entries []game.Entry) api.
 	return tv
 }
 
-// playerPartFilled reports whether every required player field of the item
-// has a value.
-func playerPartFilled(d *game.Def, it *game.Item) bool {
-	for _, f := range d.Input {
-		if f.By == game.RolePlayer && !f.Optional {
-			if _, ok := it.Input[f.Name]; !ok {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 // wheelView shows an engine wheel. The engine lists sectors in catalog order,
 // so items of one kind stand in a block; the view shuffles them (issue #11).
 // The order depends only on the step, so the wheel before the spin and the
@@ -360,7 +347,7 @@ func (s *Service) queue(ss *session) []api.QueueEntry {
 			continue
 		}
 		// Nothing to check until the player has filled their part.
-		if !playerPartFilled(d, it) {
+		if !game.PlayerFieldsFilled(d, it) {
 			continue
 		}
 		iv := s.itemView(ss, it, ss.st.Turn(it.TurnID))
