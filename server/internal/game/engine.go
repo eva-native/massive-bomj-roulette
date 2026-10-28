@@ -722,11 +722,29 @@ func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[str
 	for k, v := range clean {
 		it.Input[k] = v
 	}
+	if actor == it.Player {
+		fillUnticked(d, it)
+	}
 	it.Confirmed, it.Rejected = false, false
 	if !judge && d.NeedsConfirm {
 		it.Submitted = PlayerFieldsFilled(d, it)
 	}
 	return nil
+}
+
+// fillUnticked records the owner's unticked yes/no boxes as «no»: when the
+// owner sends their part, an empty «Победа» is a lost duel, not a missing
+// answer (issue #11). A judge's edit never fills them, so it cannot turn an
+// answer the player has not given yet into a loss.
+func fillUnticked(d *Def, it *Item) {
+	for _, f := range d.Input {
+		if f.By != RolePlayer || f.Optional || f.Type != FieldBool {
+			continue
+		}
+		if _, ok := it.Input[f.Name]; !ok {
+			it.Input[f.Name] = false
+		}
+	}
 }
 
 // PlayerFieldsFilled reports whether every required player field of the item

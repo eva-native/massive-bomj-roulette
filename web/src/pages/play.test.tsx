@@ -218,7 +218,9 @@ describe('my turn', () => {
     expect(within(card).queryByRole('button', { name: 'Отправить результат' })).not.toBeInTheDocument()
   })
 
-  it('sends an unticked yes/no field as no (a lost duel, issue #11)', async () => {
+  // The server reads the owner's unticked box as «no»; the form must not send
+  // it, or a judge's save would answer for the player (issue #11).
+  it('does not send an untouched yes/no field', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const rps: ItemView = {
@@ -241,7 +243,7 @@ describe('my turn', () => {
     const card = (await screen.findByRole('heading', { name: 'Решим это по-мужски' })).closest('article')!
     await user.click(within(card).getByRole('button', { name: 'Отправить результат' }))
 
-    await vi.waitFor(() => expect(backend.requests.find((r) => r.url.endsWith('/items/52/input'))?.body).toEqual({ values: { won: false } }))
+    await vi.waitFor(() => expect(backend.requests.find((r) => r.url.endsWith('/items/52/input'))?.body).toEqual({ values: {} }))
   })
 })
 
