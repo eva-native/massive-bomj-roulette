@@ -31,9 +31,12 @@ MBR_DEV_LOGIN=false                      # обязательно false в пр�
 Строку `MBR_DATABASE_URL` из `.env` compose подменяет адресом своего контейнера PostgreSQL, трогать её не нужно. Пароль базы задан в `compose.yaml` (`POSTGRES_PASSWORD: mbr`). База не открыта наружу: порт `5433` слушает только localhost сервера. Если хотите сменить пароль, поменяйте его в `compose.yaml` в обоих местах до первого запуска.
 
 ```bash
+export MBR_VERSION=$(git describe --tags --exact-match 2>/dev/null || git rev-parse HEAD)
 MBR_DOMAIN=<домен> docker compose --profile app --profile prod up -d --build
 docker compose logs -f app   # «mbr: listening» — готово
 ```
+
+`MBR_VERSION` — тег релиза (или коммит), из которого собран образ. Ссылка «Правила» на сайте ведёт на правила этой версии на GitHub. Без него ссылка ведёт на ветку `main`.
 
 Откройте `https://<домен>`, войдите через Discord и создайте ивент.
 
@@ -43,6 +46,7 @@ docker compose logs -f app   # «mbr: listening» — готово
 cd /srv/mbr
 deploy/backup.sh                       # сначала бэкап
 git pull
+export MBR_VERSION=$(git describe --tags --exact-match 2>/dev/null || git rev-parse HEAD)
 MBR_DOMAIN=<домен> docker compose --profile app --profile prod up -d --build
 ```
 
