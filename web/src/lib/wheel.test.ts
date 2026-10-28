@@ -6,6 +6,20 @@ const sector = (label: string, weight = 1, kind = ''): Sector => ({ label, weigh
 const items = (n: number) => slices(Array.from({ length: n }, (_, i) => ({ label: `Предмет ${i}`, weight: 1, kind: 'effect', defId: `item${i}` })))
 const games = (n: number) => slices(Array.from({ length: n }, (_, i) => sector(`Игра ${i}`)))
 
+describe('slices', () => {
+  it('colours games so that no two neighbours match, the last and the first included', () => {
+    for (const n of [2, 3, 8, 9, 17, 100]) {
+      const parts = games(n)
+      parts.forEach((p, i) => expect(p.color, `${n} sectors, #${i}`).not.toBe(parts[(i + 1) % n]!.color))
+    }
+  })
+
+  it('keeps the item kinds in their colours', () => {
+    const parts = slices([sector('a', 1, 'effect'), sector('b', 1, 'bonus'), sector('c', 1, 'drop')])
+    expect(parts.map((p) => p.color)).toEqual(['#f59e0b', '#22c55e', '#dc2626'])
+  })
+})
+
 describe('labelMode', () => {
   it('labels a small wheel with text even on a phone', () => {
     expect(labelMode(games(8), 300)).toMatchObject({ kind: 'text' })

@@ -13,11 +13,23 @@ export function wheelSeconds(settings: EventSettings | undefined, kind: string):
 export const WHEEL_SIZE = 320
 export const WHEEL_R = WHEEL_SIZE / 2 - 6
 
+/** Item kinds keep their colours: they mean something (effect, bonus, drop debuff). */
 const kindColors: Record<string, [string, string]> = {
   effect: ['#f59e0b', '#fbbf24'],
   bonus: ['#16a34a', '#22c55e'],
   drop: ['#dc2626', '#ef4444'],
-  '': ['#78716c', '#a8a29e'],
+}
+
+/**
+ * Games and movies: the colours mean nothing and only tell neighbours apart,
+ * so the wheel's turn is visible. Mid tones, not glaring on a dark card.
+ */
+export const plainColors = ['#7aa2c8', '#d4a05a', '#9f8bd0', '#6fb59a', '#d18a9c', '#a8b25c', '#5fb0c4', '#c99b7a']
+
+function plainColor(i: number, n: number) {
+  // The last sector touches the first: do not let them share a colour.
+  if (n > 1 && i === n - 1 && i % plainColors.length === 0) return plainColors[3]!
+  return plainColors[i % plainColors.length]!
 }
 
 /** A sector with its place on the wheel: degrees clockwise from the top. */
@@ -28,8 +40,8 @@ export function slices(sectors: Sector[]): Slice[] {
   let at = 0
   return sectors.map((sector, i) => {
     const span = (Math.max(sector.weight, 0) / total) * 360
-    const pair = kindColors[sector.kind] ?? kindColors['']!
-    const color = sector.kind ? pair[i % 2]! : i % 2 ? '#d6d3d1' : '#e7e5e4'
+    const pair = kindColors[sector.kind]
+    const color = pair ? pair[i % 2]! : plainColor(i, sectors.length)
     const s = { start: at, end: at + span, sector, color }
     at += span
     return s
