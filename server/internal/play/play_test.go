@@ -163,12 +163,12 @@ func TestFullTurn(t *testing.T) {
 		t.Fatalf("items on the game = %d, want 3", len(res.View.Turn.Items))
 	}
 
-	_, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "not a link"})
+	_, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "not a link", Review: "Классика"})
 	var ie *events.InvalidError
 	if !errors.As(err, &ie) {
 		t.Fatalf("bad proof: %v", err)
 	}
-	v, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "https://imgur.com/x"})
+	v, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "https://imgur.com/x", Review: "Классика"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,6 +207,62 @@ func TestFullTurn(t *testing.T) {
 	g := f.view(f.alice).History[0]
 	if err := f.events.DeleteGame(f.ctx, f.admin, "lbr", g.GameID); !errors.Is(err, events.ErrConflict) {
 		t.Fatalf("deleting a played game: %v", err)
+	}
+}
+
+// The spinning wheel is the shuffled wheel shown before the spin, and the
+// result points at the picked sector on it. It uses the full item wheel: a
+// small wheel can come out of the shuffle in its old order.
+func TestSpinShowsTheShuffledWheel(t *testing.T) {
+	f := newFixture(t)
+	s := api.EventSettings{StartSpins: 3, Disabled: []string{}}
+	if _, err := f.events.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &s}); err != nil {
+		t.Fatal(err)
+	}
+	cat, err := items.NewCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var engine []string // the item wheel in engine (catalog) order
+	for _, d := range cat.All() {
+		if (d.Kind == game.KindEffect || d.Kind == game.KindBonus) && d.Weight > 0 {
+			engine = append(engine, d.ID)
+		}
+	}
+
+	v := f.view(f.alice)
+	if v.Turn == nil || v.Turn.Wheel == nil {
+		t.Fatalf("start turn = %+v", v.Turn)
+	}
+	shown := v.Turn.Wheel.Sectors
+	ids := make([]string, len(shown))
+	for i, sec := range shown {
+		ids[i] = sec.DefID
+	}
+	if !slices.Equal(slices.Sorted(slices.Values(ids)), slices.Sorted(slices.Values(engine))) {
+		t.Fatalf("item wheel %v, want the items %v", ids, engine)
+	}
+	k := -1 // a sector the shuffle moved
+	for i := range ids {
+		if ids[i] != engine[i] {
+			k = i
+			break
+		}
+	}
+	if k < 0 {
+		t.Fatalf("the item wheel is in catalog order: %v", ids)
+	}
+
+	f.picker.push(ids[k])
+	res, err := f.play.Spin(f.ctx, "lbr", f.alice, v.Turn.Current.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(res.Wheel.Sectors, shown) {
+		t.Fatalf("wheel before the spin %v, while spinning %v", shown, res.Wheel.Sectors)
+	}
+	if res.Result != k || res.Label != shown[k].Label {
+		t.Fatalf("spin result %d (%q), want %d (%q)", res.Result, res.Label, k, shown[k].Label)
 	}
 }
 
@@ -363,14 +419,14 @@ func TestJudgeTools(t *testing.T) {
 	}
 	f.spin(f.alice, "G1")
 	v := f.view(f.alice)
-	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 20}); err != nil {
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 20, Review: "Норм"}); err != nil {
 		t.Fatal(err)
 	}
 	ptID := f.view(f.alice).Turn.Playthrough.ID
 	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, ptID, true); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.view(f.alice).Points; got != 17-10+game.DefaultRecordPoints {
+	if got := f.view(f.alice).Points; got != 17+game.DefaultRecordPoints { // over HLTB: speed 0
 		t.Fatalf("points = %d", got)
 	}
 	if err := f.play.EditPlaythrough(f.ctx, "lbr", f.alice, ptID, api.EditPlaythroughRequest{Hours: 5}); !errors.Is(err, events.ErrForbidden) {
@@ -396,7 +452,7 @@ func TestFinishFreezesTheEvent(t *testing.T) {
 	}
 	f.spin(f.alice, "G")
 	v := f.view(f.alice)
-	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 10}); err != nil {
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 10, Review: "Норм"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, f.view(f.alice).Turn.Playthrough.ID, true); err != nil {
@@ -548,8 +604,14 @@ func TestPlayTimeAndReview(t *testing.T) {
 
 	// The review goes with the outcome.
 	step := f.view(f.alice).Turn.Current.ID
-	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: strings.Repeat("я", 2001)}); err == nil {
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: strings.Repeat("я", api.MaxReview+1)}); err == nil {
 		t.Fatal("a too long review was accepted")
+	}
+	for _, outcome := range []string{"completed", "dropped"} {
+		var invalid *events.InvalidError
+		if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: outcome, Hours: 2, Review: "  "}); !errors.As(err, &invalid) {
+			t.Fatalf("%s without a review: %v", outcome, err)
+		}
 	}
 	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: " Отличная игра "}); err != nil {
 		t.Fatal(err)

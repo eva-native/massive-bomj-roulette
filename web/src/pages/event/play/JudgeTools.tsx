@@ -3,8 +3,10 @@ import { useEditPlaythrough, useUndoStep } from '@/api/play'
 import type { PlaythroughView, TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { DurationInput } from '@/components/DurationInput'
+import { ReviewCounter } from '@/components/Review'
 import { ErrorText, Input, Textarea } from '@/components/ui'
 import { hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
+import { reviewTooLong } from '@/lib/review'
 
 /** A judge's controls for a player's turn: take back the last step. */
 export function UndoStep({ slug, playerId, turn }: { slug: string; playerId: number; turn: TurnView }) {
@@ -52,9 +54,10 @@ export function EditPlaythrough({ slug, pt }: { slug: string; pt: PlaythroughVie
     <form onSubmit={submit} className="flex w-full flex-col gap-2">
       <DurationInput label="Время" value={time} onChange={setTime} />
       <Input aria-label="Ссылка" type="url" value={proof} onChange={(e) => setProof(e.target.value)} />
-      <Textarea aria-label="Обзор" value={review} maxLength={2000} onChange={(e) => setReview(e.target.value)} />
+      <Textarea aria-label="Обзор" value={review} onChange={(e) => setReview(e.target.value)} />
+      <ReviewCounter text={review} />
       <div className="flex gap-2">
-        <Button type="submit" variant="secondary" disabled={edit.isPending || hours === null}>
+        <Button type="submit" variant="secondary" disabled={edit.isPending || hours === null || reviewTooLong(review)}>
           Сохранить
         </Button>
         <Button variant="secondary" onClick={() => setOpen(false)}>

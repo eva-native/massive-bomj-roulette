@@ -61,11 +61,9 @@ func (s *Service) Spin(ctx context.Context, slug string, viewer *auth.User, step
 		if err != nil {
 			return err
 		}
-		res.Wheel = api.WheelView{Kind: string(sp.Wheel), Sectors: make([]api.Sector, 0, len(sp.Sectors))}
-		for _, sec := range sp.Sectors {
-			res.Wheel.Sectors = append(res.Wheel.Sectors, s.sectorView(sec))
-		}
-		res.Result, res.Label = sp.Result, sp.Picked().Label
+		var pos []int
+		res.Wheel, pos = s.wheelView(sp.Wheel, sp.Sectors, stepID)
+		res.Result, res.Label = pos[sp.Result], sp.Picked().Label
 		ss.log("spin", "%s крутит %s: %s", ss.name(me), wheelNames[sp.Wheel], res.Label)
 		ss.acts[len(ss.acts)-1].spin = &api.SpinInfo{Player: ss.name(me), Wheel: res.Wheel, Result: res.Result, Label: res.Label}
 		return nil
@@ -100,6 +98,9 @@ func (s *Service) Finish(ctx context.Context, slug string, viewer *auth.User, st
 	review, err := cleanReview(req.Review)
 	if err != nil {
 		return api.PlayerView{}, err
+	}
+	if review == "" && game.Outcome(req.Outcome) != game.OutcomeTech {
+		return api.PlayerView{}, &events.InvalidError{Msg: "напишите обзор игры"}
 	}
 	return s.act(ctx, slug, viewer, func(ss *session, me game.PlayerID) error {
 		if err := s.eng.FinishGame(ss.st, me, stepID, game.Outcome(req.Outcome), req.Hours, proof); err != nil {
@@ -137,13 +138,10 @@ func formatHours(h float64) string {
 	return strings.Join(parts, " ")
 }
 
-// maxReview caps the length of a game review, in characters.
-const maxReview = 2000
-
 func cleanReview(s string) (string, error) {
 	s = strings.TrimSpace(s)
-	if utf8.RuneCountInString(s) > maxReview {
-		return "", &events.InvalidError{Msg: fmt.Sprintf("обзор не длиннее %d символов", maxReview)}
+	if utf8.RuneCountInString(s) > api.MaxReview {
+		return "", &events.InvalidError{Msg: fmt.Sprintf("обзор не длиннее %d символов", api.MaxReview)}
 	}
 	return s, nil
 }
@@ -382,7 +380,8 @@ func (s *Service) UndoStep(ctx context.Context, slug string, viewer *auth.User, 
 	})
 }
 
-// EditPlaythrough lets a judge correct the hours and proof of a finished game.
+// EditPlaythrough lets a judge correct the hours, proof and review of a finished game.
+// The review may be left empty here: games finished before reviews were required have none.
 func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, req api.EditPlaythroughRequest) error {
 	proof := strings.TrimSpace(req.Proof)
 	if proof != "" && !strings.HasPrefix(proof, "http://") && !strings.HasPrefix(proof, "https://") {

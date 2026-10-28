@@ -356,6 +356,10 @@ type InputRequest struct {
 	Values map[string]any `json:"values"`
 }
 
+// MaxReview caps the length of a game review, in characters (Unicode code
+// points) after trimming spaces at the ends. The frontend gets it via tygo.
+const MaxReview = 10000
+
 type EditPlaythroughRequest struct {
 	Hours  float64 `json:"hours"`
 	Proof  string  `json:"proof"`

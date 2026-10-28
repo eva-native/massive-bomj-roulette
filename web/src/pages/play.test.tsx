@@ -124,8 +124,12 @@ describe('my turn', () => {
     await user.type(screen.getByLabelText('Время в игре: часы'), 'abc25ч')
     expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('25')
     await user.type(screen.getByLabelText('Время в игре: минуты'), '30')
-    await user.type(screen.getByLabelText('Обзор (необязательно)'), 'Классика')
     await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
+    expect(send).toBeDisabled() // a review is required for a completed or dropped game
+    await user.click(screen.getByLabelText('Тех. дроп'))
+    expect(screen.getByLabelText('Обзор (необязательно)')).toBeInTheDocument() // but not for a technical drop
+    await user.click(screen.getByLabelText('Прошёл'))
+    await user.type(screen.getByLabelText('Обзор'), 'Классика')
     await user.click(send)
 
     expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
@@ -212,6 +216,34 @@ describe('my turn', () => {
     expect(await within(card).findByText(/Отправлено судье/)).toBeInTheDocument()
     expect(within(card).getByRole('checkbox', { name: 'Победа' })).toBeDisabled()
     expect(within(card).queryByRole('button', { name: 'Отправить результат' })).not.toBeInTheDocument()
+  })
+
+  // The server reads the owner's unticked box as «no»; the form must not send
+  // it, or a judge's save would answer for the player (issue #11).
+  it('does not send an untouched yes/no field', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const rps: ItemView = {
+      ...opaaa,
+      id: 52,
+      defId: 'rps',
+      name: 'Решим это по-мужски',
+      concept: 'Камень, ножницы, бумага.',
+      needsConfirm: true,
+      fields: [{ name: 'won', label: 'Победа', type: 'bool', by: 'player', optional: false, value: null }],
+    }
+    backend.on('GET', /\/players\/2$/, () =>
+      view(turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], { items: [rps] })),
+    )
+    backend.on('POST', /\/items\/52\/input$/, () => undefined)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+
+    const card = (await screen.findByRole('heading', { name: 'Решим это по-мужски' })).closest('article')!
+    await user.click(within(card).getByRole('button', { name: 'Отправить результат' }))
+
+    await vi.waitFor(() => expect(backend.requests.find((r) => r.url.endsWith('/items/52/input'))?.body).toEqual({ values: {} }))
   })
 })
 

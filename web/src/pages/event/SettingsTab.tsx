@@ -217,8 +217,9 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                 const row = itemRows[it.id] ?? { weight: it.weight, enabled: it.enabled, params: {} }
                 return (
                   <div key={it.id} className="flex flex-col gap-1 text-sm">
-                    <div className="flex items-center gap-3">
-                      <label className="flex flex-1 items-center gap-2">
+                    {/* On a phone the name keeps its own line and the inputs wrap below it. */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <label className="flex min-w-48 flex-1 items-center gap-2">
                         <input type="checkbox" checked={row.enabled} onChange={(e) => setItem(it.id, { enabled: e.target.checked })} />
                         <ItemIcon defId={it.id} kind={it.kind} icons={icons} size="sm" />
                         {it.name}
