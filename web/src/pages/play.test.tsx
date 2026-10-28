@@ -96,7 +96,7 @@ describe('my turn', () => {
     // jsdom has no CSS animations: end the spin by hand.
     fireEvent.animationEnd(screen.getByTestId('wheel-rotor'))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Выпало: ОПАААА')
+    expect(await screen.findByText('Выпало: ОПАААА')).toHaveRole('status') // the page has another status region: the connection notice
     expect(screen.getByText('Колесо эффектов и бонусов: ОПАААА')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'ОПАААА' })).toBeInTheDocument() // the item on the game
   })

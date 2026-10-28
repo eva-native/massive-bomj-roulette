@@ -1,5 +1,6 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { STREAM_DOWN_NOTICE_MS } from '@/api/play'
 import type { Me } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { FakeEventSource } from '@/test/fakeEventSource'
@@ -63,5 +64,31 @@ describe('live stream', () => {
     act(() => es.fail())
     act(() => setVisibility('visible'))
     await waitFor(() => expect(boardFetches()).toBe(2))
+  })
+
+  it('says so when the stream stays down, and clears it on reconnect', async () => {
+    const { es } = await openEvent()
+    act(() => es.open())
+    vi.useFakeTimers()
+    try {
+      act(() => es.fail())
+      act(() => vi.advanceTimersByTime(STREAM_DOWN_NOTICE_MS - 100)) // a normal reconnect: no notice yet
+      expect(screen.queryByText(/Нет связи с сервером/)).not.toBeInTheDocument()
+
+      act(() => vi.advanceTimersByTime(200))
+      expect(screen.getByRole('status')).toHaveTextContent('Нет связи с сервером, переподключаемся…')
+
+      act(() => es.open())
+      expect(screen.queryByText(/Нет связи с сервером/)).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('asks to reload when the browser gives up on the stream', async () => {
+    const { es } = await openEvent()
+    act(() => es.open())
+    act(() => es.fail(true))
+    expect(screen.getByRole('status')).toHaveTextContent('Обновите страницу')
   })
 })

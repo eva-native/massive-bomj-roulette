@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from './client'
 import { eventKeys } from './events'
 import type {
@@ -111,35 +111,61 @@ export function useConfirmItem(slug: string) {
 }
 
 /**
+ * The live stream's state: `reconnecting` once it has been down for a while,
+ * `closed` when the browser gave up on it (only a page reload helps then).
+ */
+export type StreamStatus = 'live' | 'reconnecting' | 'closed'
+
+/** How long the stream may be down before the page says so; a normal reconnect takes about 3 s. */
+export const STREAM_DOWN_NOTICE_MS = 3000
+
+/**
  * Listens to the event's live stream and refetches whatever is shown. The
  * server does not replay what happened while the stream was down, so after a
  * reconnect, and when the tab comes back while the stream is still down,
  * everything is fetched again.
  */
-export function useEventStream(slug: string) {
+export function useEventStream(slug: string): StreamStatus {
   const qc = useQueryClient()
+  const [status, setStatus] = useState<StreamStatus>('live')
   useEffect(() => {
     if (typeof EventSource === 'undefined') return
     const es = new EventSource(`${base(slug)}/stream`)
     const refresh = () => void qc.invalidateQueries({ queryKey: eventKeys.detail(slug) })
     let opened = false
+    let notice: ReturnType<typeof setTimeout> | undefined
     const onOpen = () => {
+      clearTimeout(notice)
+      notice = undefined
+      setStatus('live')
       if (opened) refresh() // a reconnect: changes made meanwhile never reached us
       opened = true
+    }
+    const onError = () => {
+      if (es.readyState === EventSource.CLOSED) {
+        clearTimeout(notice)
+        setStatus('closed')
+        return
+      }
+      notice ??= setTimeout(() => setStatus('reconnecting'), STREAM_DOWN_NOTICE_MS)
     }
     const onVisible = () => {
       if (document.visibilityState === 'visible' && es.readyState !== EventSource.OPEN) refresh()
     }
     es.addEventListener('change', refresh)
     es.addEventListener('open', onOpen)
+    es.addEventListener('error', onError)
     document.addEventListener('visibilitychange', onVisible)
     return () => {
+      clearTimeout(notice)
       es.removeEventListener('change', refresh)
       es.removeEventListener('open', onOpen)
+      es.removeEventListener('error', onError)
       document.removeEventListener('visibilitychange', onVisible)
       es.close()
     }
   }, [slug, qc])
+  return status
 }
 
 export function useUndoStep(slug: string) {

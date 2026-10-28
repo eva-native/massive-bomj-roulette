@@ -16,7 +16,7 @@ export function EventLayout() {
   const { data: me } = useMe()
   const [params] = useSearchParams()
   const invite = params.get('invite') ?? ''
-  useEventStream(slug)
+  const stream = useEventStream(slug)
 
   if (event.isPending) return <Loading />
   if (event.isError) return <ErrorText error={event.error} />
@@ -65,6 +65,17 @@ export function EventLayout() {
       {ev.status === 'finished' && (
         <p className="rounded-lg bg-stone-100 px-3 py-2 text-sm dark:bg-stone-800">Ивент завершён — итоги заморожены.</p>
       )}
+      {/* The live region stays in the page, so screen readers announce the notice when it appears.
+          While empty, the negative margin takes back the column's gap. */}
+      <div role="status" className="empty:-mt-4">
+        {stream !== 'live' && (
+          <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+            {stream === 'closed'
+              ? 'Нет связи с сервером. Обновите страницу, чтобы снова видеть изменения.'
+              : 'Нет связи с сервером, переподключаемся… Пока связи нет, изменения на странице не появляются.'}
+          </p>
+        )}
+      </div>
 
       {/* Scrolls sideways on narrow screens, never up and down. The bottom line is an inset
           shadow, so the active tab's underline covers it without sticking out of the box. */}
