@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -61,11 +62,9 @@ func (s *Service) Spin(ctx context.Context, slug string, viewer *auth.User, step
 		if err != nil {
 			return err
 		}
-		res.Wheel = api.WheelView{Kind: string(sp.Wheel), Sectors: make([]api.Sector, 0, len(sp.Sectors))}
-		for _, sec := range sp.Sectors {
-			res.Wheel.Sectors = append(res.Wheel.Sectors, s.sectorView(sec))
-		}
-		res.Result, res.Label = sp.Result, sp.Picked().Label
+		var order []int
+		res.Wheel, order = s.wheelView(sp.Wheel, sp.Sectors, stepID)
+		res.Result, res.Label = slices.Index(order, sp.Result), sp.Picked().Label
 		ss.log("spin", "%s крутит %s: %s", ss.name(me), wheelNames[sp.Wheel], res.Label)
 		ss.acts[len(ss.acts)-1].spin = &api.SpinInfo{Player: ss.name(me), Wheel: res.Wheel, Result: res.Result, Label: res.Label}
 		return nil

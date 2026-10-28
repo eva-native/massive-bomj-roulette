@@ -153,6 +153,10 @@ func TestFullTurn(t *testing.T) {
 	if res.Label != "ОПАААА" || res.Wheel.Sectors[res.Result].Label != "ОПАААА" {
 		t.Fatalf("spin result = %+v", res)
 	}
+	// The spinning wheel has the same (shuffled) order as the one shown before.
+	if !slices.Equal(res.Wheel.Sectors, v.Turn.Wheel.Sectors) {
+		t.Fatalf("wheel before the spin %v, while spinning %v", v.Turn.Wheel.Sectors, res.Wheel.Sectors)
+	}
 	f.spin(f.alice, "reflex")
 	f.spin(f.alice, "reflex")
 	res = f.spin(f.alice, "GTA San Andreas")
