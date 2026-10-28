@@ -34,6 +34,8 @@ describe('OBS overlay', () => {
     activity = [spinEntry(2, 'Celeste'), ...activity]
     await act(() => queryClient.invalidateQueries())
     const rotor = await screen.findByTestId('wheel-rotor')
+    // The OBS scenes are laid out for this size: the overlay's wheel stays 320 px.
+    expect(screen.getByRole('img', { name: 'Колесо игр, 2 сектора' }).parentElement).toHaveClass('max-w-80')
     expect(screen.queryByText('Celeste', { selector: 'p' })).not.toBeInTheDocument() // result only after the stop
     fireEvent.animationEnd(rotor)
     expect(await screen.findByText('Celeste', { selector: 'p' })).toBeInTheDocument()

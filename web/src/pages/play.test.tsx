@@ -119,6 +119,8 @@ describe('my turn', () => {
 
     const button = await screen.findByRole('button', { name: 'Крутить' })
     expect(screen.getByTestId('wheel-rotor').compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The board's wheel is the big one (the overlay keeps 320 px, see overlay.test.tsx).
+    expect(screen.getByRole('img', { name: /^Колесо эффектов и бонусов/ }).parentElement).toHaveClass('max-w-[560px]')
     await user.click(button)
     expect(screen.getByRole('button', { name: 'Крутим…' })).toBeDisabled()
 

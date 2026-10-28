@@ -28,6 +28,13 @@ const stepNames: Record<string, string> = {
   play: 'Игра',
 }
 
+/**
+ * The wheel on the board: up to 560 px, the full card width on a phone. The
+ * wheel is the centre of a turn, and at this size alphapve's 37 items fit as
+ * text. The OBS overlay keeps its own, smaller wheel.
+ */
+const BOARD_WHEEL = 'max-w-[560px]'
+
 const reasonNames: Record<string, string> = {
   start: 'начало ивента',
   completed: 'после пройденной игры',
@@ -85,6 +92,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                 seconds={wheelSeconds(event.settings, spinning.result.wheel.kind)}
                 icons={event.settings.icons}
                 name={wheelNames[spinning.result.wheel.kind]}
+                className={BOARD_WHEEL}
                 onStop={finishSpin}
               />
               <p className="text-sm text-stone-500">Крутится…</p>
@@ -198,7 +206,14 @@ function CurrentStep({
         <p className="font-medium">{stepNames[step.kind]}</p>
         {/* The button goes right under the wheel, before the list of what is on it. */}
         {turn.wheel ? (
-          <Wheel sectors={turn.wheel.sectors} target={null} icons={event.settings.icons} action={spinButton || undefined} name={wheelNames[turn.wheel.kind]} />
+          <Wheel
+            sectors={turn.wheel.sectors}
+            target={null}
+            icons={event.settings.icons}
+            action={spinButton || undefined}
+            name={wheelNames[turn.wheel.kind]}
+            className={BOARD_WHEEL}
+          />
         ) : (
           spinButton
         )}

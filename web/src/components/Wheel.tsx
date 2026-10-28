@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
+import { cn } from '@/lib/cn'
 import { itemEmoji, kindEmoji } from '@/lib/items'
 import { plural } from '@/lib/plural'
 import { angleOf, chance, fitLabel, ICON_RADIUS, LABEL_OUTER, labelColor, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
@@ -59,6 +60,7 @@ export function Wheel({
   legend = true,
   action,
   name = 'Колесо',
+  className,
 }: {
   sectors: Sector[]
   target: number | null
@@ -73,6 +75,8 @@ export function Wheel({
   action?: ReactNode
   /** What the wheel is, for screen readers: «Колесо игр». */
   name?: string
+  /** Its size: 320 px wide unless overridden (`max-w-[560px]`). Everything inside scales with it. */
+  className?: string
 }) {
   const parts = useMemo(() => slices(sectors), [sectors])
   const rotor = useRef<SVGGElement>(null)
@@ -85,9 +89,9 @@ export function Wheel({
     : undefined
 
   return (
-    <div className="mx-auto w-full max-w-80">
+    <div className={cn('mx-auto w-full max-w-80', className)}>
       <Ticker rotor={rotor} parts={parts} spinning={spinning} icons={icons} />
-      <div ref={frame} className="relative" role="img" aria-label={`${name}, ${sectors.length} ${plural(sectors.length, 'сектор', 'сектора', 'секторов')}`}>
+      <div ref={frame} role="img" aria-label={`${name}, ${sectors.length} ${plural(sectors.length, 'сектор', 'сектора', 'секторов')}`}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full drop-shadow">
           <g ref={rotor} className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
             {parts.map((p, i) => (
@@ -96,9 +100,9 @@ export function Wheel({
             <SectorMarks parts={parts} mode={mode} icons={icons} />
           </g>
           <circle cx={SIZE / 2} cy={SIZE / 2} r={14} fill="#1c1917" />
+          {/* The pointer at the top, drawn in the wheel's units so it grows with it. */}
+          <polygon points={`${SIZE / 2 - 12},0 ${SIZE / 2 + 12},0 ${SIZE / 2},22`} className="fill-stone-900 dark:fill-stone-100" data-testid="wheel-pointer" />
         </svg>
-        {/* The pointer at the top. */}
-        <div className="absolute top-0 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[22px] border-x-transparent border-t-stone-900 dark:border-t-stone-100" />
       </div>
       {action && <div className="mt-3 flex justify-center">{action}</div>}
       {legend && mode.kind !== 'text' && <Legend parts={parts} icons={icons} />}
