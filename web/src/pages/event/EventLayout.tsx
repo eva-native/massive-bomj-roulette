@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { Badge, ErrorText, Loading } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { RULES_URL } from '@/lib/links'
 import type { EventContext } from './context'
 
 export function EventLayout() {
@@ -83,6 +84,14 @@ export function EventLayout() {
             {t.label}
           </NavLink>
         ))}
+        <a
+          href={RULES_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap text-stone-500 hover:text-stone-800"
+        >
+          Правила ↗
+        </a>
       </nav>
 
       <Outlet context={{ event: ev } satisfies EventContext} />
