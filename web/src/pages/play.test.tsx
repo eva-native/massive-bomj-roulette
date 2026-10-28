@@ -217,6 +217,32 @@ describe('my turn', () => {
     expect(within(card).getByRole('checkbox', { name: 'Победа' })).toBeDisabled()
     expect(within(card).queryByRole('button', { name: 'Отправить результат' })).not.toBeInTheDocument()
   })
+
+  it('sends an unticked yes/no field as no (a lost duel, issue #11)', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const rps: ItemView = {
+      ...opaaa,
+      id: 52,
+      defId: 'rps',
+      name: 'Решим это по-мужски',
+      concept: 'Камень, ножницы, бумага.',
+      needsConfirm: true,
+      fields: [{ name: 'won', label: 'Победа', type: 'bool', by: 'player', optional: false, value: null }],
+    }
+    backend.on('GET', /\/players\/2$/, () =>
+      view(turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], { items: [rps] })),
+    )
+    backend.on('POST', /\/items\/52\/input$/, () => undefined)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+
+    const card = (await screen.findByRole('heading', { name: 'Решим это по-мужски' })).closest('article')!
+    await user.click(within(card).getByRole('button', { name: 'Отправить результат' }))
+
+    await vi.waitFor(() => expect(backend.requests.find((r) => r.url.endsWith('/items/52/input'))?.body).toEqual({ values: { won: false } }))
+  })
 })
 
 describe('judge queue', () => {

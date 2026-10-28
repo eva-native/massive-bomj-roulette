@@ -667,6 +667,9 @@ func (e *Engine) ConfirmItem(s *State, actor PlayerID, itemID int64, accept bool
 	if it == nil || it.Placement == PlaceVoided {
 		return fmt.Errorf("%w: предмет не найден", ErrNotAllowed)
 	}
+	if accept && !PlayerFieldsFilled(r.def(it), it) {
+		return fmt.Errorf("%w: игрок ещё не заполнил результат", ErrBadInput)
+	}
 	it.Confirmed, it.Rejected = accept, !accept
 	if !accept {
 		it.Submitted = false // the owner may fix the input and send it again
@@ -721,13 +724,14 @@ func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[str
 	}
 	it.Confirmed, it.Rejected = false, false
 	if !judge && d.NeedsConfirm {
-		it.Submitted = playerFieldsFilled(d, it)
+		it.Submitted = PlayerFieldsFilled(d, it)
 	}
 	return nil
 }
 
-// playerFieldsFilled reports whether every required player field has a value.
-func playerFieldsFilled(d *Def, it *Item) bool {
+// PlayerFieldsFilled reports whether every required player field of the item
+// has a value: only then there is a result to confirm.
+func PlayerFieldsFilled(d *Def, it *Item) bool {
 	for _, f := range d.Input {
 		if f.By != RolePlayer || f.Optional {
 			continue

@@ -71,7 +71,9 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const changed = Object.fromEntries(item.fields.filter(editable).map((f) => [f.name, values[f.name]]).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+    // An unticked box is a «no» (a lost duel), not a missing answer (issue #11).
+    const value = (f: FieldView) => (f.type === 'bool' ? values[f.name] === true : values[f.name])
+    const changed = Object.fromEntries(item.fields.filter(editable).map((f) => [f.name, value(f)]).filter(([, v]) => v !== undefined && v !== null && v !== ''))
     input.mutate({ itemId: item.id, values: changed })
   }
 

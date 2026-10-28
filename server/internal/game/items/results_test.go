@@ -56,6 +56,21 @@ func TestRPSWinnerTakesAll(t *testing.T) {
 	sc.expectTotal(b, 0)
 }
 
+func TestRPSLossGivesTheOpponentPoints(t *testing.T) {
+	sc := newScenario(t)
+	a, b := sc.player("Алиса"), sc.player("Боб")
+	sc.addGame("G", 10, 80, 2015, a)
+	startGame(sc, a, "G", "rps")
+	rps := sc.item(a, "rps")
+	sc.input(a, rps, map[string]any{"opponent": int(b)})
+	// Without the result there is nothing to confirm (issue #11).
+	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, rps.ID, true), game.ErrBadInput)
+	sc.input(a, rps, map[string]any{"won": false})
+	sc.confirmItem(rps)
+	sc.expectTotal(a, 0)
+	sc.expectTotal(b, 5)
+}
+
 func TestJesterNeedsTheJudge(t *testing.T) {
 	sc := newScenario(t)
 	a := sc.player("Алиса")
