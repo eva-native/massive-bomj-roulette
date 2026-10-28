@@ -167,15 +167,17 @@ func playerPartFilled(d *game.Def, it *game.Item) bool {
 // so items of one kind stand in a block; the view shuffles them (issue #11).
 // The order depends only on the step, so the wheel before the spin and the
 // spinning one look the same, and every new spin gets a new order. It is only
-// a picture: the result is picked by the engine. order[i] is the engine index
-// of view sector i.
-func (s *Service) wheelView(kind game.WheelKind, sectors []game.Sector, stepID int64) (wv api.WheelView, order []int) {
-	order = wheelOrder(stepID, len(sectors))
-	wv = api.WheelView{Kind: string(kind), Sectors: make([]api.Sector, 0, len(sectors))}
-	for _, i := range order {
-		wv.Sectors = append(wv.Sectors, s.sectorView(sectors[i]))
+// a picture: the result is picked by the engine. pos[i] is where engine
+// sector i stands in the view.
+func (s *Service) wheelView(kind game.WheelKind, sectors []game.Sector, stepID int64) (wv api.WheelView, pos []int) {
+	order := wheelOrder(stepID, len(sectors))
+	wv = api.WheelView{Kind: string(kind), Sectors: make([]api.Sector, len(sectors))}
+	pos = make([]int, len(sectors))
+	for v, i := range order {
+		wv.Sectors[v] = s.sectorView(sectors[i])
+		pos[i] = v
 	}
-	return wv, order
+	return wv, pos
 }
 
 // wheelOrder is the order of n sectors on the wheel of a step.
