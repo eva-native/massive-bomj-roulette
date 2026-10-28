@@ -124,13 +124,14 @@ export function Wheel({
   )
 }
 
-/** The list of sectors with their chance, for wheels too dense to label. */
+/** The list of sectors with their chance, for wheels too dense to label. Sorted by name: the wheel itself is shuffled. */
 function Legend({ parts, icons }: { parts: Slice[]; icons?: Record<string, string> }) {
+  const sorted = useMemo(() => [...parts].sort((a, b) => a.sector.label.localeCompare(b.sector.label, 'ru')), [parts])
   return (
     <details className="mt-2 text-sm">
       <summary className="cursor-pointer text-center text-stone-500">Что на колесе ({parts.length})</summary>
       <ul className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
-        {parts.map((p, i) => (
+        {sorted.map((p, i) => (
           <li key={i} className="flex items-center gap-2">
             <span className="size-3 shrink-0 rounded-full border border-stone-900" style={{ background: p.color }} />
             {p.sector.defId && <ItemIcon defId={p.sector.defId} kind={p.sector.kind} icons={icons} size="sm" />}
