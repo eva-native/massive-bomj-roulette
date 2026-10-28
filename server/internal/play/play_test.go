@@ -604,7 +604,7 @@ func TestPlayTimeAndReview(t *testing.T) {
 
 	// The review goes with the outcome.
 	step := f.view(f.alice).Turn.Current.ID
-	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: strings.Repeat("я", 2001)}); err == nil {
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, step, api.FinishRequest{Outcome: "completed", Hours: 2, Review: strings.Repeat("я", api.MaxReview+1)}); err == nil {
 		t.Fatal("a too long review was accepted")
 	}
 	for _, outcome := range []string{"completed", "dropped"} {

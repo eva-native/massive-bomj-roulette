@@ -2,6 +2,7 @@ import { Navigate } from 'react-router'
 import { useConfirmGame, useConfirmItem, useQueue } from '@/api/play'
 import type { QueueEntry } from '@/api/types.gen'
 import { Button } from '@/components/Button'
+import { ReviewText } from '@/components/Review'
 import { Card, ErrorText, Loading } from '@/components/ui'
 import { useEventContext } from './context'
 import { ItemCard } from './play/ItemCard'
@@ -42,7 +43,7 @@ function GameEntry({ entry }: { entry: QueueEntry }) {
         {pt.outcome === 'completed' && ` за ${formatHours(pt.hours)} (HLTB ${pt.hltbHours} ч)`}
       </p>
       {pt.timerMs > 0 && <p className="text-sm text-stone-500">По таймеру: {formatHours(pt.timerMs / 3600000)}</p>}
-      {pt.review && <p className="text-sm whitespace-pre-line text-stone-600 dark:text-stone-300">{pt.review}</p>}
+      {pt.review && <ReviewText text={pt.review} className="text-sm" />}
       {pt.proof ? (
         <a href={pt.proof} target="_blank" rel="noreferrer" className="text-sm break-all text-amber-700 underline">
           {pt.proof}

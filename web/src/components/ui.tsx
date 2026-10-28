@@ -20,13 +20,27 @@ export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
  * A labelled form control. The label wraps the control so it is linked
  * without ids; the hint stays outside so it is not part of the field name.
  */
-export function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: ReactNode }) {
+/** A labelled field. `after` and `hint` stay outside the label, so they are not part of the field name. */
+export function Field({
+  label,
+  hint,
+  after,
+  className,
+  children,
+}: {
+  label: string
+  hint?: string
+  after?: ReactNode
+  className?: string
+  children: ReactNode
+}) {
   return (
     <div className={cn('flex flex-col gap-1 text-sm', className)}>
       <label className="flex flex-col gap-1">
         <span className="font-medium">{label}</span>
         {children}
       </label>
+      {after}
       {hint && <span className="text-xs text-stone-500">{hint}</span>}
     </div>
   )
