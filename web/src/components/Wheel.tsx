@@ -1,34 +1,10 @@
-import { useMemo, type CSSProperties } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
+import { angleOf, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type Slice } from '@/lib/wheel'
 import { ItemIcon } from './ItemIcon'
 
-const SIZE = 320
-const R = SIZE / 2 - 6
 const TURNS = 6 // full turns before stopping
 const MAX_LABELS = 28 // beyond this the labels are unreadable
-
-const kindColors: Record<string, [string, string]> = {
-  effect: ['#f59e0b', '#fbbf24'],
-  bonus: ['#16a34a', '#22c55e'],
-  drop: ['#dc2626', '#ef4444'],
-  '': ['#78716c', '#a8a29e'],
-}
-
-type Slice = { start: number; end: number; sector: Sector; color: string }
-
-/** Angles in degrees, clockwise from the top. */
-function slices(sectors: Sector[]): Slice[] {
-  const total = sectors.reduce((sum, s) => sum + Math.max(s.weight, 0), 0) || 1
-  let at = 0
-  return sectors.map((sector, i) => {
-    const span = (Math.max(sector.weight, 0) / total) * 360
-    const pair = kindColors[sector.kind] ?? kindColors['']!
-    const color = sector.kind ? pair[i % 2]! : i % 2 ? '#d6d3d1' : '#e7e5e4'
-    const s = { start: at, end: at + span, sector, color }
-    at += span
-    return s
-  })
-}
 
 function point(deg: number, r = R) {
   const rad = ((deg - 90) * Math.PI) / 180
@@ -77,6 +53,7 @@ export function Wheel({
   legend?: boolean
 }) {
   const parts = useMemo(() => slices(sectors), [sectors])
+  const rotor = useRef<SVGGElement>(null)
   const spinning = target !== null && parts[target] !== undefined
   const style = spinning
     ? ({ '--wheel-to': `${finalAngle(parts, target)}deg`, ...(seconds ? { '--wheel-duration': `${seconds}s` } : {}) } as CSSProperties)
@@ -86,9 +63,10 @@ export function Wheel({
 
   return (
     <div className="mx-auto w-full max-w-80">
+      <Ticker rotor={rotor} parts={parts} spinning={spinning} icons={icons} />
       <div className="relative" role="img" aria-label={`Колесо: ${sectors.length} секторов`}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full drop-shadow">
-          <g className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
+          <g ref={rotor} className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
             {parts.map((p, i) => (
               <path key={i} d={arc(p.start, p.end)} fill={p.color} stroke="#1c1917" strokeWidth={1} />
             ))}
@@ -123,6 +101,62 @@ export function Wheel({
     </div>
   )
 }
+
+/**
+ * The sector passing under the pointer while the wheel turns, read from the
+ * rotor's live rotation on every frame. Labels do not fit on a dense wheel
+ * (a game wheel of a hundred titles), so this line is what can be read. It
+ * is blank at rest and after the stop: the page shows the result itself.
+ * Kept out of the wheel's render, so its updates do not redraw the sectors.
+ */
+const Ticker = memo(function Ticker({
+  rotor,
+  parts,
+  spinning,
+  icons,
+}: {
+  rotor: RefObject<SVGGElement | null>
+  parts: Slice[]
+  spinning: boolean
+  icons?: Record<string, string>
+}) {
+  const [pointed, setPointed] = useState<number | null>(null)
+
+  useEffect(() => {
+    const el = rotor.current
+    if (!spinning || !el) return
+    let frame = 0
+    const read = () => {
+      const angle = angleOf(getComputedStyle(el).transform)
+      setPointed(sectorAt(parts, angle ?? 0))
+      frame = requestAnimationFrame(read)
+    }
+    const stop = () => {
+      cancelAnimationFrame(frame)
+      setPointed(null)
+    }
+    frame = requestAnimationFrame(read)
+    el.addEventListener('animationend', stop)
+    return () => {
+      cancelAnimationFrame(frame)
+      el.removeEventListener('animationend', stop)
+      setPointed(null)
+    }
+  }, [rotor, parts, spinning])
+
+  const sector = pointed === null ? undefined : parts[pointed]?.sector
+  // Screen readers get the result from the page; this line changes many times a second.
+  return (
+    <div aria-hidden className="mb-1 flex h-8 items-center justify-center gap-2 text-lg font-semibold">
+      {sector && (
+        <>
+          {sector.defId && <ItemIcon defId={sector.defId} kind={sector.kind} icons={icons} size="sm" />}
+          <span className="truncate">{sector.label}</span>
+        </>
+      )}
+    </div>
+  )
+})
 
 /** The list of sectors with their chance, for wheels too dense to label. Sorted by name: the wheel itself is shuffled. */
 function Legend({ parts, icons }: { parts: Slice[]; icons?: Record<string, string> }) {
