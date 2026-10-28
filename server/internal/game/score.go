@@ -175,7 +175,7 @@ func (r *run) scorePlaythrough(pt *Playthrough, records map[int64]*Playthrough) 
 	switch outcome {
 	case OutcomeCompleted:
 		l.add(pt.Player, SourceCompletion, base)
-		l.add(pt.Player, SourceSpeed, Round(float64(g.HLTB)-pt.Hours))
+		l.add(pt.Player, SourceSpeed, max(0, Round(float64(g.HLTB)-pt.Hours))) // never below zero
 		if records[pt.Game] == pt {
 			l.add(pt.Player, SourceRecord, r.s.Settings.recordPoints())
 		}
