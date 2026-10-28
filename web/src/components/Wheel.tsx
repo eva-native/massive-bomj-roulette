@@ -1,10 +1,25 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
-import { angleOf, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type Slice } from '@/lib/wheel'
+import { itemEmoji, kindEmoji } from '@/lib/items'
+import { angleOf, fitLabel, ICON_RADIUS, LABEL_OUTER, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
 import { ItemIcon } from './ItemIcon'
 
 const TURNS = 6 // full turns before stopping
-const MAX_LABELS = 28 // beyond this the labels are unreadable
+
+/** The element's width on screen, kept up to date; `fallback` where nothing can measure it (tests). */
+function useWidth(ref: RefObject<HTMLElement | null>, fallback: number) {
+  const [width, setWidth] = useState(fallback)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry && entry.contentRect.width > 0) setWidth(entry.contentRect.width)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ref])
+  return width
+}
 
 function point(deg: number, r = R) {
   const rad = ((deg - 90) * Math.PI) / 180
@@ -54,52 +69,86 @@ export function Wheel({
 }) {
   const parts = useMemo(() => slices(sectors), [sectors])
   const rotor = useRef<SVGGElement>(null)
+  const frame = useRef<HTMLDivElement>(null)
+  const width = useWidth(frame, SIZE)
+  const mode = labelMode(parts, width)
   const spinning = target !== null && parts[target] !== undefined
   const style = spinning
     ? ({ '--wheel-to': `${finalAngle(parts, target)}deg`, ...(seconds ? { '--wheel-duration': `${seconds}s` } : {}) } as CSSProperties)
     : undefined
 
-  const showLabels = parts.length <= MAX_LABELS
-
   return (
     <div className="mx-auto w-full max-w-80">
       <Ticker rotor={rotor} parts={parts} spinning={spinning} icons={icons} />
-      <div className="relative" role="img" aria-label={`Колесо: ${sectors.length} секторов`}>
+      <div ref={frame} className="relative" role="img" aria-label={`Колесо: ${sectors.length} секторов`}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full drop-shadow">
           <g ref={rotor} className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
             {parts.map((p, i) => (
               <path key={i} d={arc(p.start, p.end)} fill={p.color} stroke="#1c1917" strokeWidth={1} />
             ))}
-            {showLabels &&
-              parts.map((p, i) => {
-                const mid = (p.start + p.end) / 2
-                const [x, y] = point(mid, R * 0.6)
-                const label = p.sector.label.length > 16 ? p.sector.label.slice(0, 15) + '…' : p.sector.label
-                return (
-                  <text
-                    key={i}
-                    x={x}
-                    y={y}
-                    fontSize={parts.length > 16 ? 9 : 11}
-                    fontWeight={600}
-                    fill="#1c1917"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    transform={`rotate(${mid - 90} ${x} ${y})`}
-                  >
-                    {label}
-                  </text>
-                )
-              })}
+            <SectorMarks parts={parts} mode={mode} icons={icons} />
           </g>
           <circle cx={SIZE / 2} cy={SIZE / 2} r={14} fill="#1c1917" />
         </svg>
         {/* The pointer at the top. */}
         <div className="absolute top-0 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[22px] border-x-transparent border-t-stone-900 dark:border-t-stone-100" />
       </div>
-      {legend && !showLabels && <Legend parts={parts} icons={icons} />}
+      {legend && mode.kind !== 'text' && <Legend parts={parts} icons={icons} />}
     </div>
   )
+}
+
+/**
+ * What each sector shows (see labelMode): a label running from the rim
+ * towards the hub, or the item's icon near the rim. An icon picture that
+ * fails to load falls back to the item's emoji.
+ */
+function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; icons?: Record<string, string> }) {
+  const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set())
+  if (mode.kind === 'none') return null
+  return parts.map((p, i) => {
+    const mid = (p.start + p.end) / 2
+    if (mode.kind === 'text') {
+      const [x, y] = point(mid, LABEL_OUTER)
+      return (
+        <text
+          key={i}
+          x={x}
+          y={y}
+          fontSize={mode.font}
+          fontWeight={600}
+          fill="#1c1917"
+          textAnchor="end"
+          dominantBaseline="middle"
+          transform={`rotate(${mid - 90} ${x} ${y})`}
+        >
+          {fitLabel(p.sector.label, mode.maxChars)}
+        </text>
+      )
+    }
+    const [x, y] = point(mid, ICON_RADIUS)
+    const url = icons?.[p.sector.defId]
+    if (url && !broken.has(url)) {
+      const s = mode.size
+      return (
+        <image
+          key={i}
+          href={url}
+          x={x - s / 2}
+          y={y - s / 2}
+          width={s}
+          height={s}
+          preserveAspectRatio="xMidYMid slice"
+          onError={() => setBroken((b) => new Set(b).add(url))}
+        />
+      )
+    }
+    return (
+      <text key={i} x={x} y={y} fontSize={mode.size} textAnchor="middle" dominantBaseline="central">
+        {itemEmoji[p.sector.defId] ?? kindEmoji[p.sector.kind] ?? '❔'}
+      </text>
+    )
+  })
 }
 
 /**

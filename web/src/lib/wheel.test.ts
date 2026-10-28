@@ -1,8 +1,47 @@
 import { describe, expect, it } from 'vitest'
 import type { Sector } from '@/api/types.gen'
-import { angleOf, sectorAt, slices } from './wheel'
+import { angleOf, fitLabel, labelMode, sectorAt, slices } from './wheel'
 
 const sector = (label: string, weight = 1, kind = ''): Sector => ({ label, weight, kind, defId: '' })
+const items = (n: number) => slices(Array.from({ length: n }, (_, i) => ({ label: `Предмет ${i}`, weight: 1, kind: 'effect', defId: `item${i}` })))
+const games = (n: number) => slices(Array.from({ length: n }, (_, i) => sector(`Игра ${i}`)))
+
+describe('labelMode', () => {
+  it('labels a small wheel with text even on a phone', () => {
+    expect(labelMode(games(8), 300)).toMatchObject({ kind: 'text' })
+  })
+
+  it('gives 37 items (alphapve) full text on a big wheel and icons on a small one', () => {
+    const big = labelMode(items(37), 560)
+    expect(big.kind).toBe('text')
+    expect(big.kind === 'text' && big.maxChars).toBeGreaterThanOrEqual(16)
+    expect(labelMode(items(37), 320)).toMatchObject({ kind: 'icons' })
+  })
+
+  it('draws nothing in a hundred game sectors: the ticker names them', () => {
+    expect(labelMode(games(100), 560)).toEqual({ kind: 'none' })
+    expect(labelMode(games(100), 320)).toEqual({ kind: 'none' })
+  })
+
+  it('keeps labels about 12 px on screen', () => {
+    const small = labelMode(games(8), 320)
+    const big = labelMode(games(8), 560)
+    expect(small.kind === 'text' && small.font * (320 / 320)).toBeCloseTo(12)
+    expect(big.kind === 'text' && big.font * (560 / 320)).toBeCloseTo(12)
+  })
+
+  it('has nothing to show without sectors', () => {
+    expect(labelMode([], 320)).toEqual({ kind: 'none' })
+  })
+})
+
+describe('fitLabel', () => {
+  it('keeps a short label and cuts a long one with an ellipsis', () => {
+    expect(fitLabel('Mario', 10)).toBe('Mario')
+    expect(fitLabel('Warcraft 3: Frozen Throne', 10)).toBe('Warcraft …')
+    expect(Array.from(fitLabel('Warcraft 3: Frozen Throne', 10))).toHaveLength(10)
+  })
+})
 
 describe('sectorAt', () => {
   // Four equal sectors: A 0–90°, B 90–180°, C 180–270°, D 270–360°, clockwise from the top.

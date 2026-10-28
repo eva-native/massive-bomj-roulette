@@ -46,6 +46,47 @@ export function sectorAt(parts: Slice[], rotation: number): number {
   return i === -1 ? parts.length - 1 : i
 }
 
+/** Labels and icons keep about this size on screen, however big the wheel is drawn. */
+const LABEL_PX = 12
+const ICON_PX = 16
+/** Where text labels end and icons sit, and how close to the hub a label may start, in SVG units. */
+export const LABEL_OUTER = 0.9 * WHEEL_R
+export const ICON_RADIUS = 0.8 * WHEEL_R
+const HUB_CLEARANCE = 18
+
+/** What the sectors of a wheel show: text along the radius, item icons near the rim, or nothing. */
+export type LabelMode = { kind: 'text'; font: number; maxChars: number } | { kind: 'icons'; size: number } | { kind: 'none' }
+
+/**
+ * What fits into the sectors of a wheel drawn `px` wide. A label runs from
+ * the rim towards the hub and must stop where the narrowest sector becomes
+ * thinner than a line of text; sizes are in SVG units, chosen so that they
+ * come out at about LABEL_PX and ICON_PX on screen. Text wins when at least
+ * 10 characters fit; otherwise item icons if every sector has one and they
+ * fit; otherwise shorter text; otherwise nothing.
+ */
+export function labelMode(parts: Slice[], px: number): LabelMode {
+  const spans = parts.map((p) => p.end - p.start).filter((s) => s > 0)
+  if (spans.length === 0 || px <= 0) return { kind: 'none' }
+  const scale = px / WHEEL_SIZE
+  const narrowest = (Math.min(...spans) * Math.PI) / 180 // radians
+  const font = Math.min(Math.max(LABEL_PX / scale, 6), 13)
+  const start = Math.min(Math.max((1.15 * font) / narrowest, HUB_CLEARANCE), LABEL_OUTER)
+  const maxChars = Math.floor((LABEL_OUTER - start) / (0.56 * font)) // 0.56: an average glyph's width per unit of font size
+  const icon = ICON_PX / scale
+  const iconsFit = parts.every((p) => p.sector.defId) && ICON_RADIUS * narrowest >= 1.2 * icon
+  if (maxChars >= 10) return { kind: 'text', font, maxChars }
+  if (iconsFit) return { kind: 'icons', size: icon }
+  if (maxChars >= 6) return { kind: 'text', font, maxChars }
+  return { kind: 'none' }
+}
+
+/** A label cut to `maxChars` characters, with an ellipsis when cut. */
+export function fitLabel(label: string, maxChars: number): string {
+  const chars = Array.from(label)
+  return chars.length <= maxChars ? label : chars.slice(0, Math.max(maxChars - 1, 1)).join('') + '…'
+}
+
 /** The rotation in degrees of a computed CSS transform (`matrix(...)`), or null when there is none. */
 export function angleOf(transform: string): number | null {
   const m = transform.match(/^matrix(3d)?\(([^)]+)\)$/)
