@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import { useActivity, useLeaderboard } from '@/api/play'
 import { Avatar, Card, ErrorText, Loading } from '@/components/ui'
+import { playerPath } from '@/lib/paths'
 import { useEventContext } from './context'
 
 const timeFormat = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -26,7 +27,7 @@ export function BoardTab() {
         <ol className="flex flex-col divide-y divide-stone-200 dark:divide-stone-800">
           {board.data?.map((row, i) => (
             <li key={row.player.id}>
-              <Link to={`players/${row.player.id}`} className="flex items-center gap-3 py-2 hover:text-amber-700">
+              <Link to={playerPath(event.slug, row.player.id)} className="flex items-center gap-3 py-2 hover:text-amber-700">
                 <span className="w-6 text-right font-semibold text-stone-500">{i + 1}</span>
                 <Avatar name={row.player.name} url={row.player.avatarUrl} size="sm" />
                 <span className="flex-1">

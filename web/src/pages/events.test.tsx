@@ -68,6 +68,31 @@ describe('events', () => {
     expect(post?.body).toMatchObject({ title: 'GTA San Andreas', hltbHours: 30 })
   })
 
+  it('links participants in the members tab to their boards (issue #11)', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/members')
+
+    await user.click(await screen.findByRole('button', { name: 'Участвовать' }))
+    expect(await screen.findByRole('link', { name: 'Алиса' })).toHaveAttribute('href', '/e/lbr/players/2')
+    // A judge only, with no board: the name is plain text.
+    expect(screen.getByText('Админ')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Админ' })).not.toBeInTheDocument()
+  })
+
+  it('links a former player who is still on the leaderboard', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    // The judge played some turns and then stopped being a participant.
+    backend.on('GET', /\/leaderboard$/, () => [{ player: { id: admin.id, name: admin.name, avatarUrl: '' }, points: 12, completed: 1, dropped: 0, playing: '' }])
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/members')
+
+    expect(await screen.findByRole('link', { name: 'Админ' })).toHaveAttribute('href', '/e/lbr/players/1')
+  })
+
   it('links to the rules on GitHub (issue #11)', async () => {
     const backend = fakeBackend({ me: alice, items })
     backend.addEvent('lbr', 'ЛБР', admin)
