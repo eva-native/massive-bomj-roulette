@@ -122,6 +122,9 @@ function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; 
     const mid = (p.start + p.end) / 2
     if (mode.kind === 'text') {
       const [x, y] = point(mid, LABEL_OUTER)
+      // On the left half a label along the radius would be upside down: turn it over, so it
+      // reads from the rim inwards and stays upright while the wheel is at rest.
+      const left = mid > 180
       return (
         <text
           key={i}
@@ -130,9 +133,9 @@ function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; 
           fontSize={mode.font}
           fontWeight={600}
           fill={labelColor(p.color)}
-          textAnchor="end"
+          textAnchor={left ? 'start' : 'end'}
           dominantBaseline="middle"
-          transform={`rotate(${mid - 90} ${x} ${y})`}
+          transform={`rotate(${left ? mid + 90 : mid - 90} ${x} ${y})`}
         >
           {fitLabel(p.sector.label, mode.maxChars)}
         </text>

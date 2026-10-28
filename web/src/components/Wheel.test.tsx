@@ -63,6 +63,15 @@ describe('sector marks', () => {
     expect(screen.queryByText('Что на колесе (37)')).not.toBeInTheDocument()
   })
 
+  it('keeps labels on the left half upright', () => {
+    render(<Wheel sectors={sectors} target={null} />) // Mario and Celeste on the right, Hades and Portal on the left
+    const label = (name: string) => screen.getByText(name, { selector: 'text' })
+    expect(label('Celeste')).toHaveAttribute('text-anchor', 'end') // mid 135°: rim on the right end of the text
+    expect(label('Celeste').getAttribute('transform')).toMatch(/^rotate\(45 /)
+    expect(label('Hades')).toHaveAttribute('text-anchor', 'start') // mid 225°: turned over, starts at the rim
+    expect(label('Hades').getAttribute('transform')).toMatch(/^rotate\(315 /)
+  })
+
   it('falls back to the emoji when an icon picture does not load', () => {
     drawnAt(320)
     render(<Wheel sectors={effects} target={null} icons={{ opaaa: 'https://example.com/gone.png' }} />)
