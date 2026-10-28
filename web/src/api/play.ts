@@ -112,60 +112,85 @@ export function useConfirmItem(slug: string) {
 
 /**
  * The live stream's state: `reconnecting` once it has been down for a while,
- * `closed` when the browser gave up on it (only a page reload helps then).
+ * `closed` when reopening it keeps failing (a page reload may help then).
  */
 export type StreamStatus = 'live' | 'reconnecting' | 'closed'
 
-/** How long the stream may be down before the page says so; a normal reconnect takes about 3 s. */
-export const STREAM_DOWN_NOTICE_MS = 3000
+export type EventStream = {
+  status: StreamStatus
+  /** When the page last refetched after the stream came back (Date.now()), 0 if never. */
+  resyncedAt: number
+}
+
+/**
+ * How long the stream may be down before the page says so. The server tells
+ * the browser to retry after 3 s (`retry: 3000`), so a normal reconnect takes
+ * a bit longer than that and must not flash the notice.
+ */
+export const STREAM_DOWN_NOTICE_MS = 8000
+
+/** Reopening a stream the browser gave up on: the first wait, the longest wait, and after how many failures to ask for a reload. */
+export const STREAM_REOPEN_FIRST_MS = 3000
+const STREAM_REOPEN_MAX_MS = 60_000
+export const STREAM_REOPEN_NOTICE_AFTER = 5
 
 /**
  * Listens to the event's live stream and refetches whatever is shown. The
- * server does not replay what happened while the stream was down, so after a
- * reconnect, and when the tab comes back while the stream is still down,
- * everything is fetched again.
+ * server does not replay messages sent while the stream was down, so when it
+ * opens after any failure, everything is fetched again. Nothing is fetched
+ * while it is down: the server is likely unreachable then, and a failed fetch
+ * would replace the page with an error.
  */
-export function useEventStream(slug: string): StreamStatus {
+export function useEventStream(slug: string): EventStream {
   const qc = useQueryClient()
-  const [status, setStatus] = useState<StreamStatus>('live')
+  // Keyed by slug: another event starts from a clean state, not with this one's notice.
+  const [state, setState] = useState({ slug, status: 'live' as StreamStatus, resyncedAt: 0 })
   useEffect(() => {
     if (typeof EventSource === 'undefined') return
-    const es = new EventSource(`${base(slug)}/stream`)
+    const update = (patch: { status: StreamStatus; resyncedAt?: number }) =>
+      setState((s) => ({ ...(s.slug === slug ? s : { slug, status: 'live' as StreamStatus, resyncedAt: 0 }), ...patch }))
     const refresh = () => void qc.invalidateQueries({ queryKey: eventKeys.detail(slug) })
-    let opened = false
+
+    let es: EventSource
+    let missed = false // the stream failed since it was last open: messages may be lost
+    let failedReopens = 0
     let notice: ReturnType<typeof setTimeout> | undefined
+    let reopen: ReturnType<typeof setTimeout> | undefined
+
     const onOpen = () => {
       clearTimeout(notice)
       notice = undefined
-      setStatus('live')
-      if (opened) refresh() // a reconnect: changes made meanwhile never reached us
-      opened = true
+      failedReopens = 0
+      if (!missed) return update({ status: 'live' })
+      missed = false
+      refresh()
+      update({ status: 'live', resyncedAt: Date.now() })
     }
     const onError = () => {
-      if (es.readyState === EventSource.CLOSED) {
-        clearTimeout(notice)
-        setStatus('closed')
-        return
-      }
-      notice ??= setTimeout(() => setStatus('reconnecting'), STREAM_DOWN_NOTICE_MS)
+      missed = true
+      notice ??= setTimeout(() => update({ status: 'reconnecting' }), STREAM_DOWN_NOTICE_MS)
+      if (es.readyState !== EventSource.CLOSED) return // the browser retries by itself
+      // The browser gave up, e.g. a proxy answered 502 during a deploy. Open a
+      // new stream, waiting longer each time; the OBS overlay depends on it.
+      failedReopens++
+      if (failedReopens >= STREAM_REOPEN_NOTICE_AFTER) update({ status: 'closed' })
+      reopen = setTimeout(connect, Math.min(STREAM_REOPEN_FIRST_MS * 2 ** (failedReopens - 1), STREAM_REOPEN_MAX_MS))
     }
-    const onVisible = () => {
-      if (document.visibilityState === 'visible' && es.readyState !== EventSource.OPEN) refresh()
+    const connect = () => {
+      es = new EventSource(`${base(slug)}/stream`)
+      es.addEventListener('change', refresh)
+      es.addEventListener('open', onOpen)
+      es.addEventListener('error', onError)
     }
-    es.addEventListener('change', refresh)
-    es.addEventListener('open', onOpen)
-    es.addEventListener('error', onError)
-    document.addEventListener('visibilitychange', onVisible)
+
+    connect()
     return () => {
       clearTimeout(notice)
-      es.removeEventListener('change', refresh)
-      es.removeEventListener('open', onOpen)
-      es.removeEventListener('error', onError)
-      document.removeEventListener('visibilitychange', onVisible)
+      clearTimeout(reopen)
       es.close()
     }
   }, [slug, qc])
-  return status
+  return state.slug === slug ? { status: state.status, resyncedAt: state.resyncedAt } : { status: 'live', resyncedAt: 0 }
 }
 
 export function useUndoStep(slug: string) {

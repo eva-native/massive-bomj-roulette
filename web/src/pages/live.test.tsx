@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { STREAM_DOWN_NOTICE_MS } from '@/api/play'
+import { STREAM_DOWN_NOTICE_MS, STREAM_REOPEN_FIRST_MS, STREAM_REOPEN_NOTICE_AFTER } from '@/api/play'
 import type { Me } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { FakeEventSource } from '@/test/fakeEventSource'
@@ -13,16 +13,20 @@ function setVisibility(state: DocumentVisibilityState) {
   document.dispatchEvent(new Event('visibilitychange'))
 }
 
+const tick = () => new Promise((r) => setTimeout(r, 20))
+const notice = () => screen.queryByText(/Нет связи с сервером/)
+
 async function openEvent() {
   const backend = fakeBackend({ me: judge })
   backend.addEvent('osen', 'ЛБР Осень', judge)
+  backend.addEvent('zima', 'ЛБР Зима', judge)
   vi.stubGlobal('fetch', backend.fetch)
   vi.stubGlobal('EventSource', FakeEventSource)
-  renderApp('/e/osen')
+  const { router } = renderApp('/e/osen')
   expect(await screen.findByRole('heading', { name: 'ЛБР Осень' })).toBeInTheDocument()
   const boardFetches = () => backend.requests.filter((r) => r.url === '/api/events/osen/leaderboard').length
   await waitFor(() => expect(boardFetches()).toBe(1))
-  return { backend, es: FakeEventSource.last(), boardFetches }
+  return { router, es: FakeEventSource.last(), boardFetches }
 }
 
 beforeEach(() => {
@@ -30,6 +34,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   delete (document as { visibilityState?: unknown }).visibilityState
 })
 
@@ -44,7 +49,7 @@ describe('live stream', () => {
   it('refetches after a reconnect, not after the first connect', async () => {
     const { es, boardFetches } = await openEvent()
     act(() => es.open())
-    await new Promise((r) => setTimeout(r, 20))
+    await tick()
     expect(boardFetches()).toBe(1)
 
     act(() => {
@@ -54,41 +59,81 @@ describe('live stream', () => {
     await waitFor(() => expect(boardFetches()).toBe(2))
   })
 
-  it('refetches when the tab comes back while the stream is down', async () => {
+  it('refetches when the stream first opens after failing to connect', async () => {
     const { es, boardFetches } = await openEvent()
+    act(() => es.fail()) // the page has its data, but the stream could not connect yet
     act(() => es.open())
-    setVisibility('visible') // the stream is up: nothing to catch up on
-    await new Promise((r) => setTimeout(r, 20))
-    expect(boardFetches()).toBe(1)
-
-    act(() => es.fail())
-    act(() => setVisibility('visible'))
     await waitFor(() => expect(boardFetches()).toBe(2))
   })
 
-  it('says so when the stream stays down, and clears it on reconnect', async () => {
+  it('fetches nothing while the stream is down, even when the tab comes back', async () => {
+    const { es, boardFetches } = await openEvent()
+    act(() => {
+      es.open()
+      es.fail()
+    })
+    act(() => setVisibility('visible'))
+    await tick()
+    expect(boardFetches()).toBe(1)
+    expect(screen.getByRole('heading', { name: 'ЛБР Осень' })).toBeInTheDocument()
+  })
+
+  it('says so when the stream stays down, not during a normal reconnect', async () => {
     const { es } = await openEvent()
     act(() => es.open())
     vi.useFakeTimers()
-    try {
-      act(() => es.fail())
-      act(() => vi.advanceTimersByTime(STREAM_DOWN_NOTICE_MS - 100)) // a normal reconnect: no notice yet
-      expect(screen.queryByText(/Нет связи с сервером/)).not.toBeInTheDocument()
+    act(() => es.fail())
+    act(() => vi.advanceTimersByTime(STREAM_DOWN_NOTICE_MS - 100)) // the browser retries after 3 s
+    expect(notice()).not.toBeInTheDocument()
 
-      act(() => vi.advanceTimersByTime(200))
-      expect(screen.getByRole('status')).toHaveTextContent('Нет связи с сервером, переподключаемся…')
+    act(() => vi.advanceTimersByTime(200))
+    expect(screen.getByRole('status')).toHaveTextContent('Нет связи с сервером, переподключаемся…')
 
-      act(() => es.open())
-      expect(screen.queryByText(/Нет связи с сервером/)).not.toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
+    act(() => es.open())
+    expect(notice()).not.toBeInTheDocument()
   })
 
-  it('asks to reload when the browser gives up on the stream', async () => {
+  it('opens a new stream when the browser gives up on it', async () => {
+    const { es, boardFetches } = await openEvent()
+    act(() => es.open())
+    vi.useFakeTimers()
+    act(() => es.fail(true))
+    expect(FakeEventSource.all).toHaveLength(1)
+
+    act(() => vi.advanceTimersByTime(STREAM_REOPEN_FIRST_MS))
+    expect(FakeEventSource.all).toHaveLength(2)
+    expect(es.readyState).toBe(FakeEventSource.CLOSED)
+
+    vi.useRealTimers()
+    act(() => FakeEventSource.last().open())
+    await waitFor(() => expect(boardFetches()).toBe(2))
+    expect(notice()).not.toBeInTheDocument()
+  })
+
+  it('asks to reload only after reopening keeps failing', async () => {
     const { es } = await openEvent()
     act(() => es.open())
-    act(() => es.fail(true))
-    expect(screen.getByRole('status')).toHaveTextContent('Обновите страницу')
+    vi.useFakeTimers()
+    for (let i = 1; i < STREAM_REOPEN_NOTICE_AFTER; i++) {
+      act(() => FakeEventSource.last().fail(true))
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(screen.queryByText(/обновите страницу/)).not.toBeInTheDocument()
+    }
+    act(() => FakeEventSource.last().fail(true))
+    expect(screen.getByRole('status')).toHaveTextContent('обновите страницу')
+  })
+
+  it('does not carry the notice over to another event', async () => {
+    const { es, router } = await openEvent()
+    act(() => es.open())
+    vi.useFakeTimers()
+    act(() => es.fail())
+    act(() => vi.advanceTimersByTime(STREAM_DOWN_NOTICE_MS))
+    expect(notice()).toBeInTheDocument()
+
+    vi.useRealTimers()
+    await act(() => router.navigate('/e/zima'))
+    expect(await screen.findByRole('heading', { name: 'ЛБР Зима' })).toBeInTheDocument()
+    expect(notice()).not.toBeInTheDocument()
   })
 })

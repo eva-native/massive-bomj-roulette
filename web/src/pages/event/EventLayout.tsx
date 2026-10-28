@@ -16,7 +16,7 @@ export function EventLayout() {
   const { data: me } = useMe()
   const [params] = useSearchParams()
   const invite = params.get('invite') ?? ''
-  const stream = useEventStream(slug)
+  const stream = useEventStream(slug).status
 
   if (event.isPending) return <Loading />
   if (event.isError) return <ErrorText error={event.error} />
@@ -71,7 +71,7 @@ export function EventLayout() {
         {stream !== 'live' && (
           <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
             {stream === 'closed'
-              ? 'Нет связи с сервером. Обновите страницу, чтобы снова видеть изменения.'
+              ? 'Нет связи с сервером уже больше минуты. Пробуем снова; если не помогает, обновите страницу.'
               : 'Нет связи с сервером, переподключаемся… Пока связи нет, изменения на странице не появляются.'}
           </p>
         )}
