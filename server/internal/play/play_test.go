@@ -426,7 +426,7 @@ func TestJudgeTools(t *testing.T) {
 	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, ptID, true); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.view(f.alice).Points; got != 17-10+game.DefaultRecordPoints {
+	if got := f.view(f.alice).Points; got != 17+game.DefaultRecordPoints { // over HLTB: speed 0
 		t.Fatalf("points = %d", got)
 	}
 	if err := f.play.EditPlaythrough(f.ctx, "lbr", f.alice, ptID, api.EditPlaythroughRequest{Hours: 5}); !errors.Is(err, events.ErrForbidden) {
