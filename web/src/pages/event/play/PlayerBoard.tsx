@@ -7,7 +7,8 @@ import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
 import { GameCover } from '@/components/GameCover'
-import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
+import { ReviewInput, ReviewText } from '@/components/Review'
+import { Badge, Card, ErrorText, Field, Input } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
 import { timerKey, useLocalTimer } from '@/lib/localTimer'
@@ -326,7 +327,7 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
         <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
       </Field>
       <Field label={reviewRequired ? 'Обзор' : 'Обзор (необязательно)'} hint="Пара слов об игре: что понравилось, что нет. Увидят все.">
-        <Textarea value={review} maxLength={2000} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
+        <ReviewInput value={review} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
       </Field>
       <ErrorText error={finish.error} />
       <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours) || (reviewRequired && !review.trim())}>
@@ -355,7 +356,7 @@ function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | nu
               {judgeSlug && <EditPlaythrough slug={judgeSlug} pt={pt} />}
               <span className="font-semibold">{pt.points > 0 ? `+${pt.points}` : pt.points}</span>
             </span>
-            {pt.review && <p className="w-full whitespace-pre-line text-stone-600 dark:text-stone-300">{pt.review}</p>}
+            {pt.review && <ReviewText text={pt.review} />}
           </li>
         ))}
       </ul>
