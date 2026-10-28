@@ -20,7 +20,11 @@ services:
 
   app:
     profiles: [app]
-    build: .
+    build:
+      context: .
+      # The rules link points to this tag or commit (see docs/dev/deploy.md).
+      args:
+        MBR_VERSION: ${MBR_VERSION:-}
     env_file: .env
     environment:
       MBR_DATABASE_URL: postgres://mbr:mbr@db:5432/mbr?sslmode=disable
