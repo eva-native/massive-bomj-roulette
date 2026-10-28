@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EventDetail, ItemDef, Me } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
+import { RULES_URL } from '@/lib/links'
 import { renderApp } from '@/test/renderApp'
 
 const admin: Me = { id: 1, name: 'Админ', avatarUrl: '', isAdmin: true }
@@ -65,6 +66,16 @@ describe('events', () => {
     expect(within(row).getByRole('button', { name: 'Изменить' })).toBeInTheDocument()
     const post = backend.requests.find((r) => r.method === 'POST' && r.url.endsWith('/games'))
     expect(post?.body).toMatchObject({ title: 'GTA San Andreas', hltbHours: 30 })
+  })
+
+  it('links to the rules on GitHub (issue #11)', async () => {
+    const backend = fakeBackend({ me: alice, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/rules')
+
+    expect(await screen.findByRole('link', { name: 'Правила ↗' })).toHaveAttribute('href', RULES_URL)
+    expect(await screen.findByRole('link', { name: 'общих правилах ивента' })).toHaveAttribute('href', RULES_URL)
   })
 
   it('joins an invite-only event only with the link', async () => {
