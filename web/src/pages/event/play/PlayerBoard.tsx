@@ -7,11 +7,12 @@ import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
 import { GameCover } from '@/components/GameCover'
-import { ReviewInput, ReviewText } from '@/components/Review'
-import { Badge, Card, ErrorText, Field, Input } from '@/components/ui'
+import { ReviewCounter, ReviewText } from '@/components/Review'
+import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
 import { timerKey, useLocalTimer } from '@/lib/localTimer'
+import { reviewTooLong } from '@/lib/review'
 import { wheelSeconds } from '@/lib/wheel'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
@@ -326,11 +327,15 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
       <Field label="Доказательство (ссылка)">
         <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
       </Field>
-      <Field label={reviewRequired ? 'Обзор' : 'Обзор (необязательно)'} hint="Пара слов об игре: что понравилось, что нет. Увидят все.">
-        <ReviewInput value={review} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
+      <Field
+        label={reviewRequired ? 'Обзор' : 'Обзор (необязательно)'}
+        hint="Пара слов об игре: что понравилось, что нет. Увидят все."
+        after={<ReviewCounter text={review} />}
+      >
+        <Textarea value={review} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
       </Field>
       <ErrorText error={finish.error} />
-      <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours) || (reviewRequired && !review.trim())}>
+      <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours) || (reviewRequired && !review.trim()) || reviewTooLong(review)}>
         Отправить судье
       </Button>
     </form>

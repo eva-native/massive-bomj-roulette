@@ -140,14 +140,10 @@ func formatHours(h float64) string {
 	return strings.Join(parts, " ")
 }
 
-// maxReview caps the length of a game review, in characters; the frontend
-// has the same value (MAX_REVIEW).
-const maxReview = 10000
-
 func cleanReview(s string) (string, error) {
 	s = strings.TrimSpace(s)
-	if utf8.RuneCountInString(s) > maxReview {
-		return "", &events.InvalidError{Msg: fmt.Sprintf("обзор не длиннее %d символов", maxReview)}
+	if utf8.RuneCountInString(s) > api.MaxReview {
+		return "", &events.InvalidError{Msg: fmt.Sprintf("обзор не длиннее %d символов", api.MaxReview)}
 	}
 	return s, nil
 }

@@ -408,6 +408,11 @@ export interface PlayTimeRequest {
 export interface InputRequest {
   values: { [key: string]: any};
 }
+/**
+ * MaxReview caps the length of a game review, in characters (Unicode code
+ * points) after trimming spaces at the ends. The frontend gets it via tygo.
+ */
+export const MaxReview = 10000;
 export interface EditPlaythroughRequest {
   hours: number /* float64 */;
   proof: string;
