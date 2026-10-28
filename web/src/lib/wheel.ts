@@ -119,6 +119,17 @@ export function labelMode(parts: Slice[], px: number): LabelMode {
   return { kind: 'none' }
 }
 
+/**
+ * A sector's chance as shown in the list, from its span in degrees: whole
+ * percents, one decimal below 1 % (a game among a hundred is 0,8 %, not 1 %).
+ */
+export function chance(span: number): string {
+  const pct = (span / 360) * 100
+  if (pct >= 1) return `${Math.round(pct)}%`
+  if (pct < 0.05) return '<0,1%'
+  return `${pct.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`
+}
+
 /** A label cut to `maxChars` characters, with an ellipsis when cut. */
 export function fitLabel(label: string, maxChars: number): string {
   const chars = Array.from(label)

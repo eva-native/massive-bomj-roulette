@@ -1,7 +1,7 @@
-import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
 import { itemEmoji, kindEmoji } from '@/lib/items'
-import { angleOf, fitLabel, ICON_RADIUS, LABEL_OUTER, labelColor, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
+import { angleOf, chance, fitLabel, ICON_RADIUS, LABEL_OUTER, labelColor, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
 import { ItemIcon } from './ItemIcon'
 
 const TURNS = 6 // full turns before stopping
@@ -56,6 +56,7 @@ export function Wheel({
   seconds,
   icons,
   legend = true,
+  action,
 }: {
   sectors: Sector[]
   target: number | null
@@ -66,6 +67,8 @@ export function Wheel({
   icons?: Record<string, string>
   /** List the sectors under the wheel when their labels do not fit on it. */
   legend?: boolean
+  /** A control placed right under the wheel, above the list (the spin button). */
+  action?: ReactNode
 }) {
   const parts = useMemo(() => slices(sectors), [sectors])
   const rotor = useRef<SVGGElement>(null)
@@ -93,6 +96,7 @@ export function Wheel({
         {/* The pointer at the top. */}
         <div className="absolute top-0 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[22px] border-x-transparent border-t-stone-900 dark:border-t-stone-100" />
       </div>
+      {action && <div className="mt-3 flex justify-center">{action}</div>}
       {legend && mode.kind !== 'text' && <Legend parts={parts} icons={icons} />}
     </div>
   )
@@ -219,7 +223,7 @@ function Legend({ parts, icons }: { parts: Slice[]; icons?: Record<string, strin
             <span className="size-3 shrink-0 rounded-full border border-stone-900" style={{ background: p.color }} />
             {p.sector.defId && <ItemIcon defId={p.sector.defId} kind={p.sector.kind} icons={icons} size="sm" />}
             <span className="flex-1 truncate">{p.sector.label}</span>
-            <span className="text-xs text-stone-500">{Math.round(((p.end - p.start) / 360) * 100)}%</span>
+            <span className="text-xs text-stone-500">{chance(p.end - p.start)}</span>
           </li>
         ))}
       </ul>

@@ -101,6 +101,31 @@ describe('my turn', () => {
     expect(screen.getByRole('heading', { name: 'ОПАААА' })).toBeInTheDocument() // the item on the game
   })
 
+  it('puts the spin button right under the wheel and says the spin is on its way', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const wheel = { kind: 'items', sectors: [{ label: 'ОПАААА', weight: 1, kind: 'effect', defId: 'opaaa' }, { label: 'Парашют', weight: 1, kind: 'bonus', defId: 'parachute' }] }
+    const current = view(turn([step(11, 'spin_items'), step(12, 'spin_game'), step(13, 'play')], { wheel }))
+    backend.on('GET', /\/players\/2$/, () => current)
+    backend.on('POST', /\/steps\/11\/spin$/, () => ({ wheel, result: 0, label: 'ОПАААА', view: current }) satisfies SpinResult)
+    let answer = () => {}
+    const answered = new Promise<void>((r) => (answer = r))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/spin')) await answered // the server is slow to answer
+      return backend.fetch(input, init)
+    })
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+
+    const button = await screen.findByRole('button', { name: 'Крутить' })
+    expect(screen.getByTestId('wheel-rotor').compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(button)
+    expect(screen.getByRole('button', { name: 'Крутим…' })).toBeDisabled()
+
+    answer()
+    expect(await screen.findByText('Крутится…')).toBeInTheDocument()
+  })
+
   it('sends the outcome of the game to the judge', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)

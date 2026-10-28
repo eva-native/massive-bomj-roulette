@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Sector } from '@/api/types.gen'
-import { angleOf, contrast, fitLabel, labelColor, labelMode, sectorAt, sectorColors, slices } from './wheel'
+import { angleOf, chance, contrast, fitLabel, labelColor, labelMode, sectorAt, sectorColors, slices } from './wheel'
 
 const sector = (label: string, weight = 1, kind = ''): Sector => ({ label, weight, kind, defId: '' })
 const items = (n: number) => slices(Array.from({ length: n }, (_, i) => ({ label: `Предмет ${i}`, weight: 1, kind: 'effect', defId: `item${i}` })))
@@ -57,6 +57,15 @@ describe('labelMode', () => {
 
   it('has nothing to show without sectors', () => {
     expect(labelMode([], 320)).toEqual({ kind: 'none' })
+  })
+})
+
+describe('chance', () => {
+  it('shows whole percents, and one decimal below 1 %', () => {
+    expect(chance(90)).toBe('25%')
+    expect(chance(360 / 37)).toBe('3%')
+    expect(chance(360 / 120)).toBe('0,8%')
+    expect(chance(0.01)).toBe('<0,1%')
   })
 })
 

@@ -187,15 +187,16 @@ function CurrentStep({
   if (!step) return null
 
   if (step.kind.startsWith('spin_')) {
+    const spinButton = view.canAct && (
+      <Button onClick={() => onSpin(step.id)} disabled={spinPending}>
+        {spinPending ? 'Крутим…' : 'Крутить'}
+      </Button>
+    )
     return (
       <div className="flex flex-col items-center gap-3">
         <p className="font-medium">{stepNames[step.kind]}</p>
-        {turn.wheel && <Wheel sectors={turn.wheel.sectors} target={null} icons={event.settings.icons} />}
-        {view.canAct && (
-          <Button onClick={() => onSpin(step.id)} disabled={spinPending}>
-            Крутить
-          </Button>
-        )}
+        {/* The button goes right under the wheel, before the list of what is on it. */}
+        {turn.wheel ? <Wheel sectors={turn.wheel.sectors} target={null} icons={event.settings.icons} action={spinButton || undefined} /> : spinButton}
       </div>
     )
   }
