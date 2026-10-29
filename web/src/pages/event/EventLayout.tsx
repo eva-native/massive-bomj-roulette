@@ -9,6 +9,9 @@ import { cn } from '@/lib/cn'
 import { RULES_URL } from '@/lib/links'
 import type { EventContext } from './context'
 
+/** An inactive tab brightens under the pointer: darker in the light theme, lighter in the dark one. */
+const TAB_HOVER = 'hover:text-stone-800 dark:hover:text-stone-200'
+
 export function EventLayout() {
   const { slug = '' } = useParams()
   const event = useEvent(slug)
@@ -88,7 +91,7 @@ export function EventLayout() {
             className={({ isActive }) =>
               cn(
                 'border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap',
-                isActive ? 'border-amber-500 text-stone-900 dark:text-stone-100' : 'border-transparent text-stone-500 hover:text-stone-800',
+                isActive ? 'border-amber-500 text-stone-900 dark:text-stone-100' : `border-transparent text-muted ${TAB_HOVER}`,
               )
             }
           >
@@ -99,7 +102,7 @@ export function EventLayout() {
           href={RULES_URL}
           target="_blank"
           rel="noreferrer"
-          className="border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap text-muted hover:text-stone-800"
+          className={`border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap text-muted ${TAB_HOVER}`}
         >
           Правила ↗
         </a>
