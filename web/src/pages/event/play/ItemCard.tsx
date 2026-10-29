@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type Ref } from 'react'
 import { useItemInput, useUseItem } from '@/api/play'
 import type { FieldView, ItemView, Member } from '@/api/types.gen'
 import { Button } from '@/components/Button'
+import { Folded } from '@/components/Folded'
 import { ItemIcon } from '@/components/ItemIcon'
 import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Input, Select } from '@/components/ui'
@@ -21,12 +22,15 @@ export function ItemCard({
   members,
   editAs,
   canUse,
+  compact = false,
 }: {
   slug: string
   item: ItemView
   members: Member[]
   editAs: 'player' | 'judge' | null
   canUse: boolean
+  /** Fold the rule to three lines (the board's side column and pocket, where several cards stack). */
+  compact?: boolean
 }) {
   const use = useUseItem(slug)
   const { event } = useEventContext()
@@ -51,7 +55,13 @@ export function ItemCard({
         {item.rejected && <Badge>отклонено</Badge>}
         {item.placement === 'used' && <Badge>использован</Badge>}
       </div>
-      <RuleText text={item.concept} className="mt-1" />
+      {compact ? (
+        <Folded lines={3} more="Подробнее" watch={item.concept} className="mt-1">
+          {({ ref, className }) => <RuleText ref={ref as Ref<HTMLParagraphElement>} text={item.concept} className={className} />}
+        </Folded>
+      ) : (
+        <RuleText text={item.concept} className="mt-1" />
+      )}
 
       {item.fields.length > 0 && <ItemFields slug={slug} item={item} members={members} editAs={editAs} />}
 

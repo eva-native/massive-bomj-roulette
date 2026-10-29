@@ -146,7 +146,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
               <section className="order-2 flex flex-col gap-2">
                 <h3 className="font-semibold">На этой игре</h3>
                 {onGame.map((it) => (
-                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={editAs} canUse={view.canAct} />
+                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={editAs} canUse={view.canAct} compact />
                 ))}
               </section>
             )}
@@ -155,7 +155,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
               <section className="order-4 flex flex-col gap-2">
                 <h3 className="font-semibold">Карман</h3>
                 {view.pocket.map((it) => (
-                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={null} canUse={view.canAct} />
+                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={null} canUse={view.canAct} compact />
                 ))}
               </section>
             )}

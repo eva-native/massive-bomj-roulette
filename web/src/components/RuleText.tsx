@@ -1,10 +1,10 @@
-import { Fragment } from 'react'
+import { Fragment, type Ref } from 'react'
 import { cn } from '@/lib/cn'
 
 const linkRe = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g
 
 /** The rule text of an item: keeps line breaks and turns [text](url) into links. */
-export function RuleText({ text, className }: { text: string; className?: string }) {
+export function RuleText({ text, className, ref }: { text: string; className?: string; ref?: Ref<HTMLParagraphElement> }) {
   const parts: (string | { label: string; href: string })[] = []
   let last = 0
   for (const m of text.matchAll(linkRe)) {
@@ -14,7 +14,7 @@ export function RuleText({ text, className }: { text: string; className?: string
   parts.push(text.slice(last))
 
   return (
-    <p className={cn('text-sm whitespace-pre-line text-stone-600 dark:text-stone-400', className)}>
+    <p ref={ref} className={cn('text-sm whitespace-pre-line text-stone-600 dark:text-stone-400', className)}>
       {parts.map((p, i) =>
         typeof p === 'string' ? (
           <Fragment key={i}>{p}</Fragment>
