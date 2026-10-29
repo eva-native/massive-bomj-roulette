@@ -23,7 +23,7 @@ make dev-web     # Vite на :5173, проксирует /api и /auth на :808
 |---|---|
 | `MBR_DATABASE_URL` | Строка подключения к PostgreSQL |
 | `MBR_BASE_URL` | Публичный адрес приложения. От него зависит адрес возврата из Discord и флаг `Secure` у cookie (для `https://`) |
-| `MBR_ADDR` | Адрес, который слушает сервер, по умолчанию `:8080` |
+| `MBR_ADDR` | Адрес, который слушает сервер, по умолчанию `:8080`. В Docker его задаёт `compose.yaml`, адрес на хосте — `MBR_HOST_PORT` (см. [deploy.md](deploy.md)) |
 | `MBR_DISCORD_CLIENT_ID`, `MBR_DISCORD_CLIENT_SECRET` | Приложение Discord для входа |
 | `MBR_ADMIN_DISCORD_IDS` | Discord ID через запятую. Эти пользователи могут создавать ивенты. Для dev-входа ID выглядит как `dev:<имя в нижнем регистре>` |
 | `MBR_DEV_LOGIN` | `true` — вход под любым именем без Discord. **Только для разработки** |
