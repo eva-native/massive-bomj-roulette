@@ -53,7 +53,7 @@ export function EventLayout() {
                 Участвовать
               </Button>
             ) : (
-              <span className="text-sm text-stone-500">Вступление по ссылке-приглашению</span>
+              <span className="text-sm text-muted">Вступление по ссылке-приглашению</span>
             )
           ) : (
             <Link to={`/login?next=${encodeURIComponent(`/e/${ev.slug}${invite ? `?invite=${invite}` : ''}`)}`} className={buttonClass('primary')}>
@@ -99,7 +99,7 @@ export function EventLayout() {
           href={RULES_URL}
           target="_blank"
           rel="noreferrer"
-          className="border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap text-stone-500 hover:text-stone-800"
+          className="border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap text-muted hover:text-stone-800"
         >
           Правила ↗
         </a>

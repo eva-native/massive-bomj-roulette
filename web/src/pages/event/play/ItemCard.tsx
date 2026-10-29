@@ -54,7 +54,7 @@ export function ItemCard({
           <Button variant="secondary" disabled={!item.canUse || use.isPending} onClick={() => use.mutate(item.id)}>
             {item.useLabel}
           </Button>
-          {!item.canUse && item.useHint && <span className="text-xs text-stone-500">{item.useHint}</span>}
+          {!item.canUse && item.useHint && <span className="text-xs text-muted">{item.useHint}</span>}
         </div>
       )}
       <ErrorText error={use.error} />
@@ -92,7 +92,7 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
           {editAs === 'player' && item.needsConfirm ? 'Отправить результат' : 'Сохранить'}
         </Button>
       )}
-      {editAs === 'player' && item.locked && !item.confirmed && <p className="text-xs text-stone-500">Отправлено судье. Изменить можно, если судья отклонит.</p>}
+      {editAs === 'player' && item.locked && !item.confirmed && <p className="text-xs text-muted">Отправлено судье. Изменить можно, если судья отклонит.</p>}
       <ErrorText error={input.error} />
     </form>
   )

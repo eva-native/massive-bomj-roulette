@@ -19,7 +19,7 @@ export function JudgeTab() {
   if (!isJudge) return <Navigate to=".." replace />
   if (queue.isPending) return <Loading />
   if (queue.isError) return <ErrorText error={queue.error} />
-  if (queue.data.length === 0) return <p className="text-stone-500">Всё подтверждено, очередь пуста.</p>
+  if (queue.data.length === 0) return <p className="text-muted">Всё подтверждено, очередь пуста.</p>
 
   return (
     <ul className="flex flex-col gap-3">
@@ -42,14 +42,14 @@ function GameEntry({ entry }: { entry: QueueEntry }) {
         <span className="font-medium">{entry.player.name}</span> {outcomeNames[pt.outcome]} «{pt.game}»
         {pt.outcome === 'completed' && ` за ${formatHours(pt.hours)} (HLTB ${pt.hltbHours} ч)`}
       </p>
-      {pt.timerMs > 0 && <p className="text-sm text-stone-500">По таймеру: {formatHours(pt.timerMs / 3600000)}</p>}
+      {pt.timerMs > 0 && <p className="text-sm text-muted">По таймеру: {formatHours(pt.timerMs / 3600000)}</p>}
       {pt.review && <ReviewText text={pt.review} className="text-sm" />}
       {pt.proof ? (
-        <a href={pt.proof} target="_blank" rel="noreferrer" className="text-sm break-all text-amber-700 underline">
+        <a href={pt.proof} target="_blank" rel="noreferrer" className="text-sm break-all text-link underline">
           {pt.proof}
         </a>
       ) : (
-        <p className="text-sm text-stone-500">Без доказательства</p>
+        <p className="text-sm text-muted">Без доказательства</p>
       )}
       <Decision pending={confirm.isPending} onDecide={(accept) => confirm.mutate({ id: entry.id, accept })} />
       <ErrorText error={confirm.error} />
@@ -65,7 +65,7 @@ function ItemEntry({ entry }: { entry: QueueEntry }) {
     <div className="flex flex-col gap-2">
       <p className="text-sm">
         <span className="font-medium">{entry.player.name}</span>
-        {entry.game && <span className="text-stone-500"> · {entry.game}</span>}
+        {entry.game && <span className="text-muted"> · {entry.game}</span>}
       </p>
       <ItemCard slug={event.slug} item={item} members={event.members} editAs="judge" canUse={false} />
       {item.needsConfirm && <Decision pending={confirm.isPending} onDecide={(accept) => confirm.mutate({ id: entry.id, accept })} />}

@@ -14,7 +14,7 @@ export function ReviewCounter({ text }: { text: string }) {
   const length = reviewLength(text)
   if (MaxReview - length > WARN_LEFT) return null
   return (
-    <span className={cn('self-end text-xs', length > MaxReview ? 'text-red-600' : 'text-stone-500')}>
+    <span className={cn('self-end text-xs', length > MaxReview ? 'text-danger' : 'text-muted')}>
       {length.toLocaleString('ru-RU')} / {MaxReview.toLocaleString('ru-RU')}
     </span>
   )
@@ -44,7 +44,7 @@ export function ReviewText({ text, className }: { text: string; className?: stri
         {text}
       </p>
       {folds && (
-        <button type="button" aria-expanded={open} className="text-xs text-amber-700 hover:underline" onClick={() => setOpen(!open)}>
+        <button type="button" aria-expanded={open} className="text-xs text-link hover:underline" onClick={() => setOpen(!open)}>
           {open ? 'Свернуть' : 'Читать полностью'}
         </button>
       )}

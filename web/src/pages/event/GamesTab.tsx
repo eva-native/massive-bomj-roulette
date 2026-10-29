@@ -30,7 +30,7 @@ export function GamesTab() {
         <Card>
           <h2 className="mb-3 font-semibold">Добавить игру</h2>
           {limit > 0 && !isJudge && (
-            <p className="mb-3 text-sm text-stone-500">
+            <p className="mb-3 text-sm text-muted">
               Вы добавили {mine} из {limit}.
             </p>
           )}
@@ -47,7 +47,7 @@ export function GamesTab() {
 
       {games.isPending && <Loading />}
       <ErrorText error={games.error ?? remove.error} />
-      {games.data?.length === 0 && <p className="text-stone-500">В пуле пока нет игр.</p>}
+      {games.data?.length === 0 && <p className="text-muted">В пуле пока нет игр.</p>}
 
       <ul className="flex flex-col gap-2">
         {games.data?.map((g) =>
@@ -76,7 +76,7 @@ export function GamesTab() {
                 <p className="font-medium">
                   {g.title} {g.specialKey && <Badge tone="amber">особая</Badge>}
                 </p>
-                <p className="text-sm text-stone-500">
+                <p className="text-sm text-muted">
                   {g.hltbHours} ч HLTB · рейтинг {g.rating} · {g.year} · добавил {g.addedByName}
                 </p>
                 </div>
@@ -87,12 +87,12 @@ export function GamesTab() {
                 </span>
                 {canEdit(g) && event.status === 'active' && (
                   <>
-                    <button type="button" className="text-sm text-amber-700 hover:underline" onClick={() => setEditing(g.id)}>
+                    <button type="button" className="text-sm text-link hover:underline" onClick={() => setEditing(g.id)}>
                       Изменить
                     </button>
                     <button
                       type="button"
-                      className="text-sm text-red-600 hover:underline"
+                      className="text-sm text-danger hover:underline"
                       onClick={() => {
                         if (confirm(`Удалить «${g.title}»?`)) remove.mutate(g.id)
                       }}

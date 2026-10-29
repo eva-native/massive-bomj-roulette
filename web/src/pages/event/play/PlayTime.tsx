@@ -96,7 +96,7 @@ function CurrentSession({ timer, saving, onSave }: { timer: LocalTimer; saving: 
           </Button>
           <button
             type="button"
-            className="text-xs text-amber-700 hover:underline"
+            className="text-xs text-link hover:underline"
             onClick={() => {
               timer.pause()
               setEditing(hoursToHMS(hoursOf(timer.ms)))
@@ -106,7 +106,7 @@ function CurrentSession({ timer, saving, onSave }: { timer: LocalTimer; saving: 
           </button>
         </div>
       </div>
-      <p className="text-xs text-stone-500">
+      <p className="text-xs text-muted">
         Таймер идёт в этом браузере и не сбросится при перезагрузке. «Сохранить сессию» прибавит время к игре — так оно копится между днями.
       </p>
     </div>
@@ -144,7 +144,7 @@ function SavedTotal({ saved, pending, onSet }: { saved: Saved; pending: boolean;
         Сохранено: <span className="font-medium">{formatHours(hoursOf(saved.totalMs))}</span>
       </span>
       {saved.canEdit && (
-        <button type="button" className="text-xs text-amber-700 hover:underline" onClick={() => setEditing(hoursToHMS(hoursOf(saved.totalMs)))}>
+        <button type="button" className="text-xs text-link hover:underline" onClick={() => setEditing(hoursToHMS(hoursOf(saved.totalMs)))}>
           Изменить
         </button>
       )}

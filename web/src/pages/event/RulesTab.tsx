@@ -16,9 +16,9 @@ export function RulesTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-stone-500">
+      <p className="text-sm text-muted">
         Как идёт ход и считаются очки — в{' '}
-        <a href={RULES_URL} target="_blank" rel="noreferrer" className="text-amber-700 underline">
+        <a href={RULES_URL} target="_blank" rel="noreferrer" className="text-link underline">
           общих правилах ивента
         </a>
         .

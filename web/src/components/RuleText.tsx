@@ -19,7 +19,7 @@ export function RuleText({ text, className }: { text: string; className?: string
         typeof p === 'string' ? (
           <Fragment key={i}>{p}</Fragment>
         ) : (
-          <a key={i} href={p.href} target="_blank" rel="noreferrer" className="text-amber-700 underline">
+          <a key={i} href={p.href} target="_blank" rel="noreferrer" className="text-link underline">
             {p.label}
           </a>
         ),

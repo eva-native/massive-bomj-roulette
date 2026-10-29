@@ -79,7 +79,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
         <Card className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold">
-              Ход {turn.number} <span className="font-normal text-stone-500">· {reasonNames[turn.reason]}</span>
+              Ход {turn.number} <span className="font-normal text-muted">· {reasonNames[turn.reason]}</span>
             </h3>
           </div>
           <StepList turn={turn} />
@@ -95,7 +95,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                 className={BOARD_WHEEL}
                 onStop={finishSpin}
               />
-              <p className="text-sm text-stone-500">Крутится…</p>
+              <p className="text-sm text-muted">Крутится…</p>
             </div>
           ) : (
             <>
@@ -239,7 +239,7 @@ function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; vi
         <GameCover url={playthrough.coverUrl} title={playthrough.game} size="lg" />
         <div>
           <p className="text-lg font-semibold">{playthrough.game}</p>
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-muted">
             {playthrough.hltbHours} ч HLTB · база {playthrough.basePoints}
           </p>
         </div>
@@ -278,7 +278,7 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
     <div className="flex flex-col gap-2">
       <p className="font-medium">
         {stepNames[step.kind]}
-        {step.addedBy && <span className="font-normal text-stone-500"> · {step.addedBy}</span>}
+        {step.addedBy && <span className="font-normal text-muted"> · {step.addedBy}</span>}
       </p>
       <div className="flex flex-wrap gap-2">
         {step.options.map((o) => (
@@ -331,7 +331,7 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
         </label>
       </div>
       {outcome === 'tech' && (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-muted">
           Игра не запускается или сломана. Без штрафа: судья проверит, игра уйдёт из вашего колеса, а эффекты и дебаффы перейдут на новую игру. Крутится
           только колесо игр. Опишите проблему ссылкой на скриншот или видео.
         </p>
@@ -344,7 +344,7 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
           </Button>
         )}
       </div>
-      {hours === null && <p className="text-xs text-red-600">Минуты и секунды — от 0 до 59.</p>}
+      {hours === null && <p className="text-xs text-danger">Минуты и секунды — от 0 до 59.</p>}
       <Field label="Доказательство (ссылка)">
         <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
       </Field>
@@ -388,13 +388,13 @@ function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | nu
       </ul>
       {view.entries.length > 0 && (
         <details className="text-sm">
-          <summary className="cursor-pointer text-stone-500">Откуда очки</summary>
+          <summary className="cursor-pointer text-muted">Откуда очки</summary>
           <ul className="mt-2 flex flex-col gap-1">
             {view.entries.map((e, i) => (
               <li key={i} className="flex justify-between gap-3">
                 <span>
                   {e.game}: {e.label}
-                  {e.from && <span className="text-stone-500"> (от {e.from})</span>}
+                  {e.from && <span className="text-muted"> (от {e.from})</span>}
                 </span>
                 <span>{e.points > 0 ? `+${e.points}` : e.points}</span>
               </li>

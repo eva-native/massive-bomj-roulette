@@ -25,7 +25,7 @@ export function MoviesTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-stone-500">Киноколесо крутится по эффекту «Бабина». Просмотренный фильм больше не выпадает тому, кто его посмотрел.</p>
+      <p className="text-sm text-muted">Киноколесо крутится по эффекту «Бабина». Просмотренный фильм больше не выпадает тому, кто его посмотрел.</p>
 
       {event.me && active && (
         <Card>
@@ -43,7 +43,7 @@ export function MoviesTab() {
 
       {movies.isPending && <Loading />}
       <ErrorText error={movies.error ?? update.error ?? remove.error} />
-      {movies.data?.length === 0 && <p className="text-stone-500">Фильмов пока нет.</p>}
+      {movies.data?.length === 0 && <p className="text-muted">Фильмов пока нет.</p>}
 
       <ul className="flex flex-col gap-2">
         {movies.data?.map((m) => (
@@ -71,16 +71,16 @@ export function MoviesTab() {
               <>
                 <div>
                   <p className="font-medium">{m.title}</p>
-                  <p className="text-sm text-stone-500">добавил {m.addedByName}</p>
+                  <p className="text-sm text-muted">добавил {m.addedByName}</p>
                 </div>
                 {canEdit(m) && (
                   <div className="flex gap-3">
-                    <button type="button" className="text-sm text-amber-700 hover:underline" onClick={() => setEditing({ id: m.id, title: m.title })}>
+                    <button type="button" className="text-sm text-link hover:underline" onClick={() => setEditing({ id: m.id, title: m.title })}>
                       Изменить
                     </button>
                     <button
                       type="button"
-                      className="text-sm text-red-600 hover:underline"
+                      className="text-sm text-danger hover:underline"
                       onClick={() => {
                         if (confirm(`Удалить «${m.title}»?`)) remove.mutate(m.id)
                       }}

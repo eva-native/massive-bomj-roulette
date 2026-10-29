@@ -41,7 +41,7 @@ export function Field({
         {children}
       </label>
       {after}
-      {hint && <span className="text-xs text-stone-500">{hint}</span>}
+      {hint && <span className="text-xs text-muted">{hint}</span>}
     </div>
   )
 }
@@ -83,5 +83,5 @@ export function Avatar({ name, url, size = 'md' }: { name: string; url?: string;
 }
 
 export function Loading() {
-  return <p className="p-8 text-center text-stone-500">Загрузка…</p>
+  return <p className="p-8 text-center text-muted">Загрузка…</p>
 }
