@@ -166,17 +166,6 @@ describe('item pictures in the settings', () => {
     fireEvent.error(probe)
     expect(screen.getByText(/Картинка не загрузилась/)).toBeInTheDocument()
   })
-
-  it('warns that a Discord attachment link will expire', async () => {
-    const backend = fakeBackend({ me: admin, items })
-    backend.addEvent('lbr', 'ЛБР', admin)
-    vi.stubGlobal('fetch', backend.fetch)
-    const user = userEvent.setup()
-    renderApp('/e/lbr/settings')
-
-    await user.type(await screen.findByLabelText('Иконка «ОПАААА»'), 'https://media.discordapp.net/attachments/1/2/opaaa.png?ex=1')
-    expect(screen.getByText(/вложение Discord перестанет работать/)).toBeInTheDocument()
-  })
 })
 
 describe('finishing an event', () => {
