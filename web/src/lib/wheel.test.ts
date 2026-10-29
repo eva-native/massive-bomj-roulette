@@ -1,81 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Sector } from '@/api/types.gen'
-import { angleOf, chance, contrast, fitLabel, labelColor, labelMode, sectorAt, sectorColors, slices } from './wheel'
+import { angleOf, chance, contrast, fitLabel, labelColor, labelPlan, sectorAt, sectorColors, slices } from './wheel'
 
 const sector = (label: string, weight = 1, kind = ''): Sector => ({ label, weight, kind, defId: '' })
-const items = (n: number) => slices(Array.from({ length: n }, (_, i) => ({ label: `Предмет ${i}`, weight: 1, kind: 'effect', defId: `item${i}` })))
-const games = (n: number) => slices(Array.from({ length: n }, (_, i) => sector(`Игра ${i}`)))
-
-describe('slices', () => {
-  it('colours games so that no two neighbours match, the last and the first included', () => {
-    for (const n of [2, 3, 8, 9, 17, 100]) {
-      const parts = games(n)
-      parts.forEach((p, i) => expect(p.color, `${n} sectors, #${i}`).not.toBe(parts[(i + 1) % n]!.color))
-    }
-  })
-
-  it('keeps the item kinds in their colours', () => {
-    const parts = slices([sector('a', 1, 'effect'), sector('b', 1, 'bonus'), sector('c', 1, 'drop')])
-    expect(parts.map((p) => p.color)).toEqual(['#f59e0b', '#22c55e', '#dc2626'])
-  })
-})
-
-describe('labelColor', () => {
-  it('reads at 4.5:1 or better on every sector colour', () => {
-    for (const fill of sectorColors) expect(contrast(fill, labelColor(fill)), fill).toBeGreaterThanOrEqual(4.5)
-  })
-
-  it('writes white on the red of drop debuffs and dark on amber effects', () => {
-    expect(labelColor('#dc2626')).toBe('#ffffff')
-    expect(labelColor('#f59e0b')).toBe('#1c1917')
-  })
-})
-
-describe('labelMode', () => {
-  it('labels a small wheel with text even on a phone', () => {
-    expect(labelMode(games(8), 300)).toMatchObject({ kind: 'text' })
-  })
-
-  it('gives 37 items (alphapve) full text on a big wheel and icons on a small one', () => {
-    const big = labelMode(items(37), 560)
-    expect(big.kind).toBe('text')
-    expect(big.kind === 'text' && big.maxChars).toBeGreaterThanOrEqual(16)
-    expect(labelMode(items(37), 320)).toMatchObject({ kind: 'icons' })
-  })
-
-  it('draws nothing in a hundred game sectors: the ticker names them', () => {
-    expect(labelMode(games(100), 560)).toEqual({ kind: 'none' })
-    expect(labelMode(games(100), 320)).toEqual({ kind: 'none' })
-  })
-
-  it('keeps labels about 12 px on screen', () => {
-    const small = labelMode(games(8), 320)
-    const big = labelMode(games(8), 560)
-    expect(small.kind === 'text' && small.font * (320 / 320)).toBeCloseTo(12)
-    expect(big.kind === 'text' && big.font * (560 / 320)).toBeCloseTo(12)
-  })
-
-  it('has nothing to show without sectors', () => {
-    expect(labelMode([], 320)).toEqual({ kind: 'none' })
-  })
-})
-
-describe('chance', () => {
-  it('shows whole percents, and one decimal below 1 %', () => {
-    expect(chance(90)).toBe('25%')
-    expect(chance(360 / 37)).toBe('3%')
-    expect(chance(360 / 120)).toBe('0,8%')
-    expect(chance(0.01)).toBe('<0,1%')
-  })
-})
-
-describe('fitLabel', () => {
-  it('keeps a short label and cuts a long one with an ellipsis', () => {
-    expect(fitLabel('Mario', 10)).toBe('Mario')
-    expect(fitLabel('Warcraft 3: Frozen Throne', 10)).toBe('Warcraft …')
-    expect(Array.from(fitLabel('Warcraft 3: Frozen Throne', 10))).toHaveLength(10)
-  })
-})
+const item = (i: number, weight = 1, kind = 'effect'): Sector => ({ label: `Предмет ${i}`, weight, kind, defId: `item${i}` })
+const items = (n: number) => slices(Array.from({ length: n }, (_, i) => item(i)))
+const games = (n: number, name = (i: number) => `Игра ${i}`) => slices(Array.from({ length: n }, (_, i) => sector(name(i))))
 
 describe('sectorAt', () => {
   // Four equal sectors: A 0–90°, B 90–180°, C 180–270°, D 270–360°, clockwise from the top.
@@ -121,5 +51,108 @@ describe('angleOf', () => {
   it('has nothing to read without a transform', () => {
     expect(angleOf('none')).toBeNull()
     expect(angleOf('')).toBeNull()
+  })
+})
+
+describe('slices', () => {
+  const neighboursDiffer = (parts: ReturnType<typeof slices>) =>
+    parts.forEach((p, i) => expect(p.color, `${parts.length} sectors, #${i}`).not.toBe(parts[(i + 1) % parts.length]!.color))
+
+  it('colours games so that no two neighbours match, the last and the first included', () => {
+    for (const n of [2, 3, 8, 9, 17, 100]) neighboursDiffer(games(n))
+  })
+
+  it('does the same on an item wheel with an odd number of sectors', () => {
+    for (const n of [3, 37]) neighboursDiffer(items(n))
+    neighboursDiffer(slices([item(0, 1, 'bonus'), item(1, 1, 'effect'), item(2, 1, 'bonus')]))
+  })
+
+  it('keeps the item kinds in their colours', () => {
+    const parts = slices([sector('a', 1, 'effect'), sector('b', 1, 'bonus'), sector('c', 1, 'drop')])
+    expect(parts.map((p) => p.color)).toEqual(['#f59e0b', '#22c55e', '#dc2626'])
+  })
+})
+
+describe('labelColor', () => {
+  it('reads at 4.5:1 or better on every sector colour', () => {
+    for (const fill of sectorColors) expect(contrast(fill, labelColor(fill)), fill).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('writes white on the red of drop debuffs and dark on amber effects', () => {
+    expect(labelColor('#dc2626')).toBe('#ffffff')
+    expect(labelColor('#f59e0b')).toBe('#1c1917')
+  })
+})
+
+describe('labelPlan', () => {
+  const texts = (plan: ReturnType<typeof labelPlan>) => plan.marks.map((m) => (m?.kind === 'text' ? m.text : m?.kind ?? null))
+
+  it('labels a small wheel with text even on a phone, without the list', () => {
+    const plan = labelPlan(games(8), 300)
+    expect(plan.kind).toBe('text')
+    expect(texts(plan)).toContain('Игра 0')
+    expect(plan.legend).toBe(false)
+  })
+
+  it('gives 37 items (alphapve) full text on a big wheel and icons on a small one', () => {
+    const big = labelPlan(items(37), 560)
+    expect(big.kind).toBe('text')
+    expect(texts(big)).toContain('Предмет 12')
+    expect(big.legend).toBe(false)
+
+    const small = labelPlan(items(37), 320)
+    expect(small.kind).toBe('icons')
+    expect(small.legend).toBe(true) // icons need their names
+  })
+
+  it('draws nothing in a hundred game sectors: the ticker and the list name them', () => {
+    for (const px of [560, 320]) {
+      const plan = labelPlan(games(100), px)
+      expect(plan.kind).toBe('none')
+      expect(plan.marks.every((m) => m === null)).toBe(true)
+      expect(plan.legend).toBe(true)
+    }
+  })
+
+  it('shows the list when names are cut', () => {
+    const plan = labelPlan(games(35, (i) => `Hollow Knight: Silksong ${i}`), 320)
+    expect(plan.kind).toBe('text')
+    expect(plan.marks.some((m) => m?.kind === 'text' && m.cut && m.text.endsWith('…'))).toBe(true)
+    expect(plan.legend).toBe(true)
+  })
+
+  it('keeps the labels when one sector has a lower weight; only that one goes without', () => {
+    const parts = slices([...Array.from({ length: 36 }, (_, i) => item(i, 3)), item(36, 1)])
+    const plan = labelPlan(parts, 560)
+    expect(plan.kind).toBe('text')
+    expect(plan.marks.slice(0, 36).every((m) => m?.kind === 'text')).toBe(true)
+    expect(plan.marks[36]).toBeNull()
+    expect(plan.legend).toBe(true) // its name is only in the list
+  })
+
+  it('keeps labels about 12 px on screen', () => {
+    expect(labelPlan(games(8), 320).font).toBeCloseTo(12)
+    expect(labelPlan(games(8), 560).font * (560 / 320)).toBeCloseTo(12)
+  })
+
+  it('has nothing to show without sectors', () => {
+    expect(labelPlan([], 320)).toMatchObject({ kind: 'none', marks: [] })
+  })
+})
+
+describe('chance', () => {
+  it('shows whole percents, and one decimal below 1 %', () => {
+    expect(chance(90)).toBe('25%')
+    expect(chance(360 / 37)).toBe('3%')
+    expect(chance(360 / 120)).toBe('0,8%')
+    expect(chance(0.01)).toBe('<0,1%')
+  })
+})
+
+describe('fitLabel', () => {
+  it('keeps a short label and cuts a long one with an ellipsis', () => {
+    expect(fitLabel('Mario', 10)).toBe('Mario')
+    expect(fitLabel('Warcraft 3: Frozen Throne', 10)).toBe('Warcraft …')
+    expect(Array.from(fitLabel('Warcraft 3: Frozen Throne', 10))).toHaveLength(10)
   })
 })

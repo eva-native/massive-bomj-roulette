@@ -62,6 +62,8 @@ export function OverlayPage() {
                 sectors={current.spin.wheel.sectors}
                 target={current.spin.result}
                 legend={false}
+                ticker={false} // the OBS scenes are laid out for the overlay as it was
+                icons={event.data?.settings.icons} // the judge's pictures, as in the result line below
                 name={wheelNames[current.spin.wheel.kind]}
                 seconds={wheelSeconds(event.data?.settings, current.spin.wheel.kind)}
                 onStop={() => {

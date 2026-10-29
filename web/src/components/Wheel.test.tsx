@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import indexHtml from '../../index.html?raw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Sector } from '@/api/types.gen'
 import { Wheel } from './Wheel'
@@ -19,15 +20,40 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-it('shows the sector passing under the pointer while it turns, and clears it at the stop', async () => {
-  rotorAt(100) // the top shows 260°: Portal is 270–360, Hades 180–270
-  render(<Wheel sectors={sectors} target={1} />)
-  const ticker = screen.getByTestId('wheel-rotor').closest('div')!.previousElementSibling!
-  expect(ticker).toHaveAttribute('aria-hidden', 'true')
-  await vi.waitFor(() => expect(ticker).toHaveTextContent('Hades'))
+const wait = (ms: number) => act(() => new Promise((r) => setTimeout(r, ms)))
 
-  fireEvent.animationEnd(screen.getByTestId('wheel-rotor'))
-  expect(ticker).toHaveTextContent('')
+describe('ticker', () => {
+  it('shows the sector passing under the pointer while it turns, and clears it at the stop', async () => {
+    rotorAt(100) // the top shows 260°: Portal is 270–360, Hades 180–270
+    render(<Wheel sectors={sectors} target={1} />)
+    const ticker = screen.getByTestId('wheel-ticker')
+    expect(ticker).toHaveAttribute('aria-hidden', 'true')
+    await vi.waitFor(() => expect(ticker).toHaveTextContent('Hades'))
+
+    fireEvent.animationEnd(screen.getByTestId('wheel-rotor'))
+    expect(ticker).toHaveTextContent('')
+  })
+
+  it('stops even when the spin ends at once (reduced motion)', async () => {
+    rotorAt(100)
+    render(<Wheel sectors={sectors} target={1} />)
+    fireEvent.animationEnd(screen.getByTestId('wheel-rotor')) // before the first frame
+    await wait(50)
+    const reads = vi.mocked(window.getComputedStyle).mock.calls.length
+    await wait(50)
+    expect(vi.mocked(window.getComputedStyle).mock.calls.length).toBe(reads) // no frame loop left running
+    expect(screen.getByTestId('wheel-ticker')).toHaveTextContent('')
+  })
+
+  it('takes no room at rest', () => {
+    render(<Wheel sectors={sectors} target={null} />)
+    expect(screen.queryByTestId('wheel-ticker')).not.toBeInTheDocument()
+  })
+
+  it('can be left out (the OBS overlay)', () => {
+    render(<Wheel sectors={sectors} target={1} ticker={false} />)
+    expect(screen.queryByTestId('wheel-ticker')).not.toBeInTheDocument()
+  })
 })
 
 describe('sector marks', () => {
@@ -82,14 +108,11 @@ describe('sector marks', () => {
   })
 })
 
+it('loads pictures without a Referer: SVG images follow the page policy', () => {
+  expect(indexHtml).toMatch(/<meta name="referrer" content="no-referrer"/)
+})
+
 it('tells screen readers which wheel it is and how many sectors it has', () => {
   render(<Wheel sectors={sectors} target={null} name="Колесо игр" />)
   expect(screen.getByRole('img', { name: 'Колесо игр, 4 сектора' })).toBeInTheDocument()
-})
-
-it('keeps the line empty at rest', () => {
-  rotorAt(100)
-  render(<Wheel sectors={sectors} target={null} />)
-  const ticker = screen.getByTestId('wheel-rotor').closest('div')!.previousElementSibling!
-  expect(ticker).toHaveTextContent('')
 })

@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Pictures from other hosts (covers, item icons, also inside SVG) load without a Referer,
+         so hosts that refuse hotlinking still serve them; the <img> tags already ask for this. -->
+    <meta name="referrer" content="no-referrer" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>MBR</title>
   </head>

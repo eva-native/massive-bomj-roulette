@@ -1,19 +1,26 @@
-import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
 import { cn } from '@/lib/cn'
 import { itemEmoji, kindEmoji } from '@/lib/items'
 import { plural } from '@/lib/plural'
-import { angleOf, chance, fitLabel, ICON_RADIUS, LABEL_OUTER, labelColor, labelMode, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelMode, type Slice } from '@/lib/wheel'
+import { angleOf, chance, ICON_RADIUS, LABEL_OUTER, labelColor, labelPlan, sectorAt, slices, WHEEL_R as R, WHEEL_SIZE as SIZE, type LabelPlan, type Slice } from '@/lib/wheel'
 import { ItemIcon } from './ItemIcon'
 
 const TURNS = 6 // full turns before stopping
 
-/** The element's width on screen, kept up to date; `fallback` where nothing can measure it (tests). */
+/**
+ * The element's width on screen, kept up to date; `fallback` where nothing
+ * can measure it (tests). Measured before the first paint, so a wheel never
+ * shows the labels or the list of a wrong size for a frame.
+ */
 function useWidth(ref: RefObject<HTMLElement | null>, fallback: number) {
   const [width, setWidth] = useState(fallback)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current
-    if (!el || typeof ResizeObserver === 'undefined') return
+    if (!el) return
+    const now = el.getBoundingClientRect().width
+    if (now > 0) setWidth(now)
+    if (typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(([entry]) => {
       if (entry && entry.contentRect.width > 0) setWidth(entry.contentRect.width)
     })
@@ -58,6 +65,7 @@ export function Wheel({
   seconds,
   icons,
   legend = true,
+  ticker = true,
   action,
   name = 'Колесо',
   className,
@@ -67,10 +75,12 @@ export function Wheel({
   onStop?: () => void
   /** How long the spin lasts; the CSS default when not set. */
   seconds?: number
-  /** Item pictures from the event settings, for the legend. */
+  /** Item pictures from the event settings, for the sectors, the ticker and the list. */
   icons?: Record<string, string>
-  /** List the sectors under the wheel when their labels do not fit on it. */
+  /** List the sectors under the wheel when their names are not all shown on it in full. */
   legend?: boolean
+  /** Name the sector under the pointer above the wheel while it turns. */
+  ticker?: boolean
   /** A control placed right under the wheel, above the list (the spin button). */
   action?: ReactNode
   /** What the wheel is, for screen readers: «Колесо игр». */
@@ -82,22 +92,36 @@ export function Wheel({
   const rotor = useRef<SVGGElement>(null)
   const frame = useRef<HTMLDivElement>(null)
   const width = useWidth(frame, SIZE)
-  const mode = labelMode(parts, width)
+  const plan = labelPlan(parts, width)
   const spinning = target !== null && parts[target] !== undefined
+  // The stop comes through React's onAnimationEnd, which cannot miss it; a
+  // reduced-motion spin of 1 ms ends before any effect could listen for it.
+  const [stoppedAt, setStoppedAt] = useState<number | null>(null)
+  const turning = spinning && stoppedAt !== target
   const style = spinning
     ? ({ '--wheel-to': `${finalAngle(parts, target)}deg`, ...(seconds ? { '--wheel-duration': `${seconds}s` } : {}) } as CSSProperties)
     : undefined
 
   return (
     <div className={cn('mx-auto w-full max-w-80', className)}>
-      <Ticker rotor={rotor} parts={parts} spinning={spinning} icons={icons} />
+      {/* Only a spinning wheel has the line, so a wheel at rest and the overlay keep their layout. */}
+      {ticker && spinning && <Ticker rotor={rotor} parts={parts} turning={turning} icons={icons} />}
       <div ref={frame} role="img" aria-label={`${name}, ${sectors.length} ${plural(sectors.length, 'сектор', 'сектора', 'секторов')}`}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full drop-shadow">
-          <g ref={rotor} className={spinning ? 'wheel-spin' : undefined} style={style} onAnimationEnd={() => onStop?.()} data-testid="wheel-rotor">
+          <g
+            ref={rotor}
+            className={spinning ? 'wheel-spin' : undefined}
+            style={style}
+            onAnimationEnd={() => {
+              setStoppedAt(target)
+              onStop?.()
+            }}
+            data-testid="wheel-rotor"
+          >
             {parts.map((p, i) => (
               <path key={i} d={arc(p.start, p.end)} fill={p.color} stroke="#1c1917" strokeWidth={1} />
             ))}
-            <SectorMarks parts={parts} mode={mode} icons={icons} />
+            <SectorMarks parts={parts} plan={plan} icons={icons} />
           </g>
           <circle cx={SIZE / 2} cy={SIZE / 2} r={14} fill="#1c1917" />
           {/* The pointer at the top, drawn in the wheel's units so it grows with it. */}
@@ -105,22 +129,23 @@ export function Wheel({
         </svg>
       </div>
       {action && <div className="mt-3 flex justify-center">{action}</div>}
-      {legend && mode.kind !== 'text' && <Legend parts={parts} icons={icons} />}
+      {legend && plan.legend && <Legend parts={parts} icons={icons} />}
     </div>
   )
 }
 
 /**
- * What each sector shows (see labelMode): a label running from the rim
- * towards the hub, or the item's icon near the rim. An icon picture that
- * fails to load falls back to the item's emoji.
+ * What each sector shows (see labelPlan): a label running from the rim
+ * towards the hub, the item's icon near the rim, or nothing. An icon picture
+ * that fails to load falls back to the item's emoji.
  */
-function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; icons?: Record<string, string> }) {
+function SectorMarks({ parts, plan, icons }: { parts: Slice[]; plan: LabelPlan; icons?: Record<string, string> }) {
   const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set())
-  if (mode.kind === 'none') return null
   return parts.map((p, i) => {
+    const mark = plan.marks[i]
+    if (!mark) return null
     const mid = (p.start + p.end) / 2
-    if (mode.kind === 'text') {
+    if (mark.kind === 'text') {
       const [x, y] = point(mid, LABEL_OUTER)
       // On the left half a label along the radius would be upside down: turn it over, so it
       // reads from the rim inwards and stays upright while the wheel is at rest.
@@ -130,21 +155,21 @@ function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; 
           key={i}
           x={x}
           y={y}
-          fontSize={mode.font}
+          fontSize={plan.font}
           fontWeight={600}
           fill={labelColor(p.color)}
           textAnchor={left ? 'start' : 'end'}
           dominantBaseline="middle"
           transform={`rotate(${left ? mid + 90 : mid - 90} ${x} ${y})`}
         >
-          {fitLabel(p.sector.label, mode.maxChars)}
+          {mark.text}
         </text>
       )
     }
     const [x, y] = point(mid, ICON_RADIUS)
     const url = icons?.[p.sector.defId]
     if (url && !broken.has(url)) {
-      const s = mode.size
+      const s = plan.icon
       return (
         <image
           key={i}
@@ -154,12 +179,13 @@ function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; 
           width={s}
           height={s}
           preserveAspectRatio="xMidYMid slice"
+          // No Referer is sent, as for ItemIcon's <img>: the page's policy in index.html covers SVG images.
           onError={() => setBroken((b) => new Set(b).add(url))}
         />
       )
     }
     return (
-      <text key={i} x={x} y={y} fontSize={mode.size} textAnchor="middle" dominantBaseline="central">
+      <text key={i} x={x} y={y} fontSize={plan.icon} textAnchor="middle" dominantBaseline="central">
         {itemEmoji[p.sector.defId] ?? kindEmoji[p.sector.kind] ?? '❔'}
       </text>
     )
@@ -170,48 +196,42 @@ function SectorMarks({ parts, mode, icons }: { parts: Slice[]; mode: LabelMode; 
  * The sector passing under the pointer while the wheel turns, read from the
  * rotor's live rotation on every frame. Labels do not fit on a dense wheel
  * (a game wheel of a hundred titles), so this line is what can be read. It
- * is blank at rest and after the stop: the page shows the result itself.
- * Kept out of the wheel's render, so its updates do not redraw the sectors.
+ * empties at the stop: the page shows the result itself. Kept out of the
+ * wheel's render, so its updates do not redraw the sectors.
  */
 const Ticker = memo(function Ticker({
   rotor,
   parts,
-  spinning,
+  turning,
   icons,
 }: {
   rotor: RefObject<SVGGElement | null>
   parts: Slice[]
-  spinning: boolean
+  turning: boolean
   icons?: Record<string, string>
 }) {
   const [pointed, setPointed] = useState<number | null>(null)
 
   useEffect(() => {
     const el = rotor.current
-    if (!spinning || !el) return
+    if (!turning || !el) return
     let frame = 0
     const read = () => {
       const angle = angleOf(getComputedStyle(el).transform)
       setPointed(sectorAt(parts, angle ?? 0))
       frame = requestAnimationFrame(read)
     }
-    const stop = () => {
-      cancelAnimationFrame(frame)
-      setPointed(null)
-    }
     frame = requestAnimationFrame(read)
-    el.addEventListener('animationend', stop)
     return () => {
       cancelAnimationFrame(frame)
-      el.removeEventListener('animationend', stop)
       setPointed(null)
     }
-  }, [rotor, parts, spinning])
+  }, [rotor, parts, turning])
 
   const sector = pointed === null ? undefined : parts[pointed]?.sector
   // Screen readers get the result from the page; this line changes many times a second.
   return (
-    <div aria-hidden className="mb-1 flex h-8 items-center justify-center gap-2 text-lg font-semibold">
+    <div aria-hidden data-testid="wheel-ticker" className="mb-1 flex h-8 items-center justify-center gap-2 text-lg font-semibold">
       {sector && (
         <>
           {sector.defId && <ItemIcon defId={sector.defId} kind={sector.kind} icons={icons} size="sm" />}
@@ -222,7 +242,7 @@ const Ticker = memo(function Ticker({
   )
 })
 
-/** The list of sectors with their chance, for wheels too dense to label. Sorted by name: the wheel itself is shuffled. */
+/** The list of sectors with their chance, for wheels that do not show every name in full. Sorted by name: the wheel itself is shuffled. */
 function Legend({ parts, icons }: { parts: Slice[]; icons?: Record<string, string> }) {
   const sorted = useMemo(() => [...parts].sort((a, b) => a.sector.label.localeCompare(b.sector.label, 'ru')), [parts])
   return (

@@ -21,11 +21,15 @@ export const wheelNames: Record<string, string> = {
 export const WHEEL_SIZE = 320
 export const WHEEL_R = WHEEL_SIZE / 2 - 6
 
-/** Item kinds keep their colours: they mean something (effect, bonus, drop debuff). */
-const kindColors: Record<string, [string, string]> = {
-  effect: ['#f59e0b', '#fbbf24'],
-  bonus: ['#16a34a', '#22c55e'],
-  drop: ['#dc2626', '#ef4444'],
+/**
+ * Item kinds keep their colours: they mean something (effect, bonus, drop
+ * debuff). Sectors alternate the first two shades; the third is for the last
+ * sector when it would match the first one.
+ */
+const kindColors: Record<string, [string, string, string]> = {
+  effect: ['#f59e0b', '#fbbf24', '#d97706'],
+  bonus: ['#16a34a', '#22c55e', '#15803d'],
+  drop: ['#dc2626', '#ef4444', '#b91c1c'],
 }
 
 /**
@@ -33,12 +37,6 @@ const kindColors: Record<string, [string, string]> = {
  * so the wheel's turn is visible. Mid tones, not glaring on a dark card.
  */
 export const plainColors = ['#7aa2c8', '#d4a05a', '#9f8bd0', '#6fb59a', '#d18a9c', '#a8b25c', '#5fb0c4', '#c99b7a']
-
-function plainColor(i: number, n: number) {
-  // The last sector touches the first: do not let them share a colour.
-  if (n > 1 && i === n - 1 && i % plainColors.length === 0) return plainColors[3]!
-  return plainColors[i % plainColors.length]!
-}
 
 /** Every colour a sector can have. */
 export const sectorColors = [...Object.values(kindColors).flat(), ...plainColors]
@@ -72,14 +70,23 @@ export type Slice = { start: number; end: number; sector: Sector; color: string 
 export function slices(sectors: Sector[]): Slice[] {
   const total = sectors.reduce((sum, s) => sum + Math.max(s.weight, 0), 0) || 1
   let at = 0
-  return sectors.map((sector, i) => {
+  const parts = sectors.map((sector, i) => {
     const span = (Math.max(sector.weight, 0) / total) * 360
-    const pair = kindColors[sector.kind]
-    const color = pair ? pair[i % 2]! : plainColor(i, sectors.length)
+    const shades = kindColors[sector.kind]
+    const color = shades ? shades[i % 2]! : plainColors[i % plainColors.length]!
     const s = { start: at, end: at + span, sector, color }
     at += span
     return s
   })
+  // The last sector touches the first, right under the pointer at rest: never the same colour.
+  const first = parts[0]
+  const last = parts.at(-1)
+  const beforeLast = parts.at(-2)
+  if (first && last && beforeLast && last !== first && last.color === first.color) {
+    const choices = kindColors[last.sector.kind] ?? plainColors
+    last.color = choices.find((c) => c !== first.color && c !== beforeLast.color) ?? last.color
+  }
+  return parts
 }
 
 /**
@@ -100,31 +107,63 @@ export const LABEL_OUTER = 0.9 * WHEEL_R
 export const ICON_RADIUS = 0.8 * WHEEL_R
 const HUB_CLEARANCE = 18
 
-/** What the sectors of a wheel show: text along the radius, item icons near the rim, or nothing. */
-export type LabelMode = { kind: 'text'; font: number; maxChars: number } | { kind: 'icons'; size: number } | { kind: 'none' }
+/** What one sector shows: its label (cut to fit), its item icon, or nothing when it is too narrow. */
+export type SectorMark = { kind: 'text'; text: string; cut: boolean } | { kind: 'icon' } | null
+
+/**
+ * The plan for a wheel's sectors: the mode, the sizes in SVG units (about
+ * LABEL_PX and ICON_PX on screen), one mark per sector, and whether the list
+ * of what is on the wheel is needed (some names are not shown in full).
+ */
+export type LabelPlan = {
+  kind: 'text' | 'icons' | 'none'
+  font: number
+  icon: number
+  marks: SectorMark[]
+  legend: boolean
+}
 
 /**
  * What fits into the sectors of a wheel drawn `px` wide. A label runs from
- * the rim towards the hub and must stop where the narrowest sector becomes
- * thinner than a line of text; sizes are in SVG units, chosen so that they
- * come out at about LABEL_PX and ICON_PX on screen. Text wins when at least
- * 10 characters fit; otherwise item icons if every sector has one and they
- * fit; otherwise shorter text; otherwise nothing.
+ * the rim towards the hub and must stop where its sector becomes thinner than
+ * a line of text. The mode follows a typical (median) sector, so one narrow
+ * sector (a lower weight) does not take the labels off the whole wheel: text
+ * when at least 10 characters fit; otherwise item icons if every sector has
+ * one and they fit; otherwise shorter text; otherwise nothing. Then each
+ * sector gets what fits in its own width, and one too narrow stays empty.
  */
-export function labelMode(parts: Slice[], px: number): LabelMode {
-  const spans = parts.map((p) => p.end - p.start).filter((s) => s > 0)
-  if (spans.length === 0 || px <= 0) return { kind: 'none' }
-  const scale = px / WHEEL_SIZE
-  const narrowest = (Math.min(...spans) * Math.PI) / 180 // radians
+export function labelPlan(parts: Slice[], px: number): LabelPlan {
+  const scale = px > 0 ? px / WHEEL_SIZE : 1
   const font = Math.min(Math.max(LABEL_PX / scale, 6), 13)
-  const start = Math.min(Math.max((1.15 * font) / narrowest, HUB_CLEARANCE), LABEL_OUTER)
-  const maxChars = Math.floor((LABEL_OUTER - start) / (0.56 * font)) // 0.56: an average glyph's width per unit of font size
   const icon = ICON_PX / scale
-  const iconsFit = parts.every((p) => p.sector.defId) && ICON_RADIUS * narrowest >= 1.2 * icon
-  if (maxChars >= 10) return { kind: 'text', font, maxChars }
-  if (iconsFit) return { kind: 'icons', size: icon }
-  if (maxChars >= 6) return { kind: 'text', font, maxChars }
-  return { kind: 'none' }
+  const radians = (span: number) => (span * Math.PI) / 180
+  const charsFor = (span: number) => {
+    if (span <= 0) return 0
+    const start = Math.min(Math.max((1.15 * font) / radians(span), HUB_CLEARANCE), LABEL_OUTER)
+    return Math.floor((LABEL_OUTER - start) / (0.56 * font)) // 0.56: an average glyph's width per unit of font size
+  }
+  const iconFits = (span: number) => span > 0 && ICON_RADIUS * radians(span) >= 1.2 * icon
+
+  const spans = parts.map((p) => p.end - p.start)
+  const sorted = spans.filter((s) => s > 0).sort((a, b) => a - b)
+  const typical = sorted[Math.floor(sorted.length / 2)]
+  const none: LabelPlan = { kind: 'none', font, icon, marks: parts.map(() => null), legend: true }
+  if (typical === undefined || px <= 0) return none
+
+  const chars = charsFor(typical)
+  const kind = chars >= 10 ? 'text' : parts.every((p) => p.sector.defId) && iconFits(typical) ? 'icons' : chars >= 6 ? 'text' : 'none'
+  if (kind === 'none') return none
+
+  const marks: SectorMark[] = parts.map((p, i) => {
+    const span = spans[i]!
+    if (kind === 'icons') return iconFits(span) ? { kind: 'icon' } : null
+    const fits = charsFor(span)
+    if (fits < 3) return null
+    return { kind: 'text', text: fitLabel(p.sector.label, fits), cut: Array.from(p.sector.label).length > fits }
+  })
+  // Icons need their names next to them; a cut or missing label needs the full one.
+  const legend = kind === 'icons' || marks.some((m) => m === null || (m.kind === 'text' && m.cut))
+  return { kind, font, icon, marks, legend }
 }
 
 /**
