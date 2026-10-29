@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router'
 import { inviteLink, useItems, useNewInvite, useUpdateEvent } from '@/api/events'
 import { exportUrl, useFinishEvent } from '@/api/play'
@@ -7,6 +7,7 @@ import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { ItemIcon } from '@/components/ItemIcon'
 import { Card, ErrorText, Field, Input, Loading } from '@/components/ui'
+import { forgetBroken, isPictureLink, useBrokenImages } from '@/lib/brokenImages'
 import { kindLabels } from '@/lib/items'
 import { DEFAULT_WHEEL_SECONDS } from '@/lib/wheel'
 
@@ -77,6 +78,14 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [maxGames, setMaxGames] = useState(event.settings.maxGamesPerMember)
   const [inviteOnly, setInviteOnly] = useState(event.settings.inviteOnly)
   const [icons, setIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
+  // What the preview and its warning show: a link is taken once the judge leaves its field,
+  // so a half-typed link is never loaded or reported as broken.
+  const [shownIcons, setShownIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
+  const showIcon = (id: string) => {
+    const link = (icons[id] ?? '').trim()
+    forgetBroken(link) // set again: try it again (the host may be back)
+    setShownIcons((m) => ({ ...m, [id]: link }))
+  }
   const [itemRows, setItemRows] = useState<Record<string, ItemRow>>(() =>
     Object.fromEntries(
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
@@ -221,7 +230,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <label className="flex min-w-48 flex-1 items-center gap-2">
                         <input type="checkbox" checked={row.enabled} onChange={(e) => setItem(it.id, { enabled: e.target.checked })} />
-                        <ItemIcon defId={it.id} kind={it.kind} icons={icons} size="sm" />
+                        <ItemIcon defId={it.id} kind={it.kind} icons={shownIcons} size="sm" />
                         {it.name}
                       </label>
                       <Input
@@ -231,6 +240,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                         aria-label={`Иконка «${it.name}»`}
                         value={icons[it.id] ?? ''}
                         onChange={(e) => setIcons((m) => ({ ...m, [it.id]: e.target.value }))}
+                        onBlur={() => showIcon(it.id)}
                       />
                       <Input
                         type="number"
@@ -242,7 +252,8 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                         onChange={(e) => setItem(it.id, { weight: num(e.target.value) })}
                       />
                     </div>
-                    <IconLinkStatus url={icons[it.id] ?? ''} />
+                    {/* Hidden while the judge edits the link: the edit is checked when they leave the field. */}
+                    {(icons[it.id] ?? '').trim() === (shownIcons[it.id] ?? '') && <IconLinkStatus url={shownIcons[it.id] ?? ''} />}
                     {it.params.map((p) => (
                       <label key={p.name} className="ml-6 flex flex-wrap items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
                         <span className="flex-1">
@@ -276,32 +287,16 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   )
 }
 
-/** How long the judge may pause typing a link before it is checked. */
-export const ICON_CHECK_DELAY_MS = 600
-
 /**
  * Warns when an item picture link does not load (on the board the item shows
- * its emoji then). The link is checked once the judge stops typing.
+ * its emoji then). It reads what the row's preview found out (lib/brokenImages),
+ * so the picture is asked for once; the preview tries a link only after the
+ * judge leaves the field, never a half-typed one.
  */
 function IconLinkStatus({ url }: { url: string }) {
-  const link = url.trim()
-  const [checked, setChecked] = useState(link)
-  const [failed, setFailed] = useState<string | null>(null)
-  useEffect(() => {
-    const t = setTimeout(() => setChecked(link), ICON_CHECK_DELAY_MS)
-    return () => clearTimeout(t)
-  }, [link])
-
-  const broken = checked !== '' && checked === link && failed === link
-  return (
-    <>
-      {/* A hidden picture tries the link: the visible preview falls back to the emoji. */}
-      {checked !== '' && (
-        <img key={checked} src={checked} alt="" hidden referrerPolicy="no-referrer" onError={() => setFailed(checked)} data-testid="icon-probe" />
-      )}
-      {broken && <p className="ml-6 text-xs text-red-600 dark:text-red-400">Картинка не загрузилась — на доске будет эмодзи.</p>}
-    </>
-  )
+  const isBroken = useBrokenImages()
+  if (!isPictureLink(url) || !isBroken(url)) return null
+  return <p className="ml-6 text-xs text-red-600 dark:text-red-400">Картинка не загрузилась — на доске будет эмодзи.</p>
 }
 
 /** The invite link with copy and replace buttons. */
