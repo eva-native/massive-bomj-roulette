@@ -162,6 +162,14 @@ func TestFullTurn(t *testing.T) {
 	if len(res.View.Turn.Items) != 3 {
 		t.Fatalf("items on the game = %d, want 3", len(res.View.Turn.Items))
 	}
+	// The player sees what each outcome would bring: half the base off plus
+	// «ОПАААА» for a drop; base, record and «ОПАААА» at HLTB hours.
+	if p := res.View.Turn.Playthrough.Preview; p == nil || *p != (api.OutcomePreview{Dropped: -19 + 4, CompletedAtHLTB: 39 + game.DefaultRecordPoints + 4}) {
+		t.Fatalf("preview = %+v", p)
+	}
+	if bobSees, err := f.play.Player(f.ctx, "lbr", f.bob, f.alice.ID); err != nil || bobSees.Turn.Playthrough.Preview != nil {
+		t.Fatalf("another player sees the preview: %+v, %v", bobSees.Turn.Playthrough.Preview, err)
+	}
 
 	_, err = f.play.Finish(f.ctx, "lbr", f.alice, res.View.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 25, Proof: "not a link", Review: "Классика"})
 	var ie *events.InvalidError

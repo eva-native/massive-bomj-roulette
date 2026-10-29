@@ -161,7 +161,7 @@ describe('my turn', () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0, preview: { dropped: -19, completedAtHltb: 44 } },
     })
     let current = view(playing)
     backend.on('GET', /\/players\/2$/, () => current)
@@ -190,7 +190,10 @@ describe('my turn', () => {
     expect(review).toBeRequired()
     const outcome = screen.getByRole('radiogroup', { name: 'Итог' })
     // Each outcome says what it leads to before it is chosen.
-    expect(within(outcome).getByRole('radio', { name: 'Дропнул' })).toHaveAccessibleDescription('Минус половина базы. Дальше колесо дроп-дебаффов.')
+    // With the points the server scored for each (the engine on a copy of the event, items included).
+    expect(within(outcome).getByRole('radio', { name: 'Дропнул' })).toHaveAccessibleDescription('−19 очков Минус половина базы. Дальше колесо дроп-дебаффов.')
+    expect(within(outcome).getByRole('radio', { name: 'Прошёл' })).toHaveAccessibleDescription(/^от \+44 очков; каждый час быстрее HLTB — ещё \+1 /)
+    expect(within(outcome).getByRole('radio', { name: 'Тех. дроп' })).toHaveAccessibleDescription(/^0 очков /)
     await user.click(within(outcome).getByRole('radio', { name: 'Тех. дроп' }))
     expect(review).not.toBeRequired() // but not for a technical drop
     expect(send).toBeEnabled()

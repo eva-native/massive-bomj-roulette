@@ -271,6 +271,18 @@ type PlaythroughView struct {
 	// TimerMs is the time the player saved with the timer; set in the
 	// judge's queue to compare with the hours.
 	TimerMs int64 `json:"timerMs"`
+	// Preview is set for the player while they play this game, for the
+	// outcome form.
+	Preview *OutcomePreview `json:"preview,omitempty"`
+}
+
+// OutcomePreview is how the player's total would change with each outcome
+// of the game in progress, scored by the engine on a copy of the event.
+type OutcomePreview struct {
+	Dropped int `json:"dropped"`
+	// CompletedAtHLTB is a completion in exactly the HLTB hours; each hour
+	// faster adds a point of speed.
+	CompletedAtHLTB int `json:"completedAtHltb"`
 }
 
 type ItemView struct {
