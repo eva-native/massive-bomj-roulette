@@ -250,7 +250,12 @@ describe('my turn', () => {
     backend.on('POST', /\/steps\/13\/finish$/, () => (current = view({ ...playing, current: null, waiting: 'Итог ждёт подтверждения судьи' })))
     const ask = vi.fn(() => false)
     vi.stubGlobal('confirm', ask)
-    vi.stubGlobal('fetch', backend.fetch)
+    let answer = () => {}
+    const answered = new Promise<void>((r) => (answer = r))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/finish')) await answered // the server is slow to answer
+      return backend.fetch(input, init)
+    })
     const user = userEvent.setup()
     renderApp('/e/lbr/play')
 
@@ -262,6 +267,8 @@ describe('my turn', () => {
 
     ask.mockReturnValue(true)
     await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+    expect(await screen.findByRole('button', { name: 'Отправка…' })).toBeDisabled() // the click is seen at once
+    answer()
     expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
   })
 

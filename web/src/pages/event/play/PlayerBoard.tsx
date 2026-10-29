@@ -583,8 +583,9 @@ function FinishForm({
         <Textarea value={review} required={reviewRequired} onChange={(e) => setDraft({ review: e.target.value })} />
       </Field>
       <ErrorText error={finish.error} />
+      {/* Saving the timer and sending both count: the click shows it worked at once. */}
       <Button type="submit" className="self-start" disabled={sending || finish.isPending || missing.length > 0} aria-describedby={missing.length > 0 ? 'finish-missing' : undefined}>
-        Отправить судье
+        {sending || finish.isPending ? 'Отправка…' : 'Отправить судье'}
       </Button>
       {missing.length > 0 && (
         <p id="finish-missing" className="text-xs text-muted">
