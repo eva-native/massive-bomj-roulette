@@ -1,0 +1,11 @@
+# Builds the app from this checkout instead of pulling a published release:
+#   docker compose -f compose.yaml -f compose.build.yaml --profile app up --build
+# The image is mbr:dev, so a local build never takes the tag of a release.
+services:
+  app:
+    image: mbr:dev
+    build:
+      context: .
+      args:
+        # The rules link points to this tag or commit; without it, to main.
+        MBR_VERSION: ${MBR_VERSION:-}

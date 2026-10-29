@@ -1,6 +1,6 @@
 # Local development:   docker compose up -d db
-# Full app locally:    docker compose --profile app up --build
-# Production (HTTPS):  docker compose --profile app --profile prod up -d --build
+# Full app locally:    docker compose -f compose.yaml -f compose.build.yaml --profile app up --build
+# Production:          the released image from GHCR, see docs/dev/deploy.md
 services:
   db:
     image: postgres:17
@@ -20,15 +20,16 @@ services:
 
   app:
     profiles: [app]
-    build:
-      context: .
-      # The rules link points to this tag or commit (see docs/dev/deploy.md).
-      args:
-        MBR_VERSION: ${MBR_VERSION:-}
+    # The published release MBR_VERSION (v0.3.0). The same path is in
+    # .github/workflows/release.yml. Building from source: compose.build.yaml.
+    image: ghcr.io/eva-native/massive-bomj-roulette:${MBR_VERSION:-latest}
     env_file: .env
     environment:
       MBR_DATABASE_URL: postgres://mbr:mbr@db:5432/mbr?sslmode=disable
-    ports: ["8080:8080"]
+      # Inside the container; the address on the host is MBR_HOST_PORT.
+      MBR_ADDR: ":8080"
+    # Behind your own proxy: MBR_HOST_PORT=127.0.0.1:8001 in .env.
+    ports: ["${MBR_HOST_PORT:-8080}:8080"]
     depends_on:
       db:
         condition: service_healthy
