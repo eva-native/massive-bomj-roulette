@@ -176,16 +176,24 @@ describe('my turn', () => {
     expect(await screen.findByText('GTA San Andreas')).toBeInTheDocument()
     const send = screen.getByRole('button', { name: 'Отправить судье' })
     expect(send).toBeDisabled() // hours are required for a completed game
+    // The form says why, and marks what is required.
+    expect(send).toHaveAccessibleDescription('Чтобы отправить: укажите время прохождения · напишите обзор')
+    expect(screen.getByRole('group', { name: 'Время прохождения' })).toHaveTextContent('обязательно')
     // Only digits can be typed in (issue #3).
     await user.type(screen.getByLabelText('Время прохождения: часы'), 'abc25ч')
     expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('25')
     await user.type(screen.getByLabelText('Время прохождения: минуты'), '30')
     await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
     expect(send).toBeDisabled() // a review is required for a completed or dropped game
+    expect(send).toHaveAccessibleDescription('Чтобы отправить: напишите обзор')
+    const review = screen.getByRole('textbox', { name: 'Обзор' })
+    expect(review).toBeRequired()
     await user.click(screen.getByLabelText('Тех. дроп'))
-    expect(screen.getByLabelText('Обзор (необязательно)')).toBeInTheDocument() // but not for a technical drop
+    expect(review).not.toBeRequired() // but not for a technical drop
+    expect(send).toBeEnabled()
     await user.click(screen.getByLabelText('Прошёл'))
-    await user.type(screen.getByLabelText('Обзор'), 'Классика')
+    await user.type(review, 'Классика')
+    expect(screen.queryByText(/^Чтобы отправить/)).not.toBeInTheDocument()
     await user.click(send)
 
     expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()

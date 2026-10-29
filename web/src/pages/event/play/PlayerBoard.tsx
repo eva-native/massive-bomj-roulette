@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
 import { playKeys, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
-import type { EventDetail, ItemView, PlayerView, PlaythroughView, PlayTime as SavedPlayTime, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import { MaxReview, type EventDetail, type ItemView, type PlayerView, type PlaythroughView, type PlayTime as SavedPlayTime, type SpinResult, type StepView, type TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
@@ -423,7 +423,14 @@ function FinishForm({ slug, stepId, totalMs, beforeSend }: { slug: string; stepI
   const [review, setReview] = useState('')
   const [sending, setSending] = useState(false)
   const hours = hmsToHours(time)
+  const hoursRequired = outcome === 'completed'
   const reviewRequired = outcome !== 'tech'
+  // What keeps the button off, said under it: a disabled button alone does not say why.
+  const missing = [
+    hours === null ? 'исправьте время прохождения' : hoursRequired && !hours ? 'укажите время прохождения' : null,
+    reviewRequired && !review.trim() ? 'напишите обзор' : null,
+    reviewTooLong(review) ? `сократите обзор до ${MaxReview.toLocaleString('ru-RU')} символов` : null,
+  ].filter((m) => m !== null)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -461,7 +468,7 @@ function FinishForm({ slug, stepId, totalMs, beforeSend }: { slug: string; stepI
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        <DurationInput label={outcome === 'completed' ? 'Время прохождения' : 'Время прохождения (необязательно)'} value={time} onChange={setTime} />
+        <DurationInput label="Время прохождения" required={hoursRequired} value={time} onChange={setTime} />
         {totalMs >= 1000 && (
           <Button variant="secondary" onClick={() => setTime(hoursToHMS(totalMs / 3600000))}>
             Подставить итого: {formatHours(totalMs / 3600000)}
@@ -473,16 +480,22 @@ function FinishForm({ slug, stepId, totalMs, beforeSend }: { slug: string; stepI
         <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
       </Field>
       <Field
-        label={reviewRequired ? 'Обзор' : 'Обзор (необязательно)'}
+        label="Обзор"
+        required={reviewRequired}
         hint="Пара слов об игре: что понравилось, что нет. Увидят все."
         after={<ReviewCounter text={review} />}
       >
         <Textarea value={review} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
       </Field>
       <ErrorText error={finish.error} />
-      <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours) || (reviewRequired && !review.trim()) || reviewTooLong(review)}>
+      <Button type="submit" className="self-start" disabled={sending || finish.isPending || missing.length > 0} aria-describedby={missing.length > 0 ? 'finish-missing' : undefined}>
         Отправить судье
       </Button>
+      {missing.length > 0 && (
+        <p id="finish-missing" className="text-xs text-muted">
+          Чтобы отправить: {missing.join(' · ')}
+        </p>
+      )}
     </form>
   )
 }
