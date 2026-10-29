@@ -5,7 +5,7 @@ import { expect, it } from 'vitest'
  * with a dark: colour. Components use text-muted, text-link, text-danger and
  * text-success (index.css) instead; this keeps new code from slipping back.
  */
-const lowContrast = /(?<![\w:-])(text-stone-500|text-amber-700|text-red-600|text-green-700)\b/
+const lowContrast = /(?<![\w:-])(text-stone-[45]00|text-amber-700|text-red-600|text-green-700)\b/
 
 /** A hover colour that nearly vanishes on a dark background (about 1.3:1) unless paired with a dark: hover. */
 const darkOnHover = /(?<![\w:-])hover:text-stone-[789]00\b/

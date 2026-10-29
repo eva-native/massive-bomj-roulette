@@ -163,7 +163,7 @@ function StepList({ turn }: { turn: TurnView }) {
               'rounded-full border px-2 py-1',
               st.done && 'border-stone-300 bg-stone-100 text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300',
               current && 'border-amber-500 bg-amber-50 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200',
-              !st.done && !current && 'border-dashed border-stone-300 text-stone-400 dark:border-stone-700',
+              !st.done && !current && 'border-dashed border-stone-300 text-muted dark:border-stone-700',
             )}
             title={st.addedBy ? `Добавлено: ${st.addedBy}` : undefined}
           >
