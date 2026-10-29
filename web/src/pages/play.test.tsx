@@ -188,10 +188,13 @@ describe('my turn', () => {
     expect(send).toHaveAccessibleDescription('Чтобы отправить: напишите обзор')
     const review = screen.getByRole('textbox', { name: 'Обзор' })
     expect(review).toBeRequired()
-    await user.click(screen.getByLabelText('Тех. дроп'))
+    const outcome = screen.getByRole('radiogroup', { name: 'Итог' })
+    // Each outcome says what it leads to before it is chosen.
+    expect(within(outcome).getByRole('radio', { name: 'Дропнул' })).toHaveAccessibleDescription('Минус половина базы. Дальше колесо дроп-дебаффов.')
+    await user.click(within(outcome).getByRole('radio', { name: 'Тех. дроп' }))
     expect(review).not.toBeRequired() // but not for a technical drop
     expect(send).toBeEnabled()
-    await user.click(screen.getByLabelText('Прошёл'))
+    await user.click(within(outcome).getByText('Прошёл')) // the whole card is the choice
     await user.type(review, 'Классика')
     expect(screen.queryByText(/^Чтобы отправить/)).not.toBeInTheDocument()
     await user.click(send)

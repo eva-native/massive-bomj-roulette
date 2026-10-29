@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
 import { playKeys, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
 import { MaxReview, type EventDetail, type ItemView, type PlayerView, type PlaythroughView, type PlayTime as SavedPlayTime, type SpinResult, type StepView, type TurnView } from '@/api/types.gen'
@@ -414,10 +414,57 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
   )
 }
 
+type Outcome = 'completed' | 'dropped' | 'tech'
+
+/** The outcomes with what each leads to, in the words of docs/rules («Подсчёт очков»). */
+const outcomeChoices: { value: Outcome; label: string; leads: string }[] = [
+  { value: 'completed', label: 'Прошёл', leads: 'База, скорость и эффекты. Дальше колесо эффектов и бонусов.' },
+  { value: 'dropped', label: 'Дропнул', leads: 'Минус половина базы. Дальше колесо дроп-дебаффов.' },
+  { value: 'tech', label: 'Тех. дроп', leads: 'Без очков и штрафа. Дальше только колесо игр.' },
+]
+
+/** The outcome as a group of cards, each saying what it leads to, so the stakes are seen before the choice. */
+function OutcomeChoice({ value, onChange }: { value: Outcome; onChange: (v: Outcome) => void }) {
+  const id = useId()
+  return (
+    <fieldset role="radiogroup" className="flex flex-col gap-2 text-sm">
+      <legend className="mb-1 font-medium">Итог</legend>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {outcomeChoices.map((o) => (
+          <label
+            key={o.value}
+            className={cn(
+              'flex cursor-pointer flex-col gap-1 rounded-lg border p-3',
+              value === o.value
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40'
+                : 'border-stone-200 hover:border-stone-400 dark:border-stone-800 dark:hover:border-stone-600',
+            )}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <input
+                type="radio"
+                name={`${id}-outcome`}
+                checked={value === o.value}
+                onChange={() => onChange(o.value)}
+                aria-labelledby={`${id}-${o.value}`}
+                aria-describedby={`${id}-${o.value}-leads`}
+              />
+              <span id={`${id}-${o.value}`}>{o.label}</span>
+            </span>
+            <span id={`${id}-${o.value}-leads`} className="text-xs text-muted">
+              {o.leads}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
 /** `totalMs` is «Итого по игре» from the time block: saved plus the running session. */
 function FinishForm({ slug, stepId, totalMs, beforeSend }: { slug: string; stepId: number; totalMs: number; beforeSend: () => Promise<void> }) {
   const finish = useFinish(slug)
-  const [outcome, setOutcome] = useState<'completed' | 'dropped' | 'tech'>('completed')
+  const [outcome, setOutcome] = useState<Outcome>('completed')
   const [time, setTime] = useState<HMS>(emptyHMS)
   const [proof, setProof] = useState('')
   const [review, setReview] = useState('')
@@ -447,24 +494,11 @@ function FinishForm({ slug, stepId, totalMs, beforeSend }: { slug: string; stepI
   return (
     // Fields stay about 60 characters wide, an easy line to read and fill, not the card's full width.
     <form onSubmit={submit} className="flex max-w-2xl flex-col gap-3 border-t border-stone-200 pt-3 dark:border-stone-800">
-      <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-2">
-          <input type="radio" name="outcome" checked={outcome === 'completed'} onChange={() => setOutcome('completed')} />
-          Прошёл
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" name="outcome" checked={outcome === 'dropped'} onChange={() => setOutcome('dropped')} />
-          Дропнул
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" name="outcome" checked={outcome === 'tech'} onChange={() => setOutcome('tech')} />
-          Тех. дроп
-        </label>
-      </div>
+      <OutcomeChoice value={outcome} onChange={setOutcome} />
       {outcome === 'tech' && (
         <p className="text-xs text-muted">
-          Игра не запускается или сломана. Без штрафа: судья проверит, игра уйдёт из вашего колеса, а эффекты и дебаффы перейдут на новую игру. Крутится
-          только колесо игр. Опишите проблему ссылкой на скриншот или видео.
+          Игра не запускается или сломана. Судья проверит, игра уйдёт из вашего колеса, а эффекты и дебаффы перейдут на новую игру. Опишите проблему
+          ссылкой на скриншот или видео.
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
