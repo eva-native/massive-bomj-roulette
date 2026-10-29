@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
 import { playKeys, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
-import type { EventDetail, ItemView, PlayerView, PlaythroughView, PlayTime as SavedPlayTime, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import { MaxReview, type EventDetail, type ItemView, type OutcomePreview, type PlayerView, type PlaythroughView, type PlayTime as SavedPlayTime, type SpinResult, type StepView, type TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
@@ -10,8 +10,10 @@ import { GameCover } from '@/components/GameCover'
 import { ReviewCounter, ReviewText } from '@/components/Review'
 import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
-import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
+import { dropFinishDraft, finishKey, useFinishDraft, type Outcome } from '@/lib/finishDraft'
+import { formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
 import { kindLabels } from '@/lib/items'
+import { plural } from '@/lib/plural'
 import { blankValue, waitingFirst } from '@/lib/itemState'
 import { timerKey, useLocalTimer } from '@/lib/localTimer'
 import { reviewTooLong } from '@/lib/review'
@@ -69,7 +71,14 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
   }
 
   // Whose board it is, apart from who may edit: a judge who plays fills their own fields too.
-  const onGame = waitingFirst(turn?.items ?? [], { own: me?.id === view.player.id, canAct: view.canAct })
+  const own = me?.id === view.player.id
+  const onGame = waitingFirst(turn?.items ?? [], { own, canAct: view.canAct })
+
+  // Once the judge confirms a game, the outcome form kept for it in this browser is done with.
+  useEffect(() => {
+    if (!own) return
+    for (const pt of live.history) if (pt.confirmed) dropFinishDraft(finishKey(event.slug, pt.id))
+  }, [own, live.history, event.slug])
   const groups = turn ? stepGroups(turn) : []
   const side = onGame.length > 0 || view.pocket.length > 0
   const sharedHint = view.canAct ? sharedPocketHint(view.pocket) : null
@@ -370,15 +379,27 @@ function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; vi
   // The game itself is named above, in the turn's card (GameHeader).
   return view.canAct ? (
     // A new game remounts the timer, so it starts from zero.
-    <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthroughId={playthrough.id} stepId={stepId} saved={saved} />
+    <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthrough={playthrough} stepId={stepId} saved={saved} />
   ) : (
     <PlayTime slug={event.slug} playerId={view.player.id} saved={saved} timer={null} />
   )
 }
 
 /** The player's own game: the timer, the sessions and the outcome form. */
-function OwnPlay({ slug, playerId, playthroughId, stepId, saved }: { slug: string; playerId: number; playthroughId: number; stepId: number; saved: SavedPlayTime }) {
-  const timer = useLocalTimer(timerKey(slug, playthroughId))
+function OwnPlay({
+  slug,
+  playerId,
+  playthrough,
+  stepId,
+  saved,
+}: {
+  slug: string
+  playerId: number
+  playthrough: PlaythroughView
+  stepId: number
+  saved: SavedPlayTime
+}) {
+  const timer = useLocalTimer(timerKey(slug, playthrough.id))
   const update = useUpdatePlayTime(slug, playerId)
   // Time still on the timer is saved before the outcome goes to the judge.
   const saveTimer = async () => {
@@ -389,7 +410,7 @@ function OwnPlay({ slug, playerId, playthroughId, stepId, saved }: { slug: strin
   return (
     <>
       <PlayTime slug={slug} playerId={playerId} saved={saved} timer={timer} />
-      <FinishForm slug={slug} stepId={stepId} timerMs={saved.totalMs + timer.ms} beforeSend={saveTimer} />
+      <FinishForm slug={slug} playthroughId={playthrough.id} stepId={stepId} totalMs={saved.totalMs + timer.ms} preview={playthrough.preview} beforeSend={saveTimer} />
     </>
   )
 }
@@ -414,19 +435,114 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
   )
 }
 
-function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepId: number; timerMs: number; beforeSend: () => Promise<void> }) {
+/** The outcomes with what each leads to, in the words of docs/rules («Подсчёт очков»). */
+const outcomeChoices: { value: Outcome; label: string; leads: string }[] = [
+  { value: 'completed', label: 'Прошёл', leads: 'База, скорость (+1 за каждый час быстрее HLTB) и эффекты. Дальше колесо эффектов и бонусов.' },
+  { value: 'dropped', label: 'Дропнул', leads: 'Минус половина базы. Дальше колесо дроп-дебаффов.' },
+  { value: 'tech', label: 'Тех. дроп', leads: 'Без очков и штрафа. Дальше только колесо игр.' },
+]
+
+/** Points with their sign, a real minus included: «+43», «−15», «0». */
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0')
+
+/**
+ * What each outcome brings, from the server's preview (the engine scores a
+ * copy of the event, items included). A completion is counted at HLTB hours:
+ * each hour faster adds a point of speed.
+ */
+function outcomePoints(o: Outcome, preview: OutcomePreview | undefined): string | null {
+  if (o === 'tech') return '0 очков'
+  if (!preview) return null
+  if (o === 'dropped') return `${signed(preview.dropped)} ${plural(Math.abs(preview.dropped), 'очко', 'очка', 'очков')}`
+  return `от ${signed(preview.completedAtHltb)} ${plural(Math.abs(preview.completedAtHltb), 'очка', 'очков', 'очков')}`
+}
+
+/** The outcome as a group of cards, each saying what it leads to, so the stakes are seen before the choice. */
+function OutcomeChoice({ value, onChange, preview }: { value: Outcome; onChange: (v: Outcome) => void; preview: OutcomePreview | undefined }) {
+  const id = useId()
+  return (
+    <fieldset role="radiogroup" className="flex flex-col gap-2 text-sm">
+      <legend className="mb-1 font-medium">Итог</legend>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {outcomeChoices.map((o) => {
+          const points = outcomePoints(o.value, preview)
+          return (
+            <label
+              key={o.value}
+              className={cn(
+                'flex cursor-pointer flex-col gap-1 rounded-lg border p-3',
+                value === o.value
+                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40'
+                  : 'border-stone-200 hover:border-stone-400 dark:border-stone-800 dark:hover:border-stone-600',
+              )}
+            >
+              <span className="flex items-center gap-2 font-medium">
+                <input
+                  type="radio"
+                  name={`${id}-outcome`}
+                  checked={value === o.value}
+                  onChange={() => onChange(o.value)}
+                  aria-labelledby={`${id}-${o.value}`}
+                  aria-describedby={`${points ? `${id}-${o.value}-points ` : ''}${id}-${o.value}-leads`}
+                />
+                <span id={`${id}-${o.value}`}>{o.label}</span>
+              </span>
+              {points && (
+                <span id={`${id}-${o.value}-points`} className="font-semibold">
+                  {points}
+                </span>
+              )}
+              <span id={`${id}-${o.value}-leads`} className="text-xs text-muted">
+                {o.leads}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}
+
+/** `totalMs` is «Итого по игре» from the time block: saved plus the running session. */
+function FinishForm({
+  slug,
+  playthroughId,
+  stepId,
+  totalMs,
+  preview,
+  beforeSend,
+}: {
+  slug: string
+  playthroughId: number
+  stepId: number
+  totalMs: number
+  preview: OutcomePreview | undefined
+  beforeSend: () => Promise<void>
+}) {
   const finish = useFinish(slug)
-  const [outcome, setOutcome] = useState<'completed' | 'dropped' | 'tech'>('completed')
-  const [time, setTime] = useState<HMS>(emptyHMS)
-  const [proof, setProof] = useState('')
-  const [review, setReview] = useState('')
+  // Kept in the browser until the judge confirms: a reload or a rejection loses nothing.
+  const [{ outcome, time, proof, review }, setDraft] = useFinishDraft(finishKey(slug, playthroughId))
+  const setOutcome = (outcome: Outcome) => setDraft({ outcome })
+  const setTime = (time: HMS) => setDraft({ time })
   const [sending, setSending] = useState(false)
   const hours = hmsToHours(time)
+  const hoursRequired = outcome === 'completed'
   const reviewRequired = outcome !== 'tech'
+  // What keeps the button off, said under it: a disabled button alone does not say why.
+  const missing = [
+    hours === null ? 'исправьте время прохождения' : hoursRequired && !hours ? 'укажите время прохождения' : null,
+    reviewRequired && !review.trim() ? 'напишите обзор' : null,
+    reviewTooLong(review) ? `сократите обзор до ${MaxReview.toLocaleString('ru-RU')} символов` : null,
+  ].filter((m) => m !== null)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (hours === null) return
+    // A drop cannot be taken back and costs points: asked once more, with the cost.
+    if (outcome === 'dropped') {
+      const cost = preview ? `${signed(preview.dropped)} ${plural(Math.abs(preview.dropped), 'очко', 'очка', 'очков')}` : 'минус половина базы'
+      if (!confirm(`Дроп: ${cost}, дальше колесо дроп-дебаффов. Отправить?`)) return
+    }
     setSending(true)
     try {
       await beforeSend()
@@ -439,49 +555,43 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
   return (
     // Fields stay about 60 characters wide, an easy line to read and fill, not the card's full width.
     <form onSubmit={submit} className="flex max-w-2xl flex-col gap-3 border-t border-stone-200 pt-3 dark:border-stone-800">
-      <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-2">
-          <input type="radio" name="outcome" checked={outcome === 'completed'} onChange={() => setOutcome('completed')} />
-          Прошёл
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" name="outcome" checked={outcome === 'dropped'} onChange={() => setOutcome('dropped')} />
-          Дропнул
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" name="outcome" checked={outcome === 'tech'} onChange={() => setOutcome('tech')} />
-          Тех. дроп
-        </label>
-      </div>
+      <OutcomeChoice value={outcome} onChange={setOutcome} preview={preview} />
       {outcome === 'tech' && (
         <p className="text-xs text-muted">
-          Игра не запускается или сломана. Без штрафа: судья проверит, игра уйдёт из вашего колеса, а эффекты и дебаффы перейдут на новую игру. Крутится
-          только колесо игр. Опишите проблему ссылкой на скриншот или видео.
+          Игра не запускается или сломана. Судья проверит, игра уйдёт из вашего колеса, а эффекты и дебаффы перейдут на новую игру. Опишите проблему
+          ссылкой на скриншот или видео.
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        <DurationInput label={outcome === 'completed' ? 'Время в игре' : 'Время в игре (необязательно)'} value={time} onChange={setTime} />
-        {timerMs >= 1000 && (
-          <Button variant="secondary" onClick={() => setTime(hoursToHMS(timerMs / 3600000))}>
-            Взять из таймера: {formatHours(timerMs / 3600000)}
+        <DurationInput label="Время прохождения" required={hoursRequired} value={time} onChange={setTime} />
+        {totalMs >= 1000 && (
+          <Button variant="secondary" onClick={() => setTime(hoursToHMS(totalMs / 3600000))}>
+            Подставить итого: {formatHours(totalMs / 3600000)}
           </Button>
         )}
       </div>
       {hours === null && <p className="text-xs text-danger">Минуты и секунды — от 0 до 59.</p>}
       <Field label="Доказательство (ссылка)">
-        <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
+        <Input type="url" value={proof} onChange={(e) => setDraft({ proof: e.target.value })} placeholder="https://…" />
       </Field>
       <Field
-        label={reviewRequired ? 'Обзор' : 'Обзор (необязательно)'}
+        label="Обзор"
+        required={reviewRequired}
         hint="Пара слов об игре: что понравилось, что нет. Увидят все."
         after={<ReviewCounter text={review} />}
       >
-        <Textarea value={review} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
+        <Textarea value={review} required={reviewRequired} onChange={(e) => setDraft({ review: e.target.value })} />
       </Field>
       <ErrorText error={finish.error} />
-      <Button type="submit" className="self-start" disabled={sending || finish.isPending || hours === null || (outcome === 'completed' && !hours) || (reviewRequired && !review.trim()) || reviewTooLong(review)}>
-        Отправить судье
+      {/* Saving the timer and sending both count: the click shows it worked at once. */}
+      <Button type="submit" className="self-start" disabled={sending || finish.isPending || missing.length > 0} aria-describedby={missing.length > 0 ? 'finish-missing' : undefined}>
+        {sending || finish.isPending ? 'Отправка…' : 'Отправить судье'}
       </Button>
+      {missing.length > 0 && (
+        <p id="finish-missing" className="text-xs text-muted">
+          Чтобы отправить: {missing.join(' · ')}
+        </p>
+      )}
     </form>
   )
 }

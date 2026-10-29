@@ -14,6 +14,8 @@ const hoursOf = (ms: number) => ms / 3600000
  * Time spent on the game: the running session (kept in this browser) and
  * the saved total (kept on the server, so it adds up across days). `timer`
  * is set for the player; the player and judges may correct the total.
+ * Each number has one name, used in the outcome form too: «Текущая сессия»,
+ * «Сохранено», «Итого по игре» (the two added up).
  */
 export function PlayTime({ slug, playerId, saved, timer }: { slug: string; playerId: number; saved: Saved; timer: LocalTimer | null }) {
   const update = useUpdatePlayTime(slug, playerId)
@@ -24,14 +26,11 @@ export function PlayTime({ slug, playerId, saved, timer }: { slug: string; playe
     // The surface differs from the secondary buttons' grey (stone-200 / stone-800), so they still look like buttons.
     <section
       className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm dark:border-stone-800 dark:bg-stone-950/40"
-      aria-label="Время в игре"
+      aria-labelledby="play-time-title"
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h4 className="font-semibold">Время в игре</h4>
-        <span className="text-stone-600 dark:text-stone-300">
-          всего <span className="font-semibold">{formatHours(hoursOf(total))}</span>
-        </span>
-      </div>
+      <h4 id="play-time-title" className="font-semibold">
+        Время
+      </h4>
 
       {timer && (
         <CurrentSession
@@ -42,6 +41,12 @@ export function PlayTime({ slug, playerId, saved, timer }: { slug: string; playe
       )}
 
       <SavedTotal saved={saved} pending={update.isPending} onSet={(ms) => update.mutate({ setMs: ms })} />
+      {/* Without a running session the total is the saved time: one row is enough. */}
+      {timer && (
+        <p>
+          <span className="text-muted">Итого по игре:</span> <span className="font-semibold">{formatHours(hoursOf(total))}</span>
+        </p>
+      )}
       <ErrorText error={update.error} />
     </section>
   )
@@ -74,6 +79,9 @@ function CurrentSession({ timer, saving, onSave }: { timer: LocalTimer; saving: 
   }
   return (
     <div className="flex flex-col gap-1">
+      <span className="text-muted" aria-hidden>
+        Текущая сессия
+      </span>
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-mono text-2xl tabular-nums" role="timer" aria-label="Текущая сессия">
           {formatClock(timer.ms)}
@@ -106,12 +114,12 @@ function CurrentSession({ timer, saving, onSave }: { timer: LocalTimer; saving: 
               setEditing(hoursToHMS(hoursOf(timer.ms)))
             }}
           >
-            Изменить
+            Изменить сессию
           </button>
         </div>
       </div>
       <p className="text-xs text-muted">
-        Таймер идёт в этом браузере и не сбросится при перезагрузке. «Сохранить сессию» прибавит время к игре — так оно копится между днями.
+        Таймер идёт в этом браузере и не сбросится при перезагрузке. «Сохранить сессию» прибавит сессию к сохранённому — так время копится между днями.
       </p>
     </div>
   )
@@ -145,11 +153,11 @@ function SavedTotal({ saved, pending, onSet }: { saved: Saved; pending: boolean;
   return (
     <div className="flex flex-wrap items-center gap-3">
       <span>
-        Сохранено: <span className="font-medium">{formatHours(hoursOf(saved.totalMs))}</span>
+        <span className="text-muted">Сохранено:</span> <span className="font-medium">{formatHours(hoursOf(saved.totalMs))}</span>
       </span>
       {saved.canEdit && (
         <button type="button" className="text-xs text-link hover:underline" onClick={() => setEditing(hoursToHMS(hoursOf(saved.totalMs)))}>
-          Изменить
+          Изменить сохранённое
         </button>
       )}
     </div>

@@ -121,6 +121,12 @@ func (s *Service) turnView(ss *session, t *game.Turn, entries []game.Entry) api.
 
 	if pt := ss.st.Playthrough(t.Playthrough); pt != nil {
 		pv := s.playthroughView(ss, pt, entries)
+		// What each outcome would bring, for the player's own form only.
+		if ss.viewerID() == pt.Player && ss.ev.Status == "active" {
+			if p, ok := s.eng.PreviewOutcome(ss.st, pt.ID); ok {
+				pv.Preview = &api.OutcomePreview{Dropped: p.Dropped, CompletedAtHLTB: p.CompletedAtHLTB}
+			}
+		}
 		tv.Playthrough = &pv
 		if pt.Outcome != game.OutcomeNone && !pt.Confirmed {
 			tv.Waiting = "Итог ждёт подтверждения судьи"
