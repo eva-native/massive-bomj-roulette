@@ -11,6 +11,7 @@ import { ReviewCounter, ReviewText } from '@/components/Review'
 import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
+import { blankValue, waitingFirst } from '@/lib/itemState'
 import { timerKey, useLocalTimer } from '@/lib/localTimer'
 import { reviewTooLong } from '@/lib/review'
 import { wheelNames, wheelSeconds } from '@/lib/wheel'
@@ -66,7 +67,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
     qc.setQueryData(playKeys.player(event.slug, view.player.id), spinning.result.view)
   }
 
-  const onGame = turn?.items ?? []
+  const onGame = waitingFirst(turn?.items ?? [], editAs, view.canAct)
   const side = onGame.length > 0 || view.pocket.length > 0
   const sharedHint = view.canAct ? sharedPocketHint(view.pocket) : null
 
@@ -178,9 +179,6 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
   )
 }
 
-/** Nothing filled in yet: such items are interchangeable. */
-const blankField = (v: unknown) => v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)
-
 /**
  * The pocket with identical bonuses shown once, «Парашют ×3»: the same item,
  * nothing filled in or noted, the same use state. They are interchangeable,
@@ -189,7 +187,7 @@ const blankField = (v: unknown) => v === null || v === undefined || v === '' || 
 function groupPocket(pocket: ItemView[]): { item: ItemView; count: number }[] {
   const groups = new Map<string, { item: ItemView; count: number }>()
   for (const it of pocket) {
-    const plain = !it.note && !it.status && it.fields.every((f) => blankField(f.value))
+    const plain = !it.note && !it.status && it.fields.every((f) => blankValue(f.value))
     const key = plain ? JSON.stringify([it.defId, it.blocked, it.useLabel, it.canUse, it.useHint]) : `item ${it.id}`
     const group = groups.get(key)
     if (group) group.count++

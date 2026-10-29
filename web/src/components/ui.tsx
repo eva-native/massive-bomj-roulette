@@ -54,11 +54,12 @@ export function Card({ className, children }: { className?: string; children: Re
   )
 }
 
-export function Badge({ children, tone = 'stone' }: { children: ReactNode; tone?: 'stone' | 'amber' | 'green' }) {
+export function Badge({ children, tone = 'stone' }: { children: ReactNode; tone?: 'stone' | 'amber' | 'green' | 'red' }) {
   const tones = {
     stone: 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300',
     amber: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
     green: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
+    red: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
   }
   return <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium wrap-normal', tones[tone])}>{children}</span>
 }

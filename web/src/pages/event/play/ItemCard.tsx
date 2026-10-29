@@ -7,9 +7,11 @@ import { ItemIcon } from '@/components/ItemIcon'
 import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Input, Select } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { needsAction } from '@/lib/itemState'
 import { useEventContext } from '../context'
 
-const kindTone: Record<string, 'amber' | 'green' | 'stone'> = { effect: 'amber', bonus: 'green', drop: 'stone' }
+/** The kind's colour, as on the wheel: effects amber, bonuses green, drop debuffs red. */
+const kindTone: Record<string, 'amber' | 'green' | 'red'> = { effect: 'amber', bonus: 'green', drop: 'red' }
 const kindName: Record<string, string> = { effect: 'эффект', bonus: 'бонус', drop: 'дроп-дебафф' }
 
 /**
@@ -40,15 +42,19 @@ export function ItemCard({
 }) {
   const use = useUseItem(slug)
   const { event } = useEventContext()
+  const waits = needsAction(item, editAs, canUse)
 
   return (
     // A blocked item keeps its text readable (its rule still matters): a dashed border and the badge mark it, not transparency.
+    // One waiting for the player gets the accent border, so it is found without reading every card.
     <article
       className={cn(
         'rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900',
         item.blocked && 'border-dashed border-stone-300 dark:border-stone-700',
+        waits && 'border-amber-500 dark:border-amber-500',
       )}
     >
+      {waits && <p className="mb-1 text-xs font-semibold text-link">Нужно действие</p>}
       <div className="flex flex-wrap items-center gap-2">
         <ItemIcon defId={item.defId} kind={item.kind} icons={event.settings.icons} />
         <h4 className="font-medium">{item.name}</h4>

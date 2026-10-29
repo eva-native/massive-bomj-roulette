@@ -444,6 +444,33 @@ describe('item fields', () => {
   })
 })
 
+describe('items on the game', () => {
+  it('put the one waiting for the player first, marked, and show drop debuffs in red', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const dendy: ItemView = {
+      ...opaaa,
+      id: 57,
+      defId: 'dendy',
+      name: 'А вы помните денди?',
+      needsConfirm: true,
+      fields: [{ name: 'levels', label: 'Пройдено уровней', type: 'int', by: 'player', optional: false, value: null }],
+    }
+    const scary: ItemView = { ...opaaa, id: 58, defId: 'scary', name: 'Очень страшная игра', kind: 'drop', placement: 'attached' }
+    backend.on('GET', /\/players\/2$/, () => view(turn([step(11, 'spin_items')], { items: [opaaa, scary, dendy] })))
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/play')
+
+    await screen.findByRole('heading', { name: 'На этой игре' })
+    const names = Array.from(document.querySelectorAll('article h4')).map((h) => h.textContent)
+    expect(names[0]).toBe('А вы помните денди?')
+    const waiting = screen.getByRole('heading', { name: 'А вы помните денди?' }).closest('article')!
+    expect(within(waiting).getByText('Нужно действие')).toBeInTheDocument()
+    expect(screen.getAllByText('Нужно действие')).toHaveLength(1)
+    expect(screen.getByText('дроп-дебафф')).toHaveClass('bg-red-100')
+  })
+})
+
 describe('blocked items', () => {
   it('stay readable: a badge and a dashed border mark them, not transparency', async () => {
     const backend = setup(alice)
