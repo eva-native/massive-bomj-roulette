@@ -720,7 +720,13 @@ func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[str
 		it.Input = map[string]any{}
 	}
 	for k, v := range clean {
-		it.Input[k] = v
+		// Empty text or an empty list clears the field: a field holding one would
+		// count as filled (PlayerFieldsFilled) and could be sent to the judge empty.
+		if blankInput(v) {
+			delete(it.Input, k)
+		} else {
+			it.Input[k] = v
+		}
 	}
 	if actor == it.Player {
 		fillUnticked(d, it)
@@ -759,6 +765,19 @@ func PlayerFieldsFilled(d *Def, it *Item) bool {
 		}
 	}
 	return true
+}
+
+// blankInput reports a checked field value that holds nothing: empty text (it is
+// trimmed by checkField) or an empty list of players. A bool false or an int 0 is
+// an answer, not a blank.
+func blankInput(v any) bool {
+	switch x := v.(type) {
+	case string:
+		return x == ""
+	case []any:
+		return len(x) == 0
+	}
+	return false
 }
 
 func (r *run) checkField(f *Field, v any, owner PlayerID) (any, error) {

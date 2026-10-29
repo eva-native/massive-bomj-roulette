@@ -118,8 +118,11 @@ export type StreamStatus = 'live' | 'reconnecting' | 'closed'
 
 export type EventStream = {
   status: StreamStatus
-  /** When the page last refetched after the stream came back (Date.now()), 0 if never. */
-  resyncedAt: number
+  /**
+   * How many times the page refetched after the stream came back, counted once
+   * the refetched data is in: a page that sees it change holds fresh data.
+   */
+  resyncs: number
 }
 
 /**
@@ -144,12 +147,12 @@ export const STREAM_REOPEN_NOTICE_AFTER = 5
 export function useEventStream(slug: string): EventStream {
   const qc = useQueryClient()
   // Keyed by slug: another event starts from a clean state, not with this one's notice.
-  const [state, setState] = useState({ slug, status: 'live' as StreamStatus, resyncedAt: 0 })
+  const [state, setState] = useState({ slug, status: 'live' as StreamStatus, resyncs: 0 })
   useEffect(() => {
     if (typeof EventSource === 'undefined') return
-    const update = (patch: { status: StreamStatus; resyncedAt?: number }) =>
-      setState((s) => ({ ...(s.slug === slug ? s : { slug, status: 'live' as StreamStatus, resyncedAt: 0 }), ...patch }))
-    const refresh = () => void qc.invalidateQueries({ queryKey: eventKeys.detail(slug) })
+    let alive = true
+    const update = (patch: { status: StreamStatus }) => setState((s) => ({ ...(s.slug === slug ? s : { slug, status: 'live' as StreamStatus, resyncs: 0 }), ...patch }))
+    const refresh = () => qc.invalidateQueries({ queryKey: eventKeys.detail(slug) })
 
     let es: EventSource
     let missed = false // the stream failed since it was last open: messages may be lost
@@ -163,8 +166,8 @@ export function useEventStream(slug: string): EventStream {
       failedReopens = 0
       if (!missed) return update({ status: 'live' })
       missed = false
-      refresh()
-      update({ status: 'live', resyncedAt: Date.now() })
+      update({ status: 'live' })
+      void refresh().then(() => alive && setState((s) => (s.slug === slug ? { ...s, resyncs: s.resyncs + 1 } : s)))
     }
     const onError = () => {
       missed = true
@@ -178,19 +181,20 @@ export function useEventStream(slug: string): EventStream {
     }
     const connect = () => {
       es = new EventSource(`${base(slug)}/stream`)
-      es.addEventListener('change', refresh)
+      es.addEventListener('change', () => void refresh())
       es.addEventListener('open', onOpen)
       es.addEventListener('error', onError)
     }
 
     connect()
     return () => {
+      alive = false
       clearTimeout(notice)
       clearTimeout(reopen)
       es.close()
     }
   }, [slug, qc])
-  return state.slug === slug ? { status: state.status, resyncedAt: state.resyncedAt } : { status: 'live', resyncedAt: 0 }
+  return state.slug === slug ? { status: state.status, resyncs: state.resyncs } : { status: 'live', resyncs: 0 }
 }
 
 export function useUndoStep(slug: string) {
