@@ -207,6 +207,38 @@ describe('my turn', () => {
     expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x', review: 'Классика' })
   })
 
+  it('keeps the outcome form through a rejection, until the judge confirms', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const pt = { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 }
+    const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], { playthrough: pt })
+    let current = view(playing)
+    backend.on('GET', /\/players\/2$/, () => current)
+    backend.on('POST', /\/steps\/13\/finish$/, () => (current = view({ ...playing, current: null, waiting: 'Итог ждёт подтверждения судьи' })))
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    const { queryClient } = renderApp('/e/lbr/play')
+
+    await user.type(await screen.findByLabelText('Время прохождения: часы'), '25')
+    await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
+    await user.type(screen.getByRole('textbox', { name: 'Обзор' }), 'Классика')
+    await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+    expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
+
+    // The judge rejects: the game is played again, and the form has what was sent.
+    current = view(playing)
+    await act(() => queryClient.invalidateQueries())
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Классика')
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('25')
+    expect(screen.getByLabelText('Доказательство (ссылка)')).toHaveValue('https://imgur.com/x')
+    expect(localStorage.getItem('mbr:finish:lbr:70')).not.toBeNull()
+
+    // The judge confirms: the game goes to the history, and the draft is gone.
+    current = view(turn([step(21, 'spin_items')], { id: 20, number: 2 }), { history: [{ ...pt, outcome: 'completed', hours: 25, confirmed: true }] })
+    await act(() => queryClient.invalidateQueries())
+    await vi.waitFor(() => expect(localStorage.getItem('mbr:finish:lbr:70')).toBeNull())
+  })
+
   it('asks before sending a drop, with what it costs', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)

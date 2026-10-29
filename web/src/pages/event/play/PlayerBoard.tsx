@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
 import { playKeys, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
 import { MaxReview, type EventDetail, type ItemView, type OutcomePreview, type PlayerView, type PlaythroughView, type PlayTime as SavedPlayTime, type SpinResult, type StepView, type TurnView } from '@/api/types.gen'
@@ -10,7 +10,8 @@ import { GameCover } from '@/components/GameCover'
 import { ReviewCounter, ReviewText } from '@/components/Review'
 import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
-import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
+import { dropFinishDraft, finishKey, useFinishDraft, type Outcome } from '@/lib/finishDraft'
+import { formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
 import { kindLabels } from '@/lib/items'
 import { plural } from '@/lib/plural'
 import { blankValue, waitingFirst } from '@/lib/itemState'
@@ -70,7 +71,14 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
   }
 
   // Whose board it is, apart from who may edit: a judge who plays fills their own fields too.
-  const onGame = waitingFirst(turn?.items ?? [], { own: me?.id === view.player.id, canAct: view.canAct })
+  const own = me?.id === view.player.id
+  const onGame = waitingFirst(turn?.items ?? [], { own, canAct: view.canAct })
+
+  // Once the judge confirms a game, the outcome form kept for it in this browser is done with.
+  useEffect(() => {
+    if (!own) return
+    for (const pt of live.history) if (pt.confirmed) dropFinishDraft(finishKey(event.slug, pt.id))
+  }, [own, live.history, event.slug])
   const groups = turn ? stepGroups(turn) : []
   const side = onGame.length > 0 || view.pocket.length > 0
   const sharedHint = view.canAct ? sharedPocketHint(view.pocket) : null
@@ -402,7 +410,7 @@ function OwnPlay({
   return (
     <>
       <PlayTime slug={slug} playerId={playerId} saved={saved} timer={timer} />
-      <FinishForm slug={slug} stepId={stepId} totalMs={saved.totalMs + timer.ms} preview={playthrough.preview} beforeSend={saveTimer} />
+      <FinishForm slug={slug} playthroughId={playthrough.id} stepId={stepId} totalMs={saved.totalMs + timer.ms} preview={playthrough.preview} beforeSend={saveTimer} />
     </>
   )
 }
@@ -426,8 +434,6 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
     </div>
   )
 }
-
-type Outcome = 'completed' | 'dropped' | 'tech'
 
 /** The outcomes with what each leads to, in the words of docs/rules («Подсчёт очков»). */
 const outcomeChoices: { value: Outcome; label: string; leads: string }[] = [
@@ -500,22 +506,24 @@ function OutcomeChoice({ value, onChange, preview }: { value: Outcome; onChange:
 /** `totalMs` is «Итого по игре» from the time block: saved plus the running session. */
 function FinishForm({
   slug,
+  playthroughId,
   stepId,
   totalMs,
   preview,
   beforeSend,
 }: {
   slug: string
+  playthroughId: number
   stepId: number
   totalMs: number
   preview: OutcomePreview | undefined
   beforeSend: () => Promise<void>
 }) {
   const finish = useFinish(slug)
-  const [outcome, setOutcome] = useState<Outcome>('completed')
-  const [time, setTime] = useState<HMS>(emptyHMS)
-  const [proof, setProof] = useState('')
-  const [review, setReview] = useState('')
+  // Kept in the browser until the judge confirms: a reload or a rejection loses nothing.
+  const [{ outcome, time, proof, review }, setDraft] = useFinishDraft(finishKey(slug, playthroughId))
+  const setOutcome = (outcome: Outcome) => setDraft({ outcome })
+  const setTime = (time: HMS) => setDraft({ time })
   const [sending, setSending] = useState(false)
   const hours = hmsToHours(time)
   const hoursRequired = outcome === 'completed'
@@ -564,7 +572,7 @@ function FinishForm({
       </div>
       {hours === null && <p className="text-xs text-danger">Минуты и секунды — от 0 до 59.</p>}
       <Field label="Доказательство (ссылка)">
-        <Input type="url" value={proof} onChange={(e) => setProof(e.target.value)} placeholder="https://…" />
+        <Input type="url" value={proof} onChange={(e) => setDraft({ proof: e.target.value })} placeholder="https://…" />
       </Field>
       <Field
         label="Обзор"
@@ -572,7 +580,7 @@ function FinishForm({
         hint="Пара слов об игре: что понравилось, что нет. Увидят все."
         after={<ReviewCounter text={review} />}
       >
-        <Textarea value={review} required={reviewRequired} onChange={(e) => setReview(e.target.value)} />
+        <Textarea value={review} required={reviewRequired} onChange={(e) => setDraft({ review: e.target.value })} />
       </Field>
       <ErrorText error={finish.error} />
       <Button type="submit" className="self-start" disabled={sending || finish.isPending || missing.length > 0} aria-describedby={missing.length > 0 ? 'finish-missing' : undefined}>
