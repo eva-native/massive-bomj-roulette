@@ -510,6 +510,22 @@ describe('steps of the turn', () => {
     expect(screen.getByText('Уже выпало: ОПАААА')).toBeInTheDocument()
     expect(screen.getByText('Крутка 2 из 3 · колесо эффектов и бонусов')).toBeInTheDocument()
   })
+
+  it('show a started group as started while the turn waits for the judge, not as one ahead', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const steps = [step(11, 'spin_items', { done: true, result: 'ОПАААА' }), step(12, 'spin_items'), step(13, 'spin_items'), step(14, 'play')]
+    // An item waits for the judge in the middle of the spins: no current step.
+    backend.on('GET', /\/players\/2$/, () => view(turn(steps, { current: null, waiting: 'Ждём решения судьи' })))
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/play')
+
+    const [started, ahead] = await screen.findAllByRole('listitem')
+    expect(started).toHaveTextContent('Эффекты и бонусы · 1 из 3')
+    expect(started).not.toHaveClass('border-dashed')
+    expect(ahead).toHaveTextContent('Прохождение')
+    expect(ahead).toHaveClass('border-dashed')
+  })
 })
 
 describe('items on the game', () => {

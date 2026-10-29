@@ -70,6 +70,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
 
   // Whose board it is, apart from who may edit: a judge who plays fills their own fields too.
   const onGame = waitingFirst(turn?.items ?? [], { own: me?.id === view.player.id, canAct: view.canAct })
+  const groups = turn ? stepGroups(turn) : []
   const side = onGame.length > 0 || view.pocket.length > 0
   const sharedHint = view.canAct ? sharedPocketHint(view.pocket) : null
 
@@ -96,7 +97,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
               <h3 className="font-semibold">
                 Ход {turn.number} <span className="font-normal text-muted">· {reasonNames[turn.reason]}</span>
               </h3>
-              <StepList turn={turn} />
+              <StepList turn={turn} groups={groups} />
               {turn.playthrough && <GameHeader playthrough={turn.playthrough} />}
             </Card>
           )}
@@ -128,6 +129,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                     event={event}
                     view={view}
                     turn={turn}
+                    groups={groups}
                     spinPending={spin.isPending}
                     onSpin={(id) => {
                       setSpinning(null)
@@ -239,57 +241,59 @@ function GameHeader({ playthrough }: { playthrough: PlaythroughView }) {
   )
 }
 
-/** Short step names for the turn's chips; stepNames are the full ones, over the wheel. */
-const chipNames: Record<string, string> = {
+/** Where the chips' names are shorter than stepNames (the full ones, over the wheel); the rest are the same. */
+const chipShort: Record<string, string> = {
   spin_items: 'Эффекты и бонусы',
   spin_drop: 'Дроп-дебаффы',
-  choose_player: 'Выбор участника',
-  spin_game: 'Колесо игр',
-  choose_game: 'Выбор игры',
-  spin_movie: 'Киноколесо',
   play: 'Прохождение',
 }
 
-/** Consecutive steps of one kind (and from one item) make one group: three item spins are one chip. */
-function stepGroups(steps: StepView[]): StepView[][] {
+/**
+ * Consecutive steps of one kind (and from one item) make one group: three
+ * item spins are one chip. Each group knows how far it got, apart from where
+ * the current step is: a group can be started with no current step in it (the
+ * turn waits for the judge).
+ */
+type StepGroup = { steps: StepView[]; done: number; current: number }
+
+function stepGroups(turn: TurnView): StepGroup[] {
   const groups: StepView[][] = []
-  for (const st of steps) {
+  for (const st of turn.steps) {
     const last = groups.at(-1)
     if (last && last[0]!.kind === st.kind && last[0]!.addedBy === st.addedBy) last.push(st)
     else groups.push([st])
   }
-  return groups
+  return groups.map((steps) => ({ steps, done: steps.filter((st) => st.done).length, current: steps.findIndex((st) => st.id === turn.current?.id) }))
 }
 
-/** «Крутка 2 из 3» when the current step is one of several spins in a row, null otherwise. */
-function spinNumber(turn: TurnView, step: StepView): string | null {
-  const group = stepGroups(turn.steps).find((g) => g.some((s) => s.id === step.id))
-  if (!group || group.length < 2) return null
-  return `Крутка ${group.findIndex((s) => s.id === step.id) + 1} из ${group.length}`
+/** «2 из 3» for a group of several steps: the current one's place, or how many are done. */
+function groupCount(g: StepGroup): string {
+  const n = g.steps.length
+  if (n < 2) return ''
+  if (g.current >= 0) return ` · ${g.current + 1} из ${n}`
+  return g.done > 0 ? ` · ${g.done} из ${n}` : ` ×${n}`
 }
 
-function StepList({ turn }: { turn: TurnView }) {
+function StepList({ turn, groups }: { turn: TurnView; groups: StepGroup[] }) {
   const results = turn.steps.filter((st) => st.done && st.result).map((st) => st.result)
   return (
     <div className="flex flex-col gap-2">
       <ol className="flex flex-wrap gap-2 text-xs">
-        {stepGroups(turn.steps).map((group) => {
-          const first = group[0]!
-          const at = group.findIndex((st) => st.id === turn.current?.id)
-          const done = group.every((st) => st.done)
-          const count = group.length > 1 ? (at >= 0 ? ` · ${at + 1} из ${group.length}` : done ? ` · ${group.length} из ${group.length}` : ` ×${group.length}`) : ''
+        {groups.map((g) => {
+          const first = g.steps[0]!
+          const state = g.current >= 0 ? 'current' : g.done > 0 ? 'started' : 'ahead'
           return (
             <li
               key={first.id}
               className={cn(
                 'rounded-full border px-2 py-1',
-                done && 'border-stone-300 bg-stone-100 text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300',
-                at >= 0 && 'border-amber-500 bg-amber-50 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200',
-                !done && at < 0 && 'border-dashed border-stone-300 text-muted dark:border-stone-700',
+                state === 'started' && 'border-stone-300 bg-stone-100 text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300',
+                state === 'current' && 'border-amber-500 bg-amber-50 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200',
+                state === 'ahead' && 'border-dashed border-stone-300 text-muted dark:border-stone-700',
               )}
             >
-              {chipNames[first.kind] ?? first.kind}
-              {count}
+              {chipShort[first.kind] ?? stepNames[first.kind] ?? first.kind}
+              {groupCount(g)}
               {/* Who added the step, readable on a phone too (a tooltip is not). */}
               {first.addedBy && <span className="font-normal"> · от «{first.addedBy}»</span>}
             </li>
@@ -305,12 +309,14 @@ function CurrentStep({
   event,
   view,
   turn,
+  groups,
   spinPending,
   onSpin,
 }: {
   event: EventDetail
   view: PlayerView
   turn: TurnView
+  groups: StepGroup[]
   spinPending: boolean
   onSpin: (stepId: number) => void
 }) {
@@ -326,11 +332,12 @@ function CurrentStep({
         {spinPending ? 'Крутим…' : 'Крутить'}
       </Button>
     )
+    // «Крутка 2 из 3 · колесо эффектов и бонусов» when this spin is one of several in a row.
+    const g = groups.find((x) => x.current >= 0)
+    const title = g && g.steps.length > 1 ? `Крутка ${g.current + 1} из ${g.steps.length} · ${stepNames[step.kind]?.toLowerCase()}` : stepNames[step.kind]
     return (
       <div className="flex flex-col items-center gap-3">
-        <p className="font-medium">
-          {spinNumber(turn, step) ? `${spinNumber(turn, step)} · ${stepNames[step.kind]?.toLowerCase()}` : stepNames[step.kind]}
-        </p>
+        <p className="font-medium">{title}</p>
         {/* The button goes right under the wheel, before the list of what is on it. */}
         {turn.wheel ? (
           <Wheel
