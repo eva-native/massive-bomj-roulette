@@ -21,7 +21,11 @@ export function PlayTime({ slug, playerId, saved, timer }: { slug: string; playe
   const total = saved.totalMs + (timer?.ms ?? 0)
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg bg-stone-100 p-3 text-sm dark:bg-stone-800" aria-label="Время в игре">
+    // The surface differs from the secondary buttons' grey (stone-200 / stone-800), so they still look like buttons.
+    <section
+      className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm dark:border-stone-800 dark:bg-stone-950/40"
+      aria-label="Время в игре"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h4 className="font-semibold">Время в игре</h4>
         <span className="text-stone-600 dark:text-stone-300">
@@ -96,7 +100,7 @@ function CurrentSession({ timer, saving, onSave }: { timer: LocalTimer; saving: 
           </Button>
           <button
             type="button"
-            className="text-xs text-amber-700 hover:underline"
+            className="text-xs text-link hover:underline"
             onClick={() => {
               timer.pause()
               setEditing(hoursToHMS(hoursOf(timer.ms)))
@@ -106,7 +110,7 @@ function CurrentSession({ timer, saving, onSave }: { timer: LocalTimer; saving: 
           </button>
         </div>
       </div>
-      <p className="text-xs text-stone-500">
+      <p className="text-xs text-muted">
         Таймер идёт в этом браузере и не сбросится при перезагрузке. «Сохранить сессию» прибавит время к игре — так оно копится между днями.
       </p>
     </div>
@@ -144,7 +148,7 @@ function SavedTotal({ saved, pending, onSet }: { saved: Saved; pending: boolean;
         Сохранено: <span className="font-medium">{formatHours(hoursOf(saved.totalMs))}</span>
       </span>
       {saved.canEdit && (
-        <button type="button" className="text-xs text-amber-700 hover:underline" onClick={() => setEditing(hoursToHMS(hoursOf(saved.totalMs)))}>
+        <button type="button" className="text-xs text-link hover:underline" onClick={() => setEditing(hoursToHMS(hoursOf(saved.totalMs)))}>
           Изменить
         </button>
       )}

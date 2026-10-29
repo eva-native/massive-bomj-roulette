@@ -18,7 +18,7 @@ export function LoginPage() {
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-4">
       <div className="text-center">
         <h1 className="text-3xl font-bold">MBR</h1>
-        <p className="mt-1 text-stone-500">Massive Bomj Roulette</p>
+        <p className="mt-1 text-muted">Massive Bomj Roulette</p>
       </div>
 
       {params.get('error') === 'discord' && (
@@ -60,7 +60,7 @@ function DevLoginForm() {
         maxLength={32}
         className="rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700"
       />
-      {login.error && <p className="text-sm text-red-600">{login.error.message}</p>}
+      {login.error && <p className="text-sm text-danger">{login.error.message}</p>}
       <Button type="submit" variant="secondary" disabled={!name.trim() || login.isPending}>
         Войти как «{name.trim() || '…'}»
       </Button>

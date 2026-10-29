@@ -55,7 +55,7 @@ function EventActions({ event }: { event: EventDetail }) {
           </Button>
         )}
       </div>
-      <p className="text-xs text-stone-500">
+      <p className="text-xs text-muted">
         Экспорт — всё об ивенте одним файлом: участники, пул, ходы, журнал, итоги (без адреса вебхука). После завершения итоги заморожены и не
         меняются, даже если позже изменятся правила.
       </p>
@@ -161,7 +161,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
           Вступление только по ссылке-приглашению
         </label>
         {event.settings.inviteOnly && event.settings.inviteCode && <InviteLink event={event} />}
-        {inviteOnly && !event.settings.inviteOnly && <p className="text-xs text-stone-500">Ссылка появится после сохранения.</p>}
+        {inviteOnly && !event.settings.inviteOnly && <p className="text-xs text-muted">Ссылка появится после сохранения.</p>}
       </Card>
 
       <Card className="flex flex-col gap-3">
@@ -173,7 +173,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
 
       <Card className="flex flex-col gap-3">
         <h2 className="font-semibold">Длительность вращения колеса</h2>
-        <p className="text-xs text-stone-500">В секундах, до 120. Пусто или 0 — как обычно ({String(DEFAULT_WHEEL_SECONDS).replace('.', ',')} с). Действует и на оверлей.</p>
+        <p className="text-xs text-muted">В секундах, до 120. Пусто или 0 — как обычно ({String(DEFAULT_WHEEL_SECONDS).replace('.', ',')} с). Действует и на оверлей.</p>
         <div className="flex flex-wrap gap-3">
           <Field label="Колесо игр и киноколесо" className="max-w-56">
             <Input type="number" min={0} max={120} value={gameWheel || ''} onChange={(e) => setGameWheel(num(e.target.value))} />
@@ -191,7 +191,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         </Field>
         <div className="flex flex-col gap-2 text-sm">
           <p className="font-medium">После пройденной игры, по часам HLTB</p>
-          <p className="text-xs text-stone-500">Работает последняя строка, где «от часов» не больше часов игры. Без строк — 1 крутка.</p>
+          <p className="text-xs text-muted">Работает последняя строка, где «от часов» не больше часов игры. Без строк — 1 крутка.</p>
           {rows.map((r, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <Field label="От часов" className="w-32">
@@ -217,12 +217,12 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
 
       <Card className="flex flex-col gap-4">
         <h2 className="font-semibold">Предметы</h2>
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-muted">
           Вес — относительная частота на колесе. Эффекты и бонусы делят одно колесо. Иконка — ссылка на картинку; без неё показывается эмодзи.
         </p>
         {Object.entries(kindLabels).map(([kind, label]) => (
           <div key={kind} className="flex flex-col gap-1">
-            <h3 className="text-sm font-medium text-stone-500">{label}</h3>
+            <h3 className="text-sm font-medium text-muted">{label}</h3>
             {items
               .filter((it) => it.kind === kind)
               .map((it) => {
@@ -260,7 +260,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                     {it.params.map((p) => (
                       <label key={p.name} className="ml-6 flex flex-wrap items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
                         <span className="flex-1">
-                          {p.label} <span className="text-stone-400">(от {p.min} до {p.max}, обычно {p.default})</span>
+                          {p.label} <span className="text-muted">(от {p.min} до {p.max}, обычно {p.default})</span>
                         </span>
                         <Input
                           type="number"
@@ -283,7 +283,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         <Button type="submit" disabled={!title.trim() || update.isPending}>
           Сохранить
         </Button>
-        {saved && !update.isPending && <span className="text-sm text-green-700">Сохранено</span>}
+        {saved && !update.isPending && <span className="text-sm text-success">Сохранено</span>}
       </div>
       <ErrorText error={update.error} />
     </form>
@@ -299,7 +299,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
 function IconLinkStatus({ url }: { url: string }) {
   const isBroken = useBrokenImages()
   if (!isPictureLink(url) || !isBroken(url)) return null
-  return <p className="ml-6 text-xs text-red-600 dark:text-red-400">Картинка не загрузилась — на доске будет эмодзи.</p>
+  return <p className="ml-6 text-xs text-danger">Картинка не загрузилась — на доске будет эмодзи.</p>
 }
 
 /** The invite link with copy and replace buttons. */

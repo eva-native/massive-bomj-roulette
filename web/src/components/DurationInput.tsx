@@ -14,7 +14,7 @@ export function DurationInput({ label, value, onChange, disabled }: { label: str
         disabled={disabled}
         onChange={(e) => onChange({ ...value, [key]: digits(e.target.value) })}
       />
-      <span className="text-stone-500">{unit}</span>
+      <span className="text-muted">{unit}</span>
     </label>
   )
   return (

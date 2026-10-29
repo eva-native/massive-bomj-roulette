@@ -250,14 +250,14 @@ function Legend({ parts, icons }: { parts: Slice[]; icons?: Record<string, strin
   const sorted = useMemo(() => [...parts].sort((a, b) => a.sector.label.localeCompare(b.sector.label, 'ru')), [parts])
   return (
     <details className="mt-2 text-sm">
-      <summary className="cursor-pointer text-center text-stone-500">Что на колесе ({parts.length})</summary>
+      <summary className="cursor-pointer text-center text-muted">Что на колесе ({parts.length})</summary>
       <ul className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
         {sorted.map((p, i) => (
           <li key={i} className="flex items-center gap-2">
             <span className="size-3 shrink-0 rounded-full border border-stone-900" style={{ background: p.color }} />
             {p.sector.defId && <ItemIcon defId={p.sector.defId} kind={p.sector.kind} icons={icons} size="sm" />}
             <span className="flex-1 truncate">{p.sector.label}</span>
-            <span className="text-xs text-stone-500">{chance(p.end - p.start)}</span>
+            <span className="text-xs text-muted">{chance(p.end - p.start)}</span>
           </li>
         ))}
       </ul>

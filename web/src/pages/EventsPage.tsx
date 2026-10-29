@@ -16,7 +16,7 @@ export function EventsPage() {
 
       {events.isPending && <Loading />}
       <ErrorText error={events.error} />
-      {events.data?.length === 0 && <p className="text-stone-500">Ивентов пока нет.</p>}
+      {events.data?.length === 0 && <p className="text-muted">Ивентов пока нет.</p>}
 
       <ul className="flex flex-col gap-3">
         {events.data?.map((ev) => (
@@ -27,7 +27,7 @@ export function EventsPage() {
             >
               <div>
                 <p className="font-medium">{ev.title}</p>
-                <p className="text-sm text-stone-500">Участников: {ev.participants}</p>
+                <p className="text-sm text-muted">Участников: {ev.participants}</p>
               </div>
               <div className="flex gap-2">
                 {ev.status === 'finished' && <Badge>Завершён</Badge>}

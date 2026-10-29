@@ -23,12 +23,12 @@ export function BoardTab() {
         <h2 className="mb-3 font-semibold">Таблица</h2>
         {board.isPending && <Loading />}
         <ErrorText error={board.error} />
-        {board.data?.length === 0 && <p className="text-sm text-stone-500">Пока никто не играет.</p>}
+        {board.data?.length === 0 && <p className="text-sm text-muted">Пока никто не играет.</p>}
         <ol className="flex flex-col divide-y divide-stone-200 dark:divide-stone-800">
           {board.data?.map((row, i) => (
             <li key={row.player.id}>
-              <Link to={playerPath(event.slug, row.player.id)} className="flex items-center gap-3 py-2 hover:text-amber-700">
-                <span className="w-6 text-right font-semibold text-stone-500">{i + 1}</span>
+              <Link to={playerPath(event.slug, row.player.id)} className="flex items-center gap-3 py-2 hover:text-link">
+                <span className="w-6 text-right font-semibold text-muted">{i + 1}</span>
                 <Avatar name={row.player.name} url={row.player.avatarUrl} size="sm" />
                 <span className="flex-1">
                   <span className="font-medium">{row.player.name}</span>
@@ -37,7 +37,7 @@ export function BoardTab() {
                       🏆
                     </span>
                   )}
-                  <span className="block text-xs text-stone-500">
+                  <span className="block text-xs text-muted">
                     пройдено {row.completed} · дропнуто {row.dropped}
                     {row.playing && ` · играет в «${row.playing}»`}
                   </span>
@@ -53,7 +53,7 @@ export function BoardTab() {
         <h2 className="mb-3 font-semibold">Лента</h2>
         {activity.isPending && <Loading />}
         <ErrorText error={activity.error} />
-        {activity.data?.length === 0 && <p className="text-sm text-stone-500">Пока ничего не произошло.</p>}
+        {activity.data?.length === 0 && <p className="text-sm text-muted">Пока ничего не произошло.</p>}
         {/* The feed scrolls inside its own box, so a long feed does not stretch the page. */}
         <ul
           aria-label="Лента событий"
@@ -62,7 +62,7 @@ export function BoardTab() {
         >
           {activity.data?.map((a) => (
             <li key={a.id}>
-              <span className="text-xs text-stone-500">{timeFormat.format(new Date(a.createdAt))}</span>
+              <span className="text-xs text-muted">{timeFormat.format(new Date(a.createdAt))}</span>
               <p>{a.message}</p>
             </li>
           ))}

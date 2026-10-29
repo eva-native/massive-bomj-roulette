@@ -11,6 +11,37 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* Text colours that read at 4.5:1 or better in both themes. Components use
+   these instead of a raw shade, which is easy to leave without its dark:
+   pair (src/lib/contrast.test.ts guards against that). */
+@utility text-muted {
+  color: var(--color-stone-500);
+  @variant dark {
+    color: var(--color-stone-400);
+  }
+}
+
+@utility text-link {
+  color: var(--color-amber-700);
+  @variant dark {
+    color: var(--color-amber-400);
+  }
+}
+
+@utility text-danger {
+  color: var(--color-red-600);
+  @variant dark {
+    color: var(--color-red-400);
+  }
+}
+
+@utility text-success {
+  color: var(--color-green-700);
+  @variant dark {
+    color: var(--color-green-400);
+  }
+}
+
 /* The OBS overlay draws over the stream. */
 html.overlay,
 html.overlay body {

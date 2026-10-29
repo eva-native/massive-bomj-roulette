@@ -40,7 +40,7 @@ export function EditPlaythrough({ slug, pt }: { slug: string; pt: PlaythroughVie
 
   if (!open) {
     return (
-      <button type="button" className="text-xs text-amber-700 hover:underline" onClick={() => setOpen(true)}>
+      <button type="button" className="text-xs text-link hover:underline" onClick={() => setOpen(true)}>
         Исправить
       </button>
     )

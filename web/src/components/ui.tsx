@@ -41,7 +41,7 @@ export function Field({
         {children}
       </label>
       {after}
-      {hint && <span className="text-xs text-stone-500">{hint}</span>}
+      {hint && <span className="text-xs text-muted">{hint}</span>}
     </div>
   )
 }
@@ -66,7 +66,7 @@ export function Badge({ children, tone = 'stone' }: { children: ReactNode; tone?
 export function ErrorText({ error }: { error: Error | null | undefined }) {
   if (!error) return null
   return (
-    <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+    <p role="alert" className="text-sm text-danger">
       {error.message}
     </p>
   )
@@ -83,5 +83,5 @@ export function Avatar({ name, url, size = 'md' }: { name: string; url?: string;
 }
 
 export function Loading() {
-  return <p className="p-8 text-center text-stone-500">Загрузка…</p>
+  return <p className="p-8 text-center text-muted">Загрузка…</p>
 }
