@@ -68,7 +68,8 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
     qc.setQueryData(playKeys.player(event.slug, view.player.id), spinning.result.view)
   }
 
-  const onGame = waitingFirst(turn?.items ?? [], editAs, view.canAct)
+  // Whose board it is, apart from who may edit: a judge who plays fills their own fields too.
+  const onGame = waitingFirst(turn?.items ?? [], { own: me?.id === view.player.id, canAct: view.canAct })
   const side = onGame.length > 0 || view.pocket.length > 0
   const sharedHint = view.canAct ? sharedPocketHint(view.pocket) : null
 
@@ -152,8 +153,8 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                 {byKind(onGame).map(({ kind, items }, _, groups) => (
                   <div key={kind} className="flex flex-col gap-2">
                     {groups.length > 1 && <h4 className="text-sm font-medium text-muted">{kindLabels[kind] ?? kind}</h4>}
-                    {items.map((it) => (
-                      <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={editAs} canUse={view.canAct} compact />
+                    {items.map(({ item, waits }) => (
+                      <ItemCard key={item.id} slug={event.slug} item={item} members={event.members} editAs={editAs} canUse={view.canAct} compact waits={waits} />
                     ))}
                   </div>
                 ))}
@@ -188,10 +189,10 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
 }
 
 /** The items on the game by kind, in the order effects, drop debuffs, bonuses; each keeps its order (waiting first). */
-function byKind(items: ItemView[]) {
+function byKind<T extends { item: ItemView }>(items: T[]) {
   const order = ['effect', 'drop', 'bonus']
-  const kinds = [...new Set(items.map((it) => it.kind))].sort((a, b) => (order.indexOf(a) + 1 || 9) - (order.indexOf(b) + 1 || 9))
-  return kinds.map((kind) => ({ kind, items: items.filter((it) => it.kind === kind) }))
+  const kinds = [...new Set(items.map((m) => m.item.kind))].sort((a, b) => (order.indexOf(a) + 1 || 9) - (order.indexOf(b) + 1 || 9))
+  return kinds.map((kind) => ({ kind, items: items.filter((m) => m.item.kind === kind) }))
 }
 
 /**

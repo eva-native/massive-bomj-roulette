@@ -437,6 +437,51 @@ describe('item fields', () => {
     expect(within(card).getByRole('textbox')).toHaveValue('Засчитано')
   })
 
+  it('keeps what the judge types while a save is on its way', async () => {
+    const levels: FieldView = { name: 'levels', label: 'Пройдено уровней', type: 'int', by: 'player', optional: false, value: 5 }
+    const dendy: ItemView = { ...opaaa, id: 56, defId: 'dendy', name: 'А вы помните денди?', fields: [levels, verdict] }
+    const backend = setup(judge)
+    await joinAs(backend, judge)
+    let current = dendy
+    backend.on('GET', /\/players\/2$/, () => view(turn([step(11, 'spin_items')], { items: [current] }), { canAct: false }))
+    backend.on('POST', /\/items\/56\/input$/, () => {
+      current = { ...dendy, fields: [levels, { ...verdict, value: 'Засчитано' }] }
+      return undefined
+    })
+    let answer = () => {}
+    const answered = new Promise<void>((r) => (answer = r))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/input')) await answered // a slow save
+      return backend.fetch(input, init)
+    })
+    const user = userEvent.setup()
+    renderApp('/e/lbr/players/2')
+
+    const card = (await screen.findByRole('heading', { name: 'А вы помните денди?' })).closest('article')!
+    await user.type(within(card).getByRole('textbox'), 'Засчитано')
+    await user.click(within(card).getByRole('button', { name: 'Сохранить' }))
+    await user.clear(within(card).getByRole('spinbutton'))
+    await user.type(within(card).getByRole('spinbutton'), '9') // typed while the save runs
+    answer()
+
+    await vi.waitFor(() => expect(backend.requests.some((r) => r.url.endsWith('/items/56/input'))).toBe(true))
+    await act(() => new Promise((r) => setTimeout(r, 50)))
+    expect(within(card).getByRole('spinbutton')).toHaveValue(9)
+    expect(within(card).getByRole('textbox')).toHaveValue('Засчитано') // from the server now
+  })
+
+  it('marks what waits on the board of a judge who plays', async () => {
+    const backend = setup(judge)
+    await joinAs(backend, judge)
+    const dendy: ItemView = { ...opaaa, id: 59, defId: 'dendy', name: 'А вы помните денди?', needsConfirm: true, fields: [{ name: 'levels', label: 'Пройдено уровней', type: 'int', by: 'player', optional: false, value: null }] }
+    backend.on('GET', /\/players\/1$/, () => view(turn([step(11, 'spin_items')], { items: [dendy] }), { player: { id: judge.id, name: judge.name, avatarUrl: '' } }))
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/players/1')
+
+    const card = (await screen.findByRole('heading', { name: 'А вы помните денди?' })).closest('article')!
+    expect(within(card).getByText('Нужно действие')).toBeInTheDocument()
+  })
+
   it("marks the judge's field for the judge, without «(судья)» after its name", async () => {
     const card = await openBoard(judge)
     expect(within(card).getByRole('textbox', { name: /^Решение судьи\W+заполняет судья$/ })).toBeInTheDocument()

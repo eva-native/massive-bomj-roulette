@@ -7,7 +7,7 @@ import { ItemIcon } from '@/components/ItemIcon'
 import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Input, Select } from '@/components/ui'
 import { cn } from '@/lib/cn'
-import { needsAction } from '@/lib/itemState'
+import { blankValue, playerPartFilled } from '@/lib/itemState'
 import { useEventContext } from '../context'
 
 /** The kind's colour, as on the wheel: effects amber, bonuses green, drop debuffs red. */
@@ -27,6 +27,7 @@ export function ItemCard({
   compact = false,
   count = 1,
   hideHint = false,
+  waits = false,
 }: {
   slug: string
   item: ItemView
@@ -39,10 +40,11 @@ export function ItemCard({
   count?: number
   /** The reason it cannot be used is said once for the whole pocket. */
   hideHint?: boolean
+  /** It waits for the board's player (lib/itemState, worked out by the board once per item). */
+  waits?: boolean
 }) {
   const use = useUseItem(slug)
   const { event } = useEventContext()
-  const waits = needsAction(item, editAs, canUse)
 
   return (
     // A blocked item keeps its text readable (its rule still matters): a dashed border and the badge mark it, not transparency.
@@ -103,8 +105,17 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const changed = Object.fromEntries(item.fields.filter(editable).map((f) => [f.name, valueOf(f)]).filter(([, v]) => v !== undefined && v !== null && v !== ''))
-    input.mutate({ itemId: item.id, values: changed }, { onSuccess: () => setEdits({}) })
+    // Every field that holds an answer, and one the viewer emptied (the server clears it then).
+    // An untouched blank is not sent: an unticked box would answer «no» for the player (issue #11).
+    const sent = Object.fromEntries(item.fields.filter((f) => editable(f) && (!blankValue(valueOf(f)) || f.name in edits)).map((f) => [f.name, valueOf(f)]))
+    input.mutate(
+      { itemId: item.id, values: sent },
+      {
+        // Drop only the edits that went out and were not changed while the request ran:
+        // what the viewer kept typing stays.
+        onSuccess: () => setEdits((cur) => Object.fromEntries(Object.entries(cur).filter(([k, v]) => !(k in sent) || sent[k] !== v))),
+      },
+    )
   }
 
   return (
@@ -139,16 +150,17 @@ function FieldValue({ field, members, hideEmpty }: { field: FieldView; members: 
   const v = field.value
   const name = (id: unknown) => members.find((m) => m.userId === id)?.name ?? `#${String(id)}`
   let text: ReactNode = null
-  if (field.type === 'bool' && typeof v === 'boolean') text = v ? 'да' : 'нет'
+  if (blankValue(v)) text = null
+  else if (field.type === 'bool' && typeof v === 'boolean') text = v ? 'да' : 'нет'
   else if (field.type === 'player' && typeof v === 'number') text = name(v)
-  else if (field.type === 'players' && Array.isArray(v) && v.length > 0) text = v.map(name).join(', ')
-  else if (field.type === 'url' && typeof v === 'string' && v) {
+  else if (field.type === 'players' && Array.isArray(v)) text = v.map(name).join(', ')
+  else if (field.type === 'url' && typeof v === 'string') {
     text = (
       <a href={v} target="_blank" rel="noreferrer" className="break-all text-link underline">
         {v}
       </a>
     )
-  } else if ((typeof v === 'string' && v) || typeof v === 'number') text = String(v)
+  } else if (typeof v === 'string' || typeof v === 'number') text = String(v)
   if (text === null && hideEmpty) return null
   return (
     <p>
@@ -244,9 +256,4 @@ function FieldControl({
         </label>
       )
   }
-}
-
-/** Whether the player has filled every required field of theirs: only then the judge has something to check. */
-function playerPartFilled(item: ItemView) {
-  return item.fields.every((f) => f.by !== 'player' || f.optional || (f.value !== null && f.value !== undefined))
 }
