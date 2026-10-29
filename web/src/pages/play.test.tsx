@@ -416,6 +416,27 @@ describe('item fields', () => {
     expect(pocketCard).not.toHaveTextContent('Помощник')
   })
 
+  it('shows what the player fills in meanwhile, keeping what the judge is typing', async () => {
+    const levels: FieldView = { name: 'levels', label: 'Пройдено уровней', type: 'int', by: 'player', optional: false, value: 5 }
+    const dendy: ItemView = { ...opaaa, id: 56, defId: 'dendy', name: 'А вы помните денди?', fields: [levels, verdict] }
+    const backend = setup(judge)
+    await joinAs(backend, judge)
+    let current = dendy
+    backend.on('GET', /\/players\/2$/, () => view(turn([step(11, 'spin_items')], { items: [current] }), { canAct: false }))
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    const { queryClient } = renderApp('/e/lbr/players/2')
+
+    const card = (await screen.findByRole('heading', { name: 'А вы помните денди?' })).closest('article')!
+    expect(within(card).getByRole('spinbutton')).toHaveValue(5)
+    await user.type(within(card).getByRole('textbox'), 'Засчитано')
+
+    current = { ...dendy, fields: [{ ...levels, value: 7 }, verdict] } // the player changed the levels
+    await act(() => queryClient.invalidateQueries())
+    await vi.waitFor(() => expect(within(card).getByRole('spinbutton')).toHaveValue(7))
+    expect(within(card).getByRole('textbox')).toHaveValue('Засчитано')
+  })
+
   it("marks the judge's field for the judge, without «(судья)» after its name", async () => {
     const card = await openBoard(judge)
     expect(within(card).getByRole('textbox', { name: /^Решение судьи\W+заполняет судья$/ })).toBeInTheDocument()

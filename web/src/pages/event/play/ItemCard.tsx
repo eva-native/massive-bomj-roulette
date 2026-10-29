@@ -89,13 +89,16 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
   const input = useItemInput(slug)
   // Once sent to the judge, the owner waits for the decision (issue #2).
   const editable = (f: FieldView) => editAs === 'judge' || (editAs === 'player' && f.by === 'player' && !item.locked)
-  const [values, setValues] = useState<Record<string, unknown>>(() => Object.fromEntries(item.fields.map((f) => [f.name, f.value])))
+  // Only what the viewer changed is kept here; every other field shows the server's value, so
+  // what the judge or the player fills in elsewhere appears without a reload, and typing is not lost.
+  const [edits, setEdits] = useState<Record<string, unknown>>({})
+  const valueOf = (f: FieldView) => (f.name in edits ? edits[f.name] : f.value)
   const anyEditable = item.fields.some(editable)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const changed = Object.fromEntries(item.fields.filter(editable).map((f) => [f.name, values[f.name]]).filter(([, v]) => v !== undefined && v !== null && v !== ''))
-    input.mutate({ itemId: item.id, values: changed })
+    const changed = Object.fromEntries(item.fields.filter(editable).map((f) => [f.name, valueOf(f)]).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+    input.mutate({ itemId: item.id, values: changed }, { onSuccess: () => setEdits({}) })
   }
 
   return (
@@ -104,7 +107,7 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
         // Only a field the viewer may fill is a form control; the rest are read as text, so
         // nobody sees an empty form they cannot fill. In the pocket an empty one is left out.
         editable(f) ? (
-          <FieldControl key={f.name} field={f} value={values[f.name]} members={members} onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))} />
+          <FieldControl key={f.name} field={f} value={valueOf(f)} members={members} onChange={(v) => setEdits((prev) => ({ ...prev, [f.name]: v }))} />
         ) : (
           <FieldValue key={f.name} field={f} members={members} hideEmpty={item.placement === 'pocket'} />
         ),
