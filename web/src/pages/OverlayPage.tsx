@@ -20,7 +20,7 @@ export function OverlayPage() {
   const { slug = '' } = useParams()
   const [params] = useSearchParams()
   const show = (key: string) => params.get(key) !== '0'
-  const { resyncedAt } = useEventStream(slug)
+  const { resyncs } = useEventStream(slug)
   const activity = useActivity(slug)
   const board = useLeaderboard(slug)
   const event = useEvent(slug) // for the wheel's length
@@ -33,10 +33,10 @@ export function OverlayPage() {
   if (baseline === null && activity.data) {
     setBaseline(activity.data[0]?.id ?? 0)
   }
-  // Nor are spins made while the stream was down: once the feed refetched
-  // after the reconnect arrives, they would play minutes late.
-  if (resyncedAt > resyncSeen && activity.data && activity.dataUpdatedAt >= resyncedAt) {
-    setResyncSeen(resyncedAt)
+  // Nor are spins made while the stream was down: they would play minutes late.
+  // The stream counts a resync once the refetched feed is in, so it is the one shown now.
+  if (resyncs !== resyncSeen && activity.data) {
+    setResyncSeen(resyncs)
     setBaseline(activity.data[0]?.id ?? 0)
   }
 

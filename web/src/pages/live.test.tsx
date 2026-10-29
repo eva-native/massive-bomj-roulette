@@ -158,9 +158,6 @@ describe('overlay', () => {
     vi.stubGlobal('EventSource', FakeEventSource)
     renderApp('/e/osen/overlay')
     await waitFor(() => expect(feedFetches()).toBe(1))
-    // Let the first feed land in an earlier millisecond than the reconnect: the overlay tells the
-    // refetched feed by its time (dataUpdatedAt >= resyncedAt), and on a real network they never meet.
-    await act(() => new Promise((r) => setTimeout(r, 5)))
     const es = FakeEventSource.last()
     act(() => es.open())
 
