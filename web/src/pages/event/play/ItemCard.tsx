@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type Ref } from 'react'
+import { useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { useItemInput, useUseItem } from '@/api/play'
 import type { FieldView, ItemView, Member } from '@/api/types.gen'
 import { Button } from '@/components/Button'
@@ -100,16 +100,15 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
 
   return (
     <form onSubmit={submit} className="mt-2 flex flex-col gap-2 text-sm">
-      {item.fields.map((f) => (
-        <FieldControl
-          key={f.name}
-          field={f}
-          value={values[f.name]}
-          members={members}
-          disabled={!editable(f)}
-          onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))}
-        />
-      ))}
+      {item.fields.map((f) =>
+        // Only a field the viewer may fill is a form control; the rest are read as text, so
+        // nobody sees an empty form they cannot fill. In the pocket an empty one is left out.
+        editable(f) ? (
+          <FieldControl key={f.name} field={f} value={values[f.name]} members={members} onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))} />
+        ) : (
+          <FieldValue key={f.name} field={f} members={members} hideEmpty={item.placement === 'pocket'} />
+        ),
+      )}
       {anyEditable && (
         <Button type="submit" variant="secondary" className="self-start" disabled={input.isPending}>
           {editAs === 'player' && item.needsConfirm ? 'Отправить результат' : 'Сохранить'}
@@ -121,26 +120,57 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
   )
 }
 
+/** Who fills a judge's field, said after its name (the name itself may already say «судьи»). */
+function JudgeMark({ field }: { field: FieldView }) {
+  return field.by === 'judge' ? <span className="text-xs text-muted"> · заполняет судья</span> : null
+}
+
+/** A field the viewer cannot fill, as text: «Чью игру судим: KillReal_Blaze». */
+function FieldValue({ field, members, hideEmpty }: { field: FieldView; members: Member[]; hideEmpty: boolean }) {
+  const v = field.value
+  const name = (id: unknown) => members.find((m) => m.userId === id)?.name ?? `#${String(id)}`
+  let text: ReactNode = null
+  if (field.type === 'bool' && typeof v === 'boolean') text = v ? 'да' : 'нет'
+  else if (field.type === 'player' && typeof v === 'number') text = name(v)
+  else if (field.type === 'players' && Array.isArray(v) && v.length > 0) text = v.map(name).join(', ')
+  else if (field.type === 'url' && typeof v === 'string' && v) {
+    text = (
+      <a href={v} target="_blank" rel="noreferrer" className="break-all text-link underline">
+        {v}
+      </a>
+    )
+  } else if ((typeof v === 'string' && v) || typeof v === 'number') text = String(v)
+  if (text === null && hideEmpty) return null
+  return (
+    <p>
+      <span className="text-muted">{field.label}:</span> {text ?? <span className="text-muted">{field.by === 'judge' ? 'заполнит судья' : '—'}</span>}
+    </p>
+  )
+}
+
 function FieldControl({
   field,
   value,
   members,
-  disabled,
   onChange,
 }: {
   field: FieldView
   value: unknown
   members: Member[]
-  disabled: boolean
   onChange: (v: unknown) => void
 }) {
-  const label = `${field.label}${field.by === 'judge' ? ' (судья)' : ''}`
+  const label = (
+    <>
+      {field.label}
+      <JudgeMark field={field} />
+    </>
+  )
   switch (field.type) {
     case 'bool':
       return (
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={value === true} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-          {label}
+          <input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />
+          <span>{label}</span>
         </label>
       )
     case 'int':
@@ -152,7 +182,6 @@ function FieldControl({
             min={0}
             className="w-24"
             value={typeof value === 'number' ? value : ''}
-            disabled={disabled}
             onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
           />
         </label>
@@ -161,7 +190,7 @@ function FieldControl({
       return (
         <label className="flex flex-wrap items-center gap-2">
           <span className="min-w-32">{label}</span>
-          <Select value={typeof value === 'number' ? value : ''} disabled={disabled} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}>
+          <Select className="max-w-xs" value={typeof value === 'number' ? value : ''} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}>
             <option value="">—</option>
             {members
               .filter((m) => m.isParticipant)
@@ -184,7 +213,6 @@ function FieldControl({
               <label key={m.userId} className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  disabled={disabled}
                   checked={list.includes(m.userId)}
                   onChange={(e) => onChange(e.target.checked ? [...list, m.userId] : list.filter((id) => id !== m.userId))}
                 />
@@ -200,8 +228,8 @@ function FieldControl({
           <span className="min-w-32">{label}</span>
           <Input
             type={field.type === 'url' ? 'url' : 'text'}
+            className="max-w-sm"
             value={typeof value === 'string' ? value : ''}
-            disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
           />
         </label>

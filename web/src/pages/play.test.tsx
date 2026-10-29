@@ -270,7 +270,9 @@ describe('my turn', () => {
     await user.click(within(card).getByRole('button', { name: 'Отправить результат' }))
 
     expect(await within(card).findByText(/Отправлено судье/)).toBeInTheDocument()
-    expect(within(card).getByRole('checkbox', { name: 'Победа' })).toBeDisabled()
+    // Sent: the answer is shown as text, not as a box that cannot be ticked.
+    expect(within(card).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(card).toHaveTextContent('Победа: да')
     expect(within(card).queryByRole('button', { name: 'Отправить результат' })).not.toBeInTheDocument()
   })
 
@@ -380,6 +382,44 @@ describe('pocket', () => {
     await openPocket([parachute(61, { canUse: false, useHint: hint }), { ...parachute(62, { canUse: false, useHint: hint }), defId: 'reroll', name: 'Реролл', useLabel: 'Перекрутить' }])
     expect(screen.getByText(`Применить бонусы из кармана ${hint}`)).toBeInTheDocument()
     expect(screen.getAllByText(new RegExp(hint.replace(/[()«»]/g, '.')))).toHaveLength(1) // not repeated under each card
+  })
+})
+
+describe('item fields', () => {
+  const bob: Me = { id: 3, name: 'Боб', avatarUrl: '', isAdmin: false }
+  const whose: FieldView = { name: 'target', label: 'Чью игру судим', type: 'player', by: 'player', optional: false, value: 2 }
+  const verdict: FieldView = { name: 'verdict', label: 'Решение судьи', type: 'text', by: 'judge', optional: false, value: null }
+  const lawsuit: ItemView = { ...opaaa, id: 54, defId: 'lawsuit', name: 'Геймерский Иск', kind: 'bonus', placement: 'used', fields: [whose, verdict] }
+  const helper: FieldView = { name: 'helper', label: 'Помощник', type: 'player', by: 'player', optional: false, value: null }
+  const friend: ItemView = { ...opaaa, id: 55, defId: 'friend_assist', name: 'Френд-ассистед', kind: 'bonus', placement: 'pocket', fields: [helper] }
+
+  async function openBoard(viewer: Me) {
+    const backend = setup(viewer)
+    await joinAs(backend, viewer)
+    backend.on('GET', /\/players\/2$/, () => view(turn([step(11, 'spin_items')], { items: [lawsuit] }), { pocket: [friend], canAct: false }))
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/players/2')
+    return (await screen.findByRole('heading', { name: 'Геймерский Иск' })).closest('article')!
+  }
+
+  it('shows another player what was filled in as text, not as a form', async () => {
+    const card = await openBoard(bob)
+    expect(card).toHaveTextContent('Чью игру судим: Алиса')
+    expect(card).toHaveTextContent('Решение судьи: заполнит судья')
+    expect(within(card).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(card).queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('leaves out an empty field of a bonus in the pocket', async () => {
+    await openBoard(bob)
+    const pocketCard = screen.getByRole('heading', { name: 'Френд-ассистед' }).closest('article')!
+    expect(pocketCard).not.toHaveTextContent('Помощник')
+  })
+
+  it("marks the judge's field for the judge, without «(судья)» after its name", async () => {
+    const card = await openBoard(judge)
+    expect(within(card).getByRole('textbox', { name: /^Решение судьи\W+заполняет судья$/ })).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('(судья)')
   })
 })
 
