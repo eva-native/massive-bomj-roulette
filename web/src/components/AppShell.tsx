@@ -31,7 +31,7 @@ export function AppShell() {
           </div>
         ) : isError ? (
           // useMe turns 401 into null, so an error means the server did not answer, not a logout.
-          <span className="text-sm text-stone-500 dark:text-stone-400">Сервер недоступен</span>
+          <span className="text-sm text-muted">Сервер недоступен</span>
         ) : (
           !isPending && (
             <Link to={`/login?next=${encodeURIComponent(location.pathname)}`} className={buttonClass('primary')}>

@@ -296,7 +296,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
 function IconLinkStatus({ url }: { url: string }) {
   const isBroken = useBrokenImages()
   if (!isPictureLink(url) || !isBroken(url)) return null
-  return <p className="ml-6 text-xs text-red-600 dark:text-red-400">Картинка не загрузилась — на доске будет эмодзи.</p>
+  return <p className="ml-6 text-xs text-danger">Картинка не загрузилась — на доске будет эмодзи.</p>
 }
 
 /** The invite link with copy and replace buttons. */
