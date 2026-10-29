@@ -530,6 +530,11 @@ function FinishForm({
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (hours === null) return
+    // A drop cannot be taken back and costs points: asked once more, with the cost.
+    if (outcome === 'dropped') {
+      const cost = preview ? `${signed(preview.dropped)} ${plural(Math.abs(preview.dropped), 'очко', 'очка', 'очков')}` : 'минус половина базы'
+      if (!confirm(`Дроп: ${cost}, дальше колесо дроп-дебаффов. Отправить?`)) return
+    }
     setSending(true)
     try {
       await beforeSend()

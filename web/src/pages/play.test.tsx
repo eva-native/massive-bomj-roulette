@@ -207,6 +207,32 @@ describe('my turn', () => {
     expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x', review: 'Классика' })
   })
 
+  it('asks before sending a drop, with what it costs', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0, preview: { dropped: -19, completedAtHltb: 44 } },
+    })
+    let current = view(playing)
+    backend.on('GET', /\/players\/2$/, () => current)
+    backend.on('POST', /\/steps\/13\/finish$/, () => (current = view({ ...playing, current: null, waiting: 'Итог ждёт подтверждения судьи' })))
+    const ask = vi.fn(() => false)
+    vi.stubGlobal('confirm', ask)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+
+    await user.click(await screen.findByRole('radio', { name: 'Дропнул' }))
+    await user.type(screen.getByRole('textbox', { name: 'Обзор' }), 'Не моё')
+    await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+    expect(ask).toHaveBeenCalledWith('Дроп: −19 очков, дальше колесо дроп-дебаффов. Отправить?')
+    expect(backend.requests.some((r) => r.url.endsWith('/finish'))).toBe(false) // declined: nothing sent
+
+    ask.mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+    expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
+  })
+
   it('keeps the running session in the browser and adds it to the saved time', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
