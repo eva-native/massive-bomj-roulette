@@ -18,8 +18,7 @@ it('uses text colours that read in both themes', () => {
     text.split('\n').forEach((line, i) => {
       // A line that sets its own dark colour is allowed to set a light one too.
       if (lowContrast.test(line) && !line.includes('dark:text-')) found.push(`${file}:${i + 1}: ${line.trim()}`)
-      if (darkOnHover.test(line) && !line.includes('dark:hover:text-')) found.push(`${file}:${i + 1}: ${line.trim()}`)
-    })
+      if (darkOnHover.test(line) && !line.includes('dark:hover:text-')) found.push(`${file}:${i + 1}: ${line.trim()}`)    })
   }
   expect(found).toEqual([])
 })

@@ -306,6 +306,22 @@ describe('judge queue', () => {
   })
 })
 
+describe('blocked items', () => {
+  it('stay readable: a badge and a dashed border mark them, not transparency', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const blocked = { ...opaaa, blocked: true }
+    backend.on('GET', /\/players\/2$/, () => view(turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game')], { items: [blocked] })))
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/play')
+
+    const card = (await screen.findByRole('heading', { name: 'ОПАААА' })).closest('article')!
+    expect(within(card).getByText('заблокирован')).toBeInTheDocument()
+    expect(card).toHaveClass('border-dashed')
+    expect(card.className).not.toMatch(/opacity-/)
+  })
+})
+
 describe('rule text', () => {
   it('turns markdown links into links and keeps the rest as text', async () => {
     const { render } = await import('@testing-library/react')

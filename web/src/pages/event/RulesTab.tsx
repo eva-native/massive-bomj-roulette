@@ -3,6 +3,7 @@ import type { ItemDef } from '@/api/types.gen'
 import { ItemIcon } from '@/components/ItemIcon'
 import { RuleText } from '@/components/RuleText'
 import { Badge, ErrorText, Loading } from '@/components/ui'
+import { cn } from '@/lib/cn'
 import { kindLabels } from '@/lib/items'
 import { RULES_URL } from '@/lib/links'
 import { useEventContext } from './context'
@@ -42,7 +43,11 @@ export function RulesTab() {
 function ItemCard({ item, icons }: { item: ItemDef; icons: Record<string, string> }) {
   return (
     <article
-      className={`rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900 ${item.enabled ? '' : 'opacity-50'}`}
+      // A disabled item stays readable: a dashed border and the «выключен» badge mark it, not transparency.
+      className={cn(
+        'rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900',
+        !item.enabled && 'border-dashed border-stone-300 dark:border-stone-700',
+      )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 font-medium">

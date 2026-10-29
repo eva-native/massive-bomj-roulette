@@ -32,7 +32,13 @@ export function ItemCard({
   const { event } = useEventContext()
 
   return (
-    <article className={cn('rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900', item.blocked && 'opacity-60')}>
+    // A blocked item keeps its text readable (its rule still matters): a dashed border and the badge mark it, not transparency.
+    <article
+      className={cn(
+        'rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900',
+        item.blocked && 'border-dashed border-stone-300 dark:border-stone-700',
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <ItemIcon defId={item.defId} kind={item.kind} icons={event.settings.icons} />
         <h4 className="font-medium">{item.name}</h4>
