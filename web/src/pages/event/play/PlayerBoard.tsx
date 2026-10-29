@@ -66,6 +66,9 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
     qc.setQueryData(playKeys.player(event.slug, view.player.id), spinning.result.view)
   }
 
+  const onGame = turn?.items ?? []
+  const side = onGame.length > 0 || view.pocket.length > 0
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -75,78 +78,105 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
         </span>
       </div>
 
-      {turn && (
-        <Card className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold">
-              Ход {turn.number} <span className="font-normal text-muted">· {reasonNames[turn.reason]}</span>
-            </h3>
-          </div>
-          <StepList turn={turn} />
-
-          {spinning && !spinning.done ? (
-            <div className="flex flex-col items-center gap-3">
-              <Wheel
-                sectors={spinning.result.wheel.sectors}
-                target={spinning.result.result}
-                seconds={wheelSeconds(event.settings, spinning.result.wheel.kind)}
-                icons={event.settings.icons}
-                name={wheelNames[spinning.result.wheel.kind]}
-                className={BOARD_WHEEL}
-                onStop={finishSpin}
-              />
-              <p className="text-sm text-muted">Крутится…</p>
-            </div>
-          ) : (
-            <>
-              {spinning?.done && (
-                <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  Выпало: {spinning.result.label}
-                </p>
-              )}
-              <CurrentStep
-                event={event}
-                view={view}
-                turn={turn}
-                spinPending={spin.isPending}
-                onSpin={(id) => {
-                  setSpinning(null)
-                  doSpin(id)
-                }}
-              />
-            </>
+      {/*
+        From 1024 px two columns: on the left what the player does now (the turn, the wheel or
+        the game with its timer and form, the history); on the right, sticky, what works on the
+        game and the pocket. Narrower, one column in the order game → items on it → wheel or
+        form → pocket → history. The column wrappers are `display: contents` there, so their
+        blocks take the `order` of a single grid.
+      */}
+      <div className={cn('grid grid-cols-1 gap-4', side && 'lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start')}>
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
+          {turn && (
+            <Card className="order-1 flex flex-col gap-4">
+              <h3 className="font-semibold">
+                Ход {turn.number} <span className="font-normal text-muted">· {reasonNames[turn.reason]}</span>
+              </h3>
+              <StepList turn={turn} />
+              {turn.playthrough && <GameHeader playthrough={turn.playthrough} />}
+            </Card>
           )}
-          <ErrorText error={spin.error} />
-          {isJudge && event.status === 'active' && <UndoStep slug={event.slug} playerId={view.player.id} turn={turn} />}
-        </Card>
-      )}
 
-      {turn && turn.items.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h3 className="font-semibold">На этой игре</h3>
-          {turn.items.map((it) => (
-            <ItemCard
-              key={it.id}
-              slug={event.slug}
-              item={it}
-              members={event.members}
-              editAs={editAs}
-              canUse={view.canAct}
-            />
-          ))}
-        </section>
-      )}
+          {turn && (
+            // Empty (nothing to do, nothing to show) is hidden, so no blank card stays behind.
+            <Card className="order-3 flex flex-col gap-4 empty:hidden">
+              {spinning && !spinning.done ? (
+                <div className="flex flex-col items-center gap-3">
+                  <Wheel
+                    sectors={spinning.result.wheel.sectors}
+                    target={spinning.result.result}
+                    seconds={wheelSeconds(event.settings, spinning.result.wheel.kind)}
+                    icons={event.settings.icons}
+                    name={wheelNames[spinning.result.wheel.kind]}
+                    className={BOARD_WHEEL}
+                    onStop={finishSpin}
+                  />
+                  <p className="text-sm text-muted">Крутится…</p>
+                </div>
+              ) : (
+                <>
+                  {spinning?.done && (
+                    <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                      Выпало: {spinning.result.label}
+                    </p>
+                  )}
+                  <CurrentStep
+                    event={event}
+                    view={view}
+                    turn={turn}
+                    spinPending={spin.isPending}
+                    onSpin={(id) => {
+                      setSpinning(null)
+                      doSpin(id)
+                    }}
+                  />
+                </>
+              )}
+              <ErrorText error={spin.error} />
+              {isJudge && event.status === 'active' && <UndoStep slug={event.slug} playerId={view.player.id} turn={turn} />}
+            </Card>
+          )}
 
-      {view.pocket.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h3 className="font-semibold">Карман</h3>
-          {view.pocket.map((it) => (
-            <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={null} canUse={view.canAct} />
-          ))}
-        </section>
-      )}
+          <History className="order-5" view={view} judgeSlug={isJudge && event.status === 'active' ? event.slug : null} />
+        </div>
 
-      <History view={view} judgeSlug={isJudge && event.status === 'active' ? event.slug : null} />
+        {side && (
+          <div className="contents lg:sticky lg:top-4 lg:flex lg:max-h-[calc(100vh-2rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:overflow-y-auto">
+            {onGame.length > 0 && (
+              <section className="order-2 flex flex-col gap-2">
+                <h3 className="font-semibold">На этой игре</h3>
+                {onGame.map((it) => (
+                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={editAs} canUse={view.canAct} />
+                ))}
+              </section>
+            )}
+
+            {view.pocket.length > 0 && (
+              <section className="order-4 flex flex-col gap-2">
+                <h3 className="font-semibold">Карман</h3>
+                {view.pocket.map((it) => (
+                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={null} canUse={view.canAct} />
+                ))}
+              </section>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** The game of the turn: cover, title, HLTB hours and base points. */
+function GameHeader({ playthrough }: { playthrough: PlaythroughView }) {
+  return (
+    <div className="flex items-center gap-3">
+      <GameCover url={playthrough.coverUrl} title={playthrough.game} size="lg" />
+      <div>
+        <p className="text-lg font-semibold">{playthrough.game}</p>
+        <p className="text-sm text-muted">
+          {playthrough.hltbHours} ч HLTB · база {playthrough.basePoints}
+        </p>
+      </div>
     </div>
   )
 }
@@ -233,24 +263,12 @@ const nothingSaved: SavedPlayTime = { playthrough: 0, totalMs: 0, canEdit: false
 
 function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; view: PlayerView; playthrough: PlaythroughView; stepId: number }) {
   const saved = usePlayTime(event.slug, view.player.id).data ?? nothingSaved
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <GameCover url={playthrough.coverUrl} title={playthrough.game} size="lg" />
-        <div>
-          <p className="text-lg font-semibold">{playthrough.game}</p>
-          <p className="text-sm text-muted">
-            {playthrough.hltbHours} ч HLTB · база {playthrough.basePoints}
-          </p>
-        </div>
-      </div>
-      {view.canAct ? (
-        // A new game remounts the timer, so it starts from zero.
-        <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthroughId={playthrough.id} stepId={stepId} saved={saved} />
-      ) : (
-        <PlayTime slug={event.slug} playerId={view.player.id} saved={saved} timer={null} />
-      )}
-    </div>
+  // The game itself is named above, in the turn's card (GameHeader).
+  return view.canAct ? (
+    // A new game remounts the timer, so it starts from zero.
+    <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthroughId={playthrough.id} stepId={stepId} saved={saved} />
+  ) : (
+    <PlayTime slug={event.slug} playerId={view.player.id} saved={saved} timer={null} />
   )
 }
 
@@ -315,7 +333,8 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 border-t border-stone-200 pt-3 dark:border-stone-800">
+    // Fields stay about 60 characters wide, an easy line to read and fill, not the card's full width.
+    <form onSubmit={submit} className="flex max-w-2xl flex-col gap-3 border-t border-stone-200 pt-3 dark:border-stone-800">
       <div className="flex flex-wrap gap-4 text-sm">
         <label className="flex items-center gap-2">
           <input type="radio" name="outcome" checked={outcome === 'completed'} onChange={() => setOutcome('completed')} />
@@ -365,10 +384,10 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
 
 const outcomeNames: Record<string, string> = { completed: 'пройдена', dropped: 'дропнута', tech: 'тех. дроп' }
 
-function History({ view, judgeSlug }: { view: PlayerView; judgeSlug: string | null }) {
+function History({ view, judgeSlug, className }: { view: PlayerView; judgeSlug: string | null; className?: string }) {
   if (view.history.length === 0 && view.entries.length === 0) return null
   return (
-    <section className="flex flex-col gap-2">
+    <section className={cn('flex flex-col gap-2', className)}>
       <h3 className="font-semibold">История</h3>
       <ul className="flex flex-col gap-1">
         {view.history.map((pt) => (

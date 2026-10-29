@@ -128,6 +128,35 @@ describe('my turn', () => {
     expect(await screen.findByText('Крутится…')).toBeInTheDocument()
   })
 
+  it('lays the board out with the items on the game beside it, before the form on a narrow screen', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
+      items: [opaaa],
+    })
+    backend.on('GET', /\/players\/2$/, () => view(playing, { pocket: [{ ...opaaa, id: 51, name: 'Парашют', kind: 'bonus', placement: 'pocket' }] }))
+    vi.stubGlobal('fetch', backend.fetch)
+    const { router } = renderApp('/e/lbr/play')
+
+    const game = await screen.findByText('GTA San Andreas')
+    // The nearest ancestor with an order-N class (not "border-…", which contains "order-").
+    const block = (el: Element) => {
+      let at: Element | null = el
+      while (at && ![...at.classList].some((c) => /^order-\d$/.test(c))) at = at.parentElement
+      return at!
+    }
+    // One column below 1024 px: game, the items on it, the form, the pocket.
+    expect(block(game)).toHaveClass('order-1')
+    expect(block(screen.getByRole('heading', { name: 'На этой игре' }))).toHaveClass('order-2')
+    expect(block(screen.getByRole('button', { name: 'Отправить судье' }))).toHaveClass('order-3')
+    expect(block(screen.getByRole('heading', { name: 'Карман' }))).toHaveClass('order-4')
+    // The board takes a wider page; other tabs keep theirs.
+    expect(document.querySelector('.max-w-6xl')).not.toBeNull()
+    await act(() => router.navigate('/e/lbr/games'))
+    expect(document.querySelector('.max-w-6xl')).toBeNull()
+  })
+
   it('sends the outcome of the game to the judge', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
