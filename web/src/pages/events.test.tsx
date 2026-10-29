@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EventDetail, ItemDef, Me } from '@/api/types.gen'
@@ -148,6 +148,83 @@ describe('events', () => {
         spinsByHours: [{ minHours: 0, spins: 1 }],
       },
     })
+  })
+})
+
+describe('item pictures in the settings', () => {
+  const gone = 'https://example.com/gone.png'
+  const warning = () => screen.queryByText(/Картинка не загрузилась/)
+  const pictures = (src: string) => Array.from(document.querySelectorAll('img')).filter((img) => img.getAttribute('src') === src)
+
+  async function openSettings(savedIcons: Record<string, string> = {}) {
+    const backend = fakeBackend({ me: admin, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    const detail = (await (await backend.fetch('/api/events/lbr')).json()) as EventDetail
+    await backend.fetch('/api/events/lbr', { method: 'PATCH', body: JSON.stringify({ settings: { ...detail.settings, icons: savedIcons } }) })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/settings')
+    const field = await screen.findByLabelText('Иконка «ОПАААА»')
+    return { user, field }
+  }
+
+  it('loads nothing while the judge types, and checks the link once they leave the field', async () => {
+    const { user, field } = await openSettings()
+    await user.type(field, gone)
+    expect(document.querySelector('img')).toBeNull() // no request for "h", "ht", "htt"…
+
+    await user.tab()
+    const [preview] = pictures(gone)
+    expect(preview).toBeDefined()
+    expect(warning()).not.toBeInTheDocument() // not known yet
+    fireEvent.error(preview!)
+    expect(warning()).toBeInTheDocument()
+  })
+
+  it('checks a link saved with Enter, though the focus stays in the field', async () => {
+    const { user, field } = await openSettings()
+    await user.type(field, `${gone}{Enter}`)
+    expect(field).toHaveFocus()
+    const [preview] = pictures(gone)
+    expect(preview).toBeDefined()
+    fireEvent.error(preview!)
+    expect(warning()).toBeInTheDocument()
+  })
+
+  it('gives no warning for a link that loads', async () => {
+    const { user, field } = await openSettings()
+    await user.type(field, 'https://example.com/fine.png')
+    await user.tab()
+    fireEvent.load(pictures('https://example.com/fine.png')[0]!)
+    expect(warning()).not.toBeInTheDocument()
+  })
+
+  it('drops the warning while the link is edited, until the new one is checked', async () => {
+    const { user, field } = await openSettings({ opaaa: gone })
+    fireEvent.error(pictures(gone)[0]!)
+    expect(warning()).toBeInTheDocument()
+
+    await user.type(field, '2')
+    expect(warning()).not.toBeInTheDocument()
+    await user.tab()
+    expect(warning()).not.toBeInTheDocument() // gone.png2 is not known to be broken
+  })
+
+  it('tries a link again when the judge sets it again (the host may be back)', async () => {
+    const { user, field } = await openSettings({ opaaa: gone })
+    fireEvent.error(pictures(gone)[0]!)
+    expect(pictures(gone)).toHaveLength(0)
+
+    await user.clear(field)
+    await user.type(field, gone)
+    await user.tab()
+    expect(pictures(gone)).toHaveLength(1)
+    expect(warning()).not.toBeInTheDocument()
+  })
+
+  it('asks for a saved picture once, not twice', async () => {
+    await openSettings({ opaaa: 'https://example.com/opaaa.png' })
+    expect(pictures('https://example.com/opaaa.png')).toHaveLength(1)
   })
 })
 

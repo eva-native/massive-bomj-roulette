@@ -7,6 +7,7 @@ import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { ItemIcon } from '@/components/ItemIcon'
 import { Card, ErrorText, Field, Input, Loading } from '@/components/ui'
+import { forgetBroken, isPictureLink, useBrokenImages } from '@/lib/brokenImages'
 import { kindLabels } from '@/lib/items'
 import { DEFAULT_WHEEL_SECONDS } from '@/lib/wheel'
 
@@ -77,6 +78,16 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [maxGames, setMaxGames] = useState(event.settings.maxGamesPerMember)
   const [inviteOnly, setInviteOnly] = useState(event.settings.inviteOnly)
   const [icons, setIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
+  // What the preview and its warning show: a link is taken once the judge leaves its field or
+  // saves the form, so a half-typed link is never loaded or reported as broken.
+  const [shownIcons, setShownIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
+  const showIcons = (ids: string[]) => {
+    const taken = Object.fromEntries(ids.map((id) => [id, (icons[id] ?? '').trim()]))
+    for (const link of Object.values(taken)) forgetBroken(link) // set again: try it again (the host may be back)
+    setShownIcons((m) => ({ ...m, ...taken }))
+  }
+  /** Links typed since they were last shown: saving with Enter keeps the focus in the field, so no blur takes them. */
+  const unshownIcons = () => Object.keys(icons).filter((id) => (icons[id] ?? '').trim() !== (shownIcons[id] ?? ''))
   const [itemRows, setItemRows] = useState<Record<string, ItemRow>>(() =>
     Object.fromEntries(
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
@@ -92,6 +103,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const submit = (e: FormEvent) => {
     e.preventDefault()
     setSaved(false)
+    showIcons(unshownIcons())
     const weights: Record<string, number> = {}
     const disabled: string[] = []
     const params: Record<string, Record<string, number>> = {}
@@ -221,7 +233,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <label className="flex min-w-48 flex-1 items-center gap-2">
                         <input type="checkbox" checked={row.enabled} onChange={(e) => setItem(it.id, { enabled: e.target.checked })} />
-                        <ItemIcon defId={it.id} kind={it.kind} icons={icons} size="sm" />
+                        <ItemIcon defId={it.id} kind={it.kind} icons={shownIcons} size="sm" />
                         {it.name}
                       </label>
                       <Input
@@ -231,6 +243,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                         aria-label={`Иконка «${it.name}»`}
                         value={icons[it.id] ?? ''}
                         onChange={(e) => setIcons((m) => ({ ...m, [it.id]: e.target.value }))}
+                        onBlur={() => showIcons([it.id])}
                       />
                       <Input
                         type="number"
@@ -242,6 +255,8 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                         onChange={(e) => setItem(it.id, { weight: num(e.target.value) })}
                       />
                     </div>
+                    {/* Hidden while the judge edits the link: the edit is checked when they leave the field. */}
+                    {(icons[it.id] ?? '').trim() === (shownIcons[it.id] ?? '') && <IconLinkStatus url={shownIcons[it.id] ?? ''} />}
                     {it.params.map((p) => (
                       <label key={p.name} className="ml-6 flex flex-wrap items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
                         <span className="flex-1">
@@ -273,6 +288,18 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
       <ErrorText error={update.error} />
     </form>
   )
+}
+
+/**
+ * Warns when an item picture link does not load (on the board the item shows
+ * its emoji then). It reads what the row's preview found out (lib/brokenImages),
+ * so the picture is asked for once; the preview tries a link only after the
+ * judge leaves the field, never a half-typed one.
+ */
+function IconLinkStatus({ url }: { url: string }) {
+  const isBroken = useBrokenImages()
+  if (!isPictureLink(url) || !isBroken(url)) return null
+  return <p className="ml-6 text-xs text-red-600 dark:text-red-400">Картинка не загрузилась — на доске будет эмодзи.</p>
 }
 
 /** The invite link with copy and replace buttons. */

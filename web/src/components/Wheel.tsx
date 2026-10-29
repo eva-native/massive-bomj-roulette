@@ -1,5 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Sector } from '@/api/types.gen'
+import { forgetBroken, isPictureLink, markBroken, useBrokenImages } from '@/lib/brokenImages'
 import { cn } from '@/lib/cn'
 import { itemEmoji, kindEmoji } from '@/lib/items'
 import { plural } from '@/lib/plural'
@@ -137,10 +138,11 @@ export function Wheel({
 /**
  * What each sector shows (see labelPlan): a label running from the rim
  * towards the hub, the item's icon near the rim, or nothing. An icon picture
- * that fails to load falls back to the item's emoji.
+ * that fails to load falls back to the item's emoji, as everywhere on the
+ * page (lib/brokenImages).
  */
 function SectorMarks({ parts, plan, icons }: { parts: Slice[]; plan: LabelPlan; icons?: Record<string, string> }) {
-  const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set())
+  const isBroken = useBrokenImages()
   return parts.map((p, i) => {
     const mark = plan.marks[i]
     if (!mark) return null
@@ -168,11 +170,11 @@ function SectorMarks({ parts, plan, icons }: { parts: Slice[]; plan: LabelPlan; 
     }
     const [x, y] = point(mid, ICON_RADIUS)
     const url = icons?.[p.sector.defId]
-    if (url && !broken.has(url)) {
+    if (isPictureLink(url) && !isBroken(url)) {
       const s = plan.icon
       return (
         <image
-          key={i}
+          key={`${i}:${url}`}
           href={url}
           x={x - s / 2}
           y={y - s / 2}
@@ -180,7 +182,8 @@ function SectorMarks({ parts, plan, icons }: { parts: Slice[]; plan: LabelPlan; 
           height={s}
           preserveAspectRatio="xMidYMid slice"
           // No Referer is sent, as for ItemIcon's <img>: the page's policy in index.html covers SVG images.
-          onError={() => setBroken((b) => new Set(b).add(url))}
+          onError={() => markBroken(url)}
+          onLoad={() => forgetBroken(url)}
         />
       )
     }
