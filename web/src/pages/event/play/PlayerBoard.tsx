@@ -11,6 +11,7 @@ import { ReviewCounter, ReviewText } from '@/components/Review'
 import { Badge, Card, ErrorText, Field, Input, Textarea } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
+import { kindLabels } from '@/lib/items'
 import { blankValue, waitingFirst } from '@/lib/itemState'
 import { timerKey, useLocalTimer } from '@/lib/localTimer'
 import { reviewTooLong } from '@/lib/review'
@@ -146,9 +147,15 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
           <div className="contents lg:sticky lg:top-4 lg:flex lg:max-h-[calc(100vh-2rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:overflow-y-auto">
             {onGame.length > 0 && (
               <section className="order-2 flex flex-col gap-2">
-                <h3 className="font-semibold">На этой игре</h3>
-                {onGame.map((it) => (
-                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={editAs} canUse={view.canAct} compact />
+                {/* The title says what is true now: before the game is chosen, there is no game to work on. */}
+                <h3 className="font-semibold">{turn?.playthrough ? `Действует на «${turn.playthrough.game}»` : 'Выпало в этом ходу'}</h3>
+                {byKind(onGame).map(({ kind, items }, _, groups) => (
+                  <div key={kind} className="flex flex-col gap-2">
+                    {groups.length > 1 && <h4 className="text-sm font-medium text-muted">{kindLabels[kind] ?? kind}</h4>}
+                    {items.map((it) => (
+                      <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={editAs} canUse={view.canAct} compact />
+                    ))}
+                  </div>
                 ))}
               </section>
             )}
@@ -156,6 +163,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
             {view.pocket.length > 0 && (
               <section className="order-4 flex flex-col gap-2">
                 <h3 className="font-semibold">Карман</h3>
+                <p className="-mt-1 text-xs text-muted">Бонусы на потом: применяй их к игре или крутке, когда понадобятся.</p>
                 {sharedHint && <p className="text-xs text-muted">Применить бонусы из кармана {sharedHint}</p>}
                 {groupPocket(view.pocket).map(({ item, count }) => (
                   <ItemCard
@@ -177,6 +185,13 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
       </div>
     </div>
   )
+}
+
+/** The items on the game by kind, in the order effects, drop debuffs, bonuses; each keeps its order (waiting first). */
+function byKind(items: ItemView[]) {
+  const order = ['effect', 'drop', 'bonus']
+  const kinds = [...new Set(items.map((it) => it.kind))].sort((a, b) => (order.indexOf(a) + 1 || 9) - (order.indexOf(b) + 1 || 9))
+  return kinds.map((kind) => ({ kind, items: items.filter((it) => it.kind === kind) }))
 }
 
 /**

@@ -148,7 +148,7 @@ describe('my turn', () => {
     }
     // One column below 1024 px: game, the items on it, the form, the pocket.
     expect(block(game)).toHaveClass('order-1')
-    expect(block(screen.getByRole('heading', { name: 'На этой игре' }))).toHaveClass('order-2')
+    expect(block(screen.getByRole('heading', { name: 'Действует на «GTA San Andreas»' }))).toHaveClass('order-2')
     expect(block(screen.getByRole('button', { name: 'Отправить судье' }))).toHaveClass('order-3')
     expect(block(screen.getByRole('heading', { name: 'Карман' }))).toHaveClass('order-4')
     // The board takes a wider page; other tabs keep theirs.
@@ -461,9 +461,16 @@ describe('items on the game', () => {
     vi.stubGlobal('fetch', backend.fetch)
     renderApp('/e/lbr/play')
 
-    await screen.findByRole('heading', { name: 'На этой игре' })
-    const names = Array.from(document.querySelectorAll('article h4')).map((h) => h.textContent)
-    expect(names[0]).toBe('А вы помните денди?')
+    // No game chosen yet: the section says what was spun, not what works on a game.
+    await screen.findByRole('heading', { name: 'Выпало в этом ходу' })
+    // By kind (effects, then drop debuffs), the waiting one first among the effects.
+    expect(screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual([
+      'Эффекты',
+      'А вы помните денди?',
+      'ОПАААА',
+      'Дроп-дебаффы',
+      'Очень страшная игра',
+    ])
     const waiting = screen.getByRole('heading', { name: 'А вы помните денди?' }).closest('article')!
     expect(within(waiting).getByText('Нужно действие')).toBeInTheDocument()
     expect(screen.getAllByText('Нужно действие')).toHaveLength(1)
