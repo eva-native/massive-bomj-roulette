@@ -13,7 +13,7 @@ import { cn } from '@/lib/cn'
 import { emptyHMS, formatHours, hmsToHours, hoursToHMS, type HMS } from '@/lib/hours'
 import { timerKey, useLocalTimer } from '@/lib/localTimer'
 import { reviewTooLong } from '@/lib/review'
-import { wheelSeconds } from '@/lib/wheel'
+import { wheelNames, wheelSeconds } from '@/lib/wheel'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
 import { PlayTime } from './PlayTime'
@@ -27,6 +27,13 @@ const stepNames: Record<string, string> = {
   spin_movie: 'Киноколесо',
   play: 'Игра',
 }
+
+/**
+ * The wheel on the board: up to 560 px, the full card width on a phone. The
+ * wheel is the centre of a turn, and at this size alphapve's 37 items fit as
+ * text. The OBS overlay keeps its own, smaller wheel.
+ */
+const BOARD_WHEEL = 'max-w-[560px]'
 
 const reasonNames: Record<string, string> = {
   start: 'начало ивента',
@@ -84,6 +91,8 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                 target={spinning.result.result}
                 seconds={wheelSeconds(event.settings, spinning.result.wheel.kind)}
                 icons={event.settings.icons}
+                name={wheelNames[spinning.result.wheel.kind]}
+                className={BOARD_WHEEL}
                 onStop={finishSpin}
               />
               <p className="text-sm text-stone-500">Крутится…</p>
@@ -187,14 +196,26 @@ function CurrentStep({
   if (!step) return null
 
   if (step.kind.startsWith('spin_')) {
+    const spinButton = view.canAct && (
+      <Button onClick={() => onSpin(step.id)} disabled={spinPending}>
+        {spinPending ? 'Крутим…' : 'Крутить'}
+      </Button>
+    )
     return (
       <div className="flex flex-col items-center gap-3">
         <p className="font-medium">{stepNames[step.kind]}</p>
-        {turn.wheel && <Wheel sectors={turn.wheel.sectors} target={null} icons={event.settings.icons} />}
-        {view.canAct && (
-          <Button onClick={() => onSpin(step.id)} disabled={spinPending}>
-            Крутить
-          </Button>
+        {/* The button goes right under the wheel, before the list of what is on it. */}
+        {turn.wheel ? (
+          <Wheel
+            sectors={turn.wheel.sectors}
+            target={null}
+            icons={event.settings.icons}
+            action={spinButton || undefined}
+            name={wheelNames[turn.wheel.kind]}
+            className={BOARD_WHEEL}
+          />
+        ) : (
+          spinButton
         )}
       </div>
     )
