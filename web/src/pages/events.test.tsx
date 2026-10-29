@@ -181,6 +181,16 @@ describe('item pictures in the settings', () => {
     expect(warning()).toBeInTheDocument()
   })
 
+  it('checks a link saved with Enter, though the focus stays in the field', async () => {
+    const { user, field } = await openSettings()
+    await user.type(field, `${gone}{Enter}`)
+    expect(field).toHaveFocus()
+    const [preview] = pictures(gone)
+    expect(preview).toBeDefined()
+    fireEvent.error(preview!)
+    expect(warning()).toBeInTheDocument()
+  })
+
   it('gives no warning for a link that loads', async () => {
     const { user, field } = await openSettings()
     await user.type(field, 'https://example.com/fine.png')

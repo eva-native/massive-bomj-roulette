@@ -78,14 +78,16 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [maxGames, setMaxGames] = useState(event.settings.maxGamesPerMember)
   const [inviteOnly, setInviteOnly] = useState(event.settings.inviteOnly)
   const [icons, setIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
-  // What the preview and its warning show: a link is taken once the judge leaves its field,
-  // so a half-typed link is never loaded or reported as broken.
+  // What the preview and its warning show: a link is taken once the judge leaves its field or
+  // saves the form, so a half-typed link is never loaded or reported as broken.
   const [shownIcons, setShownIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
-  const showIcon = (id: string) => {
-    const link = (icons[id] ?? '').trim()
-    forgetBroken(link) // set again: try it again (the host may be back)
-    setShownIcons((m) => ({ ...m, [id]: link }))
+  const showIcons = (ids: string[]) => {
+    const taken = Object.fromEntries(ids.map((id) => [id, (icons[id] ?? '').trim()]))
+    for (const link of Object.values(taken)) forgetBroken(link) // set again: try it again (the host may be back)
+    setShownIcons((m) => ({ ...m, ...taken }))
   }
+  /** Links typed since they were last shown: saving with Enter keeps the focus in the field, so no blur takes them. */
+  const unshownIcons = () => Object.keys(icons).filter((id) => (icons[id] ?? '').trim() !== (shownIcons[id] ?? ''))
   const [itemRows, setItemRows] = useState<Record<string, ItemRow>>(() =>
     Object.fromEntries(
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
@@ -101,6 +103,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const submit = (e: FormEvent) => {
     e.preventDefault()
     setSaved(false)
+    showIcons(unshownIcons())
     const weights: Record<string, number> = {}
     const disabled: string[] = []
     const params: Record<string, Record<string, number>> = {}
@@ -240,7 +243,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                         aria-label={`Иконка «${it.name}»`}
                         value={icons[it.id] ?? ''}
                         onChange={(e) => setIcons((m) => ({ ...m, [it.id]: e.target.value }))}
-                        onBlur={() => showIcon(it.id)}
+                        onBlur={() => showIcons([it.id])}
                       />
                       <Input
                         type="number"
