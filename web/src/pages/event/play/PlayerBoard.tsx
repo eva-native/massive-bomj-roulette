@@ -389,7 +389,7 @@ function OwnPlay({ slug, playerId, playthroughId, stepId, saved }: { slug: strin
   return (
     <>
       <PlayTime slug={slug} playerId={playerId} saved={saved} timer={timer} />
-      <FinishForm slug={slug} stepId={stepId} timerMs={saved.totalMs + timer.ms} beforeSend={saveTimer} />
+      <FinishForm slug={slug} stepId={stepId} totalMs={saved.totalMs + timer.ms} beforeSend={saveTimer} />
     </>
   )
 }
@@ -414,7 +414,8 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
   )
 }
 
-function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepId: number; timerMs: number; beforeSend: () => Promise<void> }) {
+/** `totalMs` is «Итого по игре» from the time block: saved plus the running session. */
+function FinishForm({ slug, stepId, totalMs, beforeSend }: { slug: string; stepId: number; totalMs: number; beforeSend: () => Promise<void> }) {
   const finish = useFinish(slug)
   const [outcome, setOutcome] = useState<'completed' | 'dropped' | 'tech'>('completed')
   const [time, setTime] = useState<HMS>(emptyHMS)
@@ -460,10 +461,10 @@ function FinishForm({ slug, stepId, timerMs, beforeSend }: { slug: string; stepI
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        <DurationInput label={outcome === 'completed' ? 'Время в игре' : 'Время в игре (необязательно)'} value={time} onChange={setTime} />
-        {timerMs >= 1000 && (
-          <Button variant="secondary" onClick={() => setTime(hoursToHMS(timerMs / 3600000))}>
-            Взять из таймера: {formatHours(timerMs / 3600000)}
+        <DurationInput label={outcome === 'completed' ? 'Время прохождения' : 'Время прохождения (необязательно)'} value={time} onChange={setTime} />
+        {totalMs >= 1000 && (
+          <Button variant="secondary" onClick={() => setTime(hoursToHMS(totalMs / 3600000))}>
+            Подставить итого: {formatHours(totalMs / 3600000)}
           </Button>
         )}
       </div>

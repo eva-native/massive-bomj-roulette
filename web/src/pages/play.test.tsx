@@ -177,9 +177,9 @@ describe('my turn', () => {
     const send = screen.getByRole('button', { name: 'Отправить судье' })
     expect(send).toBeDisabled() // hours are required for a completed game
     // Only digits can be typed in (issue #3).
-    await user.type(screen.getByLabelText('Время в игре: часы'), 'abc25ч')
-    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('25')
-    await user.type(screen.getByLabelText('Время в игре: минуты'), '30')
+    await user.type(screen.getByLabelText('Время прохождения: часы'), 'abc25ч')
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('25')
+    await user.type(screen.getByLabelText('Время прохождения: минуты'), '30')
     await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
     expect(send).toBeDisabled() // a review is required for a completed or dropped game
     await user.click(screen.getByLabelText('Тех. дроп'))
@@ -214,13 +214,16 @@ describe('my turn', () => {
     renderApp('/e/lbr/play')
 
     expect(await screen.findByRole('timer')).toHaveTextContent('1:30:05')
-    const panel = screen.getByRole('region', { name: 'Время в игре' })
-    expect(await within(panel).findByText('2 ч 30 мин 5 с')).toBeInTheDocument() // saved hour + current session
+    const panel = screen.getByRole('region', { name: 'Время' })
+    // One name per number: the session over the clock, the saved time, and the two added up.
+    expect(within(panel).getByText('Текущая сессия')).toBeInTheDocument()
+    expect(await within(panel).findByText('Итого по игре:')).toBeInTheDocument()
+    expect(within(panel).getByText('Итого по игре:').parentElement).toHaveTextContent('2 ч 30 мин 5 с') // saved hour + current session
 
-    await user.click(screen.getByRole('button', { name: 'Взять из таймера: 2 ч 30 мин 5 с' }))
-    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('2')
-    expect(screen.getByLabelText('Время в игре: минуты')).toHaveValue('30')
-    expect(screen.getByLabelText('Время в игре: секунды')).toHaveValue('5')
+    await user.click(screen.getByRole('button', { name: 'Подставить итого: 2 ч 30 мин 5 с' }))
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('2')
+    expect(screen.getByLabelText('Время прохождения: минуты')).toHaveValue('30')
+    expect(screen.getByLabelText('Время прохождения: секунды')).toHaveValue('5')
 
     await user.click(screen.getByRole('button', { name: 'Сохранить сессию' }))
     expect(await screen.findByRole('timer')).toHaveTextContent('0:00:00')
@@ -229,7 +232,7 @@ describe('my turn', () => {
     expect(within(panel).getByText('Сохранено:').parentElement).toHaveTextContent('2 ч 30 мин 5 с')
 
     // The saved total can be corrected.
-    await user.click(within(panel).getAllByRole('button', { name: 'Изменить' })[1]!)
+    await user.click(within(panel).getByRole('button', { name: 'Изменить сохранённое' }))
     const hours = within(panel).getByLabelText('Сохранено: часы')
     await user.clear(hours)
     await user.type(hours, '3')
