@@ -238,28 +238,65 @@ function GameHeader({ playthrough }: { playthrough: PlaythroughView }) {
   )
 }
 
+/** Short step names for the turn's chips; stepNames are the full ones, over the wheel. */
+const chipNames: Record<string, string> = {
+  spin_items: 'Эффекты и бонусы',
+  spin_drop: 'Дроп-дебаффы',
+  choose_player: 'Выбор участника',
+  spin_game: 'Колесо игр',
+  choose_game: 'Выбор игры',
+  spin_movie: 'Киноколесо',
+  play: 'Прохождение',
+}
+
+/** Consecutive steps of one kind (and from one item) make one group: three item spins are one chip. */
+function stepGroups(steps: StepView[]): StepView[][] {
+  const groups: StepView[][] = []
+  for (const st of steps) {
+    const last = groups.at(-1)
+    if (last && last[0]!.kind === st.kind && last[0]!.addedBy === st.addedBy) last.push(st)
+    else groups.push([st])
+  }
+  return groups
+}
+
+/** «Крутка 2 из 3» when the current step is one of several spins in a row, null otherwise. */
+function spinNumber(turn: TurnView, step: StepView): string | null {
+  const group = stepGroups(turn.steps).find((g) => g.some((s) => s.id === step.id))
+  if (!group || group.length < 2) return null
+  return `Крутка ${group.findIndex((s) => s.id === step.id) + 1} из ${group.length}`
+}
+
 function StepList({ turn }: { turn: TurnView }) {
+  const results = turn.steps.filter((st) => st.done && st.result).map((st) => st.result)
   return (
-    <ol className="flex flex-wrap gap-2 text-xs">
-      {turn.steps.map((st) => {
-        const current = turn.current?.id === st.id
-        return (
-          <li
-            key={st.id}
-            className={cn(
-              'rounded-full border px-2 py-1',
-              st.done && 'border-stone-300 bg-stone-100 text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300',
-              current && 'border-amber-500 bg-amber-50 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200',
-              !st.done && !current && 'border-dashed border-stone-300 text-muted dark:border-stone-700',
-            )}
-            title={st.addedBy ? `Добавлено: ${st.addedBy}` : undefined}
-          >
-            {stepNames[st.kind] ?? st.kind}
-            {st.result && `: ${st.result}`}
-          </li>
-        )
-      })}
-    </ol>
+    <div className="flex flex-col gap-2">
+      <ol className="flex flex-wrap gap-2 text-xs">
+        {stepGroups(turn.steps).map((group) => {
+          const first = group[0]!
+          const at = group.findIndex((st) => st.id === turn.current?.id)
+          const done = group.every((st) => st.done)
+          const count = group.length > 1 ? (at >= 0 ? ` · ${at + 1} из ${group.length}` : done ? ` · ${group.length} из ${group.length}` : ` ×${group.length}`) : ''
+          return (
+            <li
+              key={first.id}
+              className={cn(
+                'rounded-full border px-2 py-1',
+                done && 'border-stone-300 bg-stone-100 text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300',
+                at >= 0 && 'border-amber-500 bg-amber-50 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200',
+                !done && at < 0 && 'border-dashed border-stone-300 text-muted dark:border-stone-700',
+              )}
+            >
+              {chipNames[first.kind] ?? first.kind}
+              {count}
+              {/* Who added the step, readable on a phone too (a tooltip is not). */}
+              {first.addedBy && <span className="font-normal"> · от «{first.addedBy}»</span>}
+            </li>
+          )
+        })}
+      </ol>
+      {results.length > 0 && <p className="text-sm text-muted">Уже выпало: {results.join(' · ')}</p>}
+    </div>
   )
 }
 
@@ -290,7 +327,9 @@ function CurrentStep({
     )
     return (
       <div className="flex flex-col items-center gap-3">
-        <p className="font-medium">{stepNames[step.kind]}</p>
+        <p className="font-medium">
+          {spinNumber(turn, step) ? `${spinNumber(turn, step)} · ${stepNames[step.kind]?.toLowerCase()}` : stepNames[step.kind]}
+        </p>
         {/* The button goes right under the wheel, before the list of what is on it. */}
         {turn.wheel ? (
           <Wheel

@@ -92,12 +92,12 @@ describe('my turn', () => {
     // A live refetch in the middle of the spin does not give the result away.
     await act(() => queryClient.invalidateQueries())
     await act(() => new Promise((r) => setTimeout(r, 50))) // let the new data render
-    expect(screen.queryByText('Колесо эффектов и бонусов: ОПАААА')).not.toBeInTheDocument()
+    expect(screen.queryByText('Уже выпало: ОПАААА')).not.toBeInTheDocument()
     // jsdom has no CSS animations: end the spin by hand.
     fireEvent.animationEnd(screen.getByTestId('wheel-rotor'))
 
     expect(await screen.findByText('Выпало: ОПАААА')).toHaveRole('status') // the page has another status region: the connection notice
-    expect(screen.getByText('Колесо эффектов и бонусов: ОПАААА')).toBeInTheDocument()
+    expect(screen.getByText('Уже выпало: ОПАААА')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'ОПАААА' })).toBeInTheDocument() // the item on the game
   })
 
@@ -441,6 +441,29 @@ describe('item fields', () => {
     const card = await openBoard(judge)
     expect(within(card).getByRole('textbox', { name: /^Решение судьи\W+заполняет судья$/ })).toBeInTheDocument()
     expect(card).not.toHaveTextContent('(судья)')
+  })
+})
+
+describe('steps of the turn', () => {
+  it('show spins in a row as one chip with the count, the results under them', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const wheel = { kind: 'items', sectors: [{ label: 'ОПАААА', weight: 1, kind: 'effect', defId: 'opaaa' }] }
+    const steps = [
+      step(11, 'spin_items', { done: true, result: 'ОПАААА' }),
+      step(12, 'spin_items'),
+      step(13, 'spin_items'),
+      step(14, 'spin_game', { addedBy: 'Внезапный ДЭБ' }),
+      step(15, 'play'),
+    ]
+    backend.on('GET', /\/players\/2$/, () => view(turn(steps, { wheel })))
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/play')
+
+    const chips = (await screen.findAllByRole('listitem')).map((li) => li.textContent)
+    expect(chips).toEqual(['Эффекты и бонусы · 2 из 3', 'Колесо игр · от «Внезапный ДЭБ»', 'Прохождение'])
+    expect(screen.getByText('Уже выпало: ОПАААА')).toBeInTheDocument()
+    expect(screen.getByText('Крутка 2 из 3 · колесо эффектов и бонусов')).toBeInTheDocument()
   })
 })
 
