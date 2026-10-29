@@ -1,7 +1,8 @@
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EventDetail, ItemDef, Me } from '@/api/types.gen'
+import { ICON_CHECK_DELAY_MS } from '@/pages/event/SettingsTab'
 import { fakeBackend } from '@/test/fakeBackend'
 import { RULES_URL } from '@/lib/links'
 import { renderApp } from '@/test/renderApp'
@@ -148,6 +149,33 @@ describe('events', () => {
         spinsByHours: [{ minHours: 0, spins: 1 }],
       },
     })
+  })
+})
+
+describe('item pictures in the settings', () => {
+  it('says when a picture link does not load, once the judge stops typing', async () => {
+    const backend = fakeBackend({ me: admin, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/settings')
+
+    await user.type(await screen.findByLabelText('Иконка «ОПАААА»'), 'https://example.com/gone.png')
+    const probe = await screen.findByTestId('icon-probe', undefined, { timeout: ICON_CHECK_DELAY_MS + 1000 })
+    expect(probe).toHaveAttribute('src', 'https://example.com/gone.png') // the whole link, not the typing
+    fireEvent.error(probe)
+    expect(screen.getByText(/Картинка не загрузилась/)).toBeInTheDocument()
+  })
+
+  it('warns that a Discord attachment link will expire', async () => {
+    const backend = fakeBackend({ me: admin, items })
+    backend.addEvent('lbr', 'ЛБР', admin)
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/settings')
+
+    await user.type(await screen.findByLabelText('Иконка «ОПАААА»'), 'https://media.discordapp.net/attachments/1/2/opaaa.png?ex=1')
+    expect(screen.getByText(/вложение Discord перестанет работать/)).toBeInTheDocument()
   })
 })
 

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router'
 import { inviteLink, useItems, useNewInvite, useUpdateEvent } from '@/api/events'
 import { exportUrl, useFinishEvent } from '@/api/play'
@@ -207,6 +207,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         <h2 className="font-semibold">Предметы</h2>
         <p className="text-xs text-stone-500">
           Вес — относительная частота на колесе. Эффекты и бонусы делят одно колесо. Иконка — ссылка на картинку; без неё показывается эмодзи.
+          Ссылки на вложения Discord перестают работать примерно через сутки — берите картинку с постоянного хостинга.
         </p>
         {Object.entries(kindLabels).map(([kind, label]) => (
           <div key={kind} className="flex flex-col gap-1">
@@ -242,6 +243,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                         onChange={(e) => setItem(it.id, { weight: num(e.target.value) })}
                       />
                     </div>
+                    <IconLinkStatus url={icons[it.id] ?? ''} />
                     {it.params.map((p) => (
                       <label key={p.name} className="ml-6 flex flex-wrap items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
                         <span className="flex-1">
@@ -272,6 +274,43 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
       </div>
       <ErrorText error={update.error} />
     </form>
+  )
+}
+
+/** How long the judge may pause typing a link before it is checked. */
+export const ICON_CHECK_DELAY_MS = 600
+
+const discordAttachment = /^https?:\/\/(cdn|media)\.discordapp\.(com|net)\/attachments\//
+
+/**
+ * Warns about an item picture link: one that does not load (on the board the
+ * item shows its emoji then), and a Discord attachment, which stops working
+ * after about a day. The link is checked once the judge stops typing.
+ */
+function IconLinkStatus({ url }: { url: string }) {
+  const link = url.trim()
+  const [checked, setChecked] = useState(link)
+  const [failed, setFailed] = useState<string | null>(null)
+  useEffect(() => {
+    const t = setTimeout(() => setChecked(link), ICON_CHECK_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [link])
+
+  const discord = discordAttachment.test(link)
+  const broken = checked !== '' && checked === link && failed === link
+  return (
+    <>
+      {/* A hidden picture tries the link: the visible preview falls back to the emoji. */}
+      {checked !== '' && (
+        <img key={checked} src={checked} alt="" hidden referrerPolicy="no-referrer" onError={() => setFailed(checked)} data-testid="icon-probe" />
+      )}
+      {(broken || discord) && (
+        <p className="ml-6 text-xs">
+          {broken && <span className="text-red-600 dark:text-red-400">Картинка не загрузилась — на доске будет эмодзи. </span>}
+          {discord && <span className="text-amber-700 dark:text-amber-400">Ссылка на вложение Discord перестанет работать примерно через сутки.</span>}
+        </p>
+      )}
+    </>
   )
 }
 
