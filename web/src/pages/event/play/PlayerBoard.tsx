@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
 import { playKeys, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
-import type { EventDetail, PlayerView, PlaythroughView, PlayTime as SavedPlayTime, SpinResult, StepView, TurnView } from '@/api/types.gen'
+import type { EventDetail, ItemView, PlayerView, PlaythroughView, PlayTime as SavedPlayTime, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
 import { DurationInput } from '@/components/DurationInput'
@@ -68,6 +68,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
 
   const onGame = turn?.items ?? []
   const side = onGame.length > 0 || view.pocket.length > 0
+  const sharedHint = view.canAct ? sharedPocketHint(view.pocket) : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,8 +155,19 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
             {view.pocket.length > 0 && (
               <section className="order-4 flex flex-col gap-2">
                 <h3 className="font-semibold">Карман</h3>
-                {view.pocket.map((it) => (
-                  <ItemCard key={it.id} slug={event.slug} item={it} members={event.members} editAs={null} canUse={view.canAct} compact />
+                {sharedHint && <p className="text-xs text-muted">Применить бонусы из кармана {sharedHint}</p>}
+                {groupPocket(view.pocket).map(({ item, count }) => (
+                  <ItemCard
+                    key={item.id}
+                    slug={event.slug}
+                    item={item}
+                    members={event.members}
+                    editAs={null}
+                    canUse={view.canAct}
+                    compact
+                    count={count}
+                    hideHint={sharedHint !== null}
+                  />
                 ))}
               </section>
             )}
@@ -164,6 +176,38 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
       </div>
     </div>
   )
+}
+
+/** Nothing filled in yet: such items are interchangeable. */
+const blankField = (v: unknown) => v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)
+
+/**
+ * The pocket with identical bonuses shown once, «Парашют ×3»: the same item,
+ * nothing filled in or noted, the same use state. They are interchangeable,
+ * so the card's button uses the first one. Anything else keeps its own card.
+ */
+function groupPocket(pocket: ItemView[]): { item: ItemView; count: number }[] {
+  const groups = new Map<string, { item: ItemView; count: number }>()
+  for (const it of pocket) {
+    const plain = !it.note && !it.status && it.fields.every((f) => blankField(f.value))
+    const key = plain ? JSON.stringify([it.defId, it.blocked, it.useLabel, it.canUse, it.useHint]) : `item ${it.id}`
+    const group = groups.get(key)
+    if (group) group.count++
+    else groups.set(key, { item: it, count: 1 })
+  }
+  return [...groups.values()]
+}
+
+/**
+ * Why nothing in the pocket can be used now, when every usable bonus there is
+ * blocked for the same reason (a drop debuff that forbids bonuses): said once
+ * above the pocket instead of under each card.
+ */
+function sharedPocketHint(pocket: ItemView[]): string | null {
+  const usable = pocket.filter((it) => it.useLabel)
+  const hint = usable[0]?.useHint
+  if (usable.length < 2 || !hint || usable.some((it) => it.canUse || it.useHint !== hint)) return null
+  return hint
 }
 
 /** The game of the turn: cover, title, HLTB hours and base points. */

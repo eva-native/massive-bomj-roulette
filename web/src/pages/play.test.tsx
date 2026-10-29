@@ -335,6 +335,54 @@ describe('judge queue', () => {
   })
 })
 
+describe('pocket', () => {
+  const parachute = (id: number, extra: Partial<ItemView> = {}): ItemView => ({
+    ...opaaa,
+    id,
+    defId: 'parachute',
+    name: 'Парашют',
+    kind: 'bonus',
+    placement: 'pocket',
+    useLabel: 'Применить к игре',
+    canUse: true,
+    ...extra,
+  })
+
+  async function openPocket(pocket: ItemView[]) {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    backend.on('GET', /\/players\/2$/, () => view(turn([step(11, 'spin_items')]), { pocket }))
+    backend.on('POST', /\/items\/\d+\/use$/, () => view(turn([step(11, 'spin_items')]), { pocket }))
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/play')
+    await screen.findByRole('heading', { name: 'Карман' })
+    return backend
+  }
+
+  it('shows identical bonuses once, ×3, and uses the first of them', async () => {
+    const backend = await openPocket([parachute(61), parachute(62), parachute(63)])
+    expect(screen.getAllByRole('heading', { name: 'Парашют' })).toHaveLength(1)
+    expect(screen.getByText('×3')).toBeInTheDocument()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Применить к игре' }))
+    await vi.waitFor(() => expect(backend.requests.some((r) => r.url.endsWith('/items/61/use'))).toBe(true))
+  })
+
+  it('keeps apart bonuses that differ: another item, or one with something filled in', async () => {
+    const helper: FieldView = { name: 'helper', label: 'Помощник', type: 'player', by: 'player', optional: false, value: 3 }
+    await openPocket([parachute(61), parachute(62, { fields: [helper] }), { ...parachute(63), defId: 'reroll', name: 'Реролл' }])
+    expect(screen.getAllByRole('heading', { name: 'Парашют' })).toHaveLength(2)
+    expect(screen.queryByText(/^×/)).not.toBeInTheDocument()
+  })
+
+  it('says once why nothing in the pocket can be used now', async () => {
+    const hint = 'сейчас нельзя: на этой игре бонусы запрещены («Самодостаточный»)'
+    await openPocket([parachute(61, { canUse: false, useHint: hint }), { ...parachute(62, { canUse: false, useHint: hint }), defId: 'reroll', name: 'Реролл', useLabel: 'Перекрутить' }])
+    expect(screen.getByText(`Применить бонусы из кармана ${hint}`)).toBeInTheDocument()
+    expect(screen.getAllByText(new RegExp(hint.replace(/[()«»]/g, '.')))).toHaveLength(1) // not repeated under each card
+  })
+})
+
 describe('blocked items', () => {
   it('stay readable: a badge and a dashed border mark them, not transparency', async () => {
     const backend = setup(alice)

@@ -23,6 +23,8 @@ export function ItemCard({
   editAs,
   canUse,
   compact = false,
+  count = 1,
+  hideHint = false,
 }: {
   slug: string
   item: ItemView
@@ -31,6 +33,10 @@ export function ItemCard({
   canUse: boolean
   /** Fold the rule to three lines (the board's side column and pocket, where several cards stack). */
   compact?: boolean
+  /** How many identical items this card stands for (the pocket groups them). */
+  count?: number
+  /** The reason it cannot be used is said once for the whole pocket. */
+  hideHint?: boolean
 }) {
   const use = useUseItem(slug)
   const { event } = useEventContext()
@@ -46,6 +52,7 @@ export function ItemCard({
       <div className="flex flex-wrap items-center gap-2">
         <ItemIcon defId={item.defId} kind={item.kind} icons={event.settings.icons} />
         <h4 className="font-medium">{item.name}</h4>
+        {count > 1 && <span className="text-sm font-semibold text-muted">×{count}</span>}
         <Badge tone={kindTone[item.kind]}>{kindName[item.kind] ?? item.kind}</Badge>
         {item.status && <Badge>{item.status}</Badge>}
         {item.note && <Badge tone="amber">{item.note}</Badge>}
@@ -70,7 +77,7 @@ export function ItemCard({
           <Button variant="secondary" disabled={!item.canUse || use.isPending} onClick={() => use.mutate(item.id)}>
             {item.useLabel}
           </Button>
-          {!item.canUse && item.useHint && <span className="text-xs text-muted">{item.useHint}</span>}
+          {!item.canUse && item.useHint && !hideHint && <span className="text-xs text-muted">{item.useHint}</span>}
         </div>
       )}
       <ErrorText error={use.error} />
