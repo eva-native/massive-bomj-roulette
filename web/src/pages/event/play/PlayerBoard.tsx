@@ -437,7 +437,7 @@ function ChoiceStep({ slug, step, canAct }: { slug: string; step: StepView; canA
 
 /** The outcomes with what each leads to, in the words of docs/rules («Подсчёт очков»). */
 const outcomeChoices: { value: Outcome; label: string; leads: string }[] = [
-  { value: 'completed', label: 'Прошёл', leads: 'База, скорость и эффекты. Дальше колесо эффектов и бонусов.' },
+  { value: 'completed', label: 'Прошёл', leads: 'База, скорость (+1 за каждый час быстрее HLTB) и эффекты. Дальше колесо эффектов и бонусов.' },
   { value: 'dropped', label: 'Дропнул', leads: 'Минус половина базы. Дальше колесо дроп-дебаффов.' },
   { value: 'tech', label: 'Тех. дроп', leads: 'Без очков и штрафа. Дальше только колесо игр.' },
 ]
@@ -454,7 +454,7 @@ function outcomePoints(o: Outcome, preview: OutcomePreview | undefined): string 
   if (o === 'tech') return '0 очков'
   if (!preview) return null
   if (o === 'dropped') return `${signed(preview.dropped)} ${plural(Math.abs(preview.dropped), 'очко', 'очка', 'очков')}`
-  return `от ${signed(preview.completedAtHltb)} ${plural(Math.abs(preview.completedAtHltb), 'очка', 'очков', 'очков')}; каждый час быстрее HLTB — ещё +1`
+  return `от ${signed(preview.completedAtHltb)} ${plural(Math.abs(preview.completedAtHltb), 'очка', 'очков', 'очков')}`
 }
 
 /** The outcome as a group of cards, each saying what it leads to, so the stakes are seen before the choice. */

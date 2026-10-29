@@ -192,7 +192,7 @@ describe('my turn', () => {
     // Each outcome says what it leads to before it is chosen.
     // With the points the server scored for each (the engine on a copy of the event, items included).
     expect(within(outcome).getByRole('radio', { name: 'Дропнул' })).toHaveAccessibleDescription('−19 очков Минус половина базы. Дальше колесо дроп-дебаффов.')
-    expect(within(outcome).getByRole('radio', { name: 'Прошёл' })).toHaveAccessibleDescription(/^от \+44 очков; каждый час быстрее HLTB — ещё \+1 /)
+    expect(within(outcome).getByRole('radio', { name: 'Прошёл' })).toHaveAccessibleDescription(/^от \+44 очков База, скорость \(\+1 за каждый час быстрее HLTB\)/)
     expect(within(outcome).getByRole('radio', { name: 'Тех. дроп' })).toHaveAccessibleDescription(/^0 очков /)
     await user.click(within(outcome).getByRole('radio', { name: 'Тех. дроп' }))
     expect(review).not.toBeRequired() // but not for a technical drop
