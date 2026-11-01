@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { eventKeys } from '@/api/events'
+import { playKeys } from '@/api/play'
 import type { FieldView, ItemView, Me, PlayTime, PlayTimeRequest, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { renderApp } from '@/test/renderApp'
@@ -161,7 +163,7 @@ describe('my turn', () => {
     const backend = setup(alice)
     await joinAs(backend, alice)
     const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
-      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0, preview: { dropped: -19, completedAtHltb: 44 } },
     })
     let current = view(playing)
     backend.on('GET', /\/players\/2$/, () => current)
@@ -176,21 +178,138 @@ describe('my turn', () => {
     expect(await screen.findByText('GTA San Andreas')).toBeInTheDocument()
     const send = screen.getByRole('button', { name: 'Отправить судье' })
     expect(send).toBeDisabled() // hours are required for a completed game
+    // The form says why, and marks what is required.
+    expect(send).toHaveAccessibleDescription('Чтобы отправить: укажите время прохождения · напишите обзор')
+    expect(screen.getByRole('group', { name: 'Время прохождения' })).toHaveTextContent('обязательно')
     // Only digits can be typed in (issue #3).
-    await user.type(screen.getByLabelText('Время в игре: часы'), 'abc25ч')
-    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('25')
-    await user.type(screen.getByLabelText('Время в игре: минуты'), '30')
+    await user.type(screen.getByLabelText('Время прохождения: часы'), 'abc25ч')
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('25')
+    await user.type(screen.getByLabelText('Время прохождения: минуты'), '30')
     await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
     expect(send).toBeDisabled() // a review is required for a completed or dropped game
-    await user.click(screen.getByLabelText('Тех. дроп'))
-    expect(screen.getByLabelText('Обзор (необязательно)')).toBeInTheDocument() // but not for a technical drop
-    await user.click(screen.getByLabelText('Прошёл'))
-    await user.type(screen.getByLabelText('Обзор'), 'Классика')
+    expect(send).toHaveAccessibleDescription('Чтобы отправить: напишите обзор')
+    const review = screen.getByRole('textbox', { name: 'Обзор' })
+    expect(review).toBeRequired()
+    const outcome = screen.getByRole('radiogroup', { name: 'Итог' })
+    // Each outcome says what it leads to before it is chosen.
+    // With the points the server scored for each (the engine on a copy of the event, items included).
+    expect(within(outcome).getByRole('radio', { name: 'Дропнул' })).toHaveAccessibleDescription('−19 очков Минус половина базы. Дальше колесо дроп-дебаффов.')
+    expect(within(outcome).getByRole('radio', { name: 'Прошёл' })).toHaveAccessibleDescription(/^\+44 очка при прохождении за HLTB База, скорость \(\+1 за каждый час быстрее HLTB\)/)
+    expect(within(outcome).getByRole('radio', { name: 'Тех. дроп' })).toHaveAccessibleDescription(/^0 очков /)
+    await user.click(within(outcome).getByRole('radio', { name: 'Тех. дроп' }))
+    expect(review).not.toBeRequired() // but not for a technical drop
+    expect(send).toBeEnabled()
+    await user.click(within(outcome).getByText('Прошёл')) // the whole card is the choice
+    await user.type(review, 'Классика')
+    expect(screen.queryByText(/^Чтобы отправить/)).not.toBeInTheDocument()
     await user.click(send)
 
     expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
     const post = backend.requests.find((r) => r.url.endsWith('/finish'))
     expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x', review: 'Классика' })
+  })
+
+  it('keeps the outcome form through a rejection, until the judge confirms', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const pt = { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 }
+    const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], { playthrough: pt })
+    let current = view(playing)
+    backend.on('GET', /\/players\/2$/, () => current)
+    backend.on('POST', /\/steps\/13\/finish$/, () => (current = view({ ...playing, current: null, waiting: 'Итог ждёт подтверждения судьи' })))
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    const { queryClient } = renderApp('/e/lbr/play')
+
+    await user.type(await screen.findByLabelText('Время прохождения: часы'), '25')
+    await user.type(screen.getByLabelText('Доказательство (ссылка)'), 'https://imgur.com/x')
+    await user.type(screen.getByRole('textbox', { name: 'Обзор' }), 'Классика')
+    await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+    expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
+
+    // The judge rejects: the game is played again, and the form has what was sent.
+    current = view(playing)
+    await act(() => queryClient.invalidateQueries())
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Классика')
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('25')
+    expect(screen.getByLabelText('Доказательство (ссылка)')).toHaveValue('https://imgur.com/x')
+    expect(localStorage.getItem('mbr:finish:lbr:70')).not.toBeNull()
+
+    // The judge confirms: the game goes to the history, and the draft is gone.
+    current = view(turn([step(21, 'spin_items')], { id: 20, number: 2 }), { history: [{ ...pt, outcome: 'completed', hours: 25, confirmed: true }] })
+    await act(() => queryClient.invalidateQueries())
+    await vi.waitFor(() => expect(localStorage.getItem('mbr:finish:lbr:70')).toBeNull())
+  })
+
+  it('keeps drafts and timers separate when cached events share a playthrough ID', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    backend.addEvent('other', 'Другой ивент', judge)
+    await backend.fetch('/api/events/other/join', { method: 'POST' })
+    const playing = turn([step(13, 'play')], {
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
+    })
+    backend.on('GET', /\/players\/2$/, () => view(playing))
+    vi.stubGlobal('fetch', backend.fetch)
+    const drafts = {
+      lbr: { outcome: 'completed', time: { h: '25', m: '', s: '' }, proof: 'https://example.com/a', review: 'Обзор А' },
+      other: { outcome: 'dropped', time: { h: '10', m: '30', s: '' }, proof: 'https://example.com/b', review: 'Обзор Б' },
+    }
+    for (const [slug, draft] of Object.entries(drafts)) {
+      localStorage.setItem(`mbr:finish:${slug}:70`, JSON.stringify(draft))
+      localStorage.setItem(`mbr:timer:${slug}:70`, JSON.stringify({ elapsedMs: slug === 'lbr' ? 3600000 : 7200000, startedAt: null }))
+    }
+    const { router, queryClient } = renderApp('/e/lbr/play')
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Обзор А')
+    // Populate the destination's cache so navigation keeps the board mounted.
+    queryClient.setQueryData(eventKeys.detail('other'), await (await backend.fetch('/api/events/other')).json())
+    queryClient.setQueryData(playKeys.player('other', alice.id), view(playing))
+    await act(() => router.navigate('/e/other/play'))
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Обзор Б')
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('10')
+    expect(screen.getByLabelText('Время прохождения: минуты')).toHaveValue('30')
+    expect(screen.getByLabelText('Доказательство (ссылка)')).toHaveValue('https://example.com/b')
+    expect(screen.getByRole('radio', { name: 'Дропнул' })).toBeChecked()
+    expect(screen.getByRole('timer')).toHaveTextContent('2:00:00')
+    for (const [slug, draft] of Object.entries(drafts)) {
+      expect(JSON.parse(localStorage.getItem(`mbr:finish:${slug}:70`)!)).toEqual(draft)
+    }
+    await act(() => router.navigate('/e/lbr/play'))
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Обзор А')
+    expect(screen.getByRole('timer')).toHaveTextContent('1:00:00')
+  })
+
+  it('asks before sending a drop, with what it costs', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const playing = turn([step(11, 'spin_items', { done: true }), step(12, 'spin_game', { done: true }), step(13, 'play')], {
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0, preview: { dropped: -19, completedAtHltb: 44 } },
+    })
+    let current = view(playing)
+    backend.on('GET', /\/players\/2$/, () => current)
+    backend.on('POST', /\/steps\/13\/finish$/, () => (current = view({ ...playing, current: null, waiting: 'Итог ждёт подтверждения судьи' })))
+    const ask = vi.fn(() => false)
+    vi.stubGlobal('confirm', ask)
+    let answer = () => {}
+    const answered = new Promise<void>((r) => (answer = r))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/finish')) await answered // the server is slow to answer
+      return backend.fetch(input, init)
+    })
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+
+    await user.click(await screen.findByRole('radio', { name: 'Дропнул' }))
+    await user.type(screen.getByRole('textbox', { name: 'Обзор' }), 'Не моё')
+    await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+    expect(ask).toHaveBeenCalledWith('Дроп: −19 очков, дальше колесо дроп-дебаффов. Отправить?')
+    expect(backend.requests.some((r) => r.url.endsWith('/finish'))).toBe(false) // declined: nothing sent
+
+    ask.mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+    expect(await screen.findByRole('button', { name: 'Отправка…' })).toBeDisabled() // the click is seen at once
+    answer()
+    expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
   })
 
   it('keeps the running session in the browser and adds it to the saved time', async () => {
@@ -214,13 +333,16 @@ describe('my turn', () => {
     renderApp('/e/lbr/play')
 
     expect(await screen.findByRole('timer')).toHaveTextContent('1:30:05')
-    const panel = screen.getByRole('region', { name: 'Время в игре' })
-    expect(await within(panel).findByText('2 ч 30 мин 5 с')).toBeInTheDocument() // saved hour + current session
+    const panel = screen.getByRole('region', { name: 'Время' })
+    // One name per number: the session over the clock, the saved time, and the two added up.
+    expect(within(panel).getByText('Текущая сессия')).toBeInTheDocument()
+    expect(await within(panel).findByText('Итого по игре:')).toBeInTheDocument()
+    expect(within(panel).getByText('Итого по игре:').parentElement).toHaveTextContent('2 ч 30 мин 5 с') // saved hour + current session
 
-    await user.click(screen.getByRole('button', { name: 'Взять из таймера: 2 ч 30 мин 5 с' }))
-    expect(screen.getByLabelText('Время в игре: часы')).toHaveValue('2')
-    expect(screen.getByLabelText('Время в игре: минуты')).toHaveValue('30')
-    expect(screen.getByLabelText('Время в игре: секунды')).toHaveValue('5')
+    await user.click(screen.getByRole('button', { name: 'Подставить итого: 2 ч 30 мин 5 с' }))
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('2')
+    expect(screen.getByLabelText('Время прохождения: минуты')).toHaveValue('30')
+    expect(screen.getByLabelText('Время прохождения: секунды')).toHaveValue('5')
 
     await user.click(screen.getByRole('button', { name: 'Сохранить сессию' }))
     expect(await screen.findByRole('timer')).toHaveTextContent('0:00:00')
@@ -229,7 +351,7 @@ describe('my turn', () => {
     expect(within(panel).getByText('Сохранено:').parentElement).toHaveTextContent('2 ч 30 мин 5 с')
 
     // The saved total can be corrected.
-    await user.click(within(panel).getAllByRole('button', { name: 'Изменить' })[1]!)
+    await user.click(within(panel).getByRole('button', { name: 'Изменить сохранённое' }))
     const hours = within(panel).getByLabelText('Сохранено: часы')
     await user.clear(hours)
     await user.type(hours, '3')

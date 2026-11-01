@@ -25,24 +25,40 @@ export function Field({
   label,
   hint,
   after,
+  required = false,
   className,
   children,
 }: {
   label: string
   hint?: string
   after?: ReactNode
+  /** Marks the field «обязательно» on screen; the control itself says so to a screen reader (`required`). */
+  required?: boolean
   className?: string
   children: ReactNode
 }) {
   return (
     <div className={cn('flex flex-col gap-1 text-sm', className)}>
       <label className="flex flex-col gap-1">
-        <span className="font-medium">{label}</span>
+        <span className="font-medium">
+          {label}
+          {required && <RequiredMark />}
+        </span>
         {children}
       </label>
       {after}
       {hint && <span className="text-xs text-muted">{hint}</span>}
     </div>
+  )
+}
+
+/** «· обязательно» after a field's name, left out of its accessible name. */
+export function RequiredMark() {
+  return (
+    <span className="text-xs font-normal text-muted" aria-hidden>
+      {' '}
+      · обязательно
+    </span>
   )
 }
 
