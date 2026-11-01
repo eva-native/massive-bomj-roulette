@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { eventKeys } from '@/api/events'
+import { playKeys } from '@/api/play'
 import type { FieldView, ItemView, Me, PlayTime, PlayTimeRequest, PlayerView, QueueEntry, SpinResult, StepView, TurnView } from '@/api/types.gen'
 import { fakeBackend } from '@/test/fakeBackend'
 import { renderApp } from '@/test/renderApp'
@@ -192,7 +194,7 @@ describe('my turn', () => {
     // Each outcome says what it leads to before it is chosen.
     // With the points the server scored for each (the engine on a copy of the event, items included).
     expect(within(outcome).getByRole('radio', { name: 'Дропнул' })).toHaveAccessibleDescription('−19 очков Минус половина базы. Дальше колесо дроп-дебаффов.')
-    expect(within(outcome).getByRole('radio', { name: 'Прошёл' })).toHaveAccessibleDescription(/^от \+44 очков База, скорость \(\+1 за каждый час быстрее HLTB\)/)
+    expect(within(outcome).getByRole('radio', { name: 'Прошёл' })).toHaveAccessibleDescription(/^\+44 очка при прохождении за HLTB База, скорость \(\+1 за каждый час быстрее HLTB\)/)
     expect(within(outcome).getByRole('radio', { name: 'Тех. дроп' })).toHaveAccessibleDescription(/^0 очков /)
     await user.click(within(outcome).getByRole('radio', { name: 'Тех. дроп' }))
     expect(review).not.toBeRequired() // but not for a technical drop
@@ -237,6 +239,44 @@ describe('my turn', () => {
     current = view(turn([step(21, 'spin_items')], { id: 20, number: 2 }), { history: [{ ...pt, outcome: 'completed', hours: 25, confirmed: true }] })
     await act(() => queryClient.invalidateQueries())
     await vi.waitFor(() => expect(localStorage.getItem('mbr:finish:lbr:70')).toBeNull())
+  })
+
+  it('keeps drafts and timers separate when cached events share a playthrough ID', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    backend.addEvent('other', 'Другой ивент', judge)
+    await backend.fetch('/api/events/other/join', { method: 'POST' })
+    const playing = turn([step(13, 'play')], {
+      playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
+    })
+    backend.on('GET', /\/players\/2$/, () => view(playing))
+    vi.stubGlobal('fetch', backend.fetch)
+    const drafts = {
+      lbr: { outcome: 'completed', time: { h: '25', m: '', s: '' }, proof: 'https://example.com/a', review: 'Обзор А' },
+      other: { outcome: 'dropped', time: { h: '10', m: '30', s: '' }, proof: 'https://example.com/b', review: 'Обзор Б' },
+    }
+    for (const [slug, draft] of Object.entries(drafts)) {
+      localStorage.setItem(`mbr:finish:${slug}:70`, JSON.stringify(draft))
+      localStorage.setItem(`mbr:timer:${slug}:70`, JSON.stringify({ elapsedMs: slug === 'lbr' ? 3600000 : 7200000, startedAt: null }))
+    }
+    const { router, queryClient } = renderApp('/e/lbr/play')
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Обзор А')
+    // Populate the destination's cache so navigation keeps the board mounted.
+    queryClient.setQueryData(eventKeys.detail('other'), await (await backend.fetch('/api/events/other')).json())
+    queryClient.setQueryData(playKeys.player('other', alice.id), view(playing))
+    await act(() => router.navigate('/e/other/play'))
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Обзор Б')
+    expect(screen.getByLabelText('Время прохождения: часы')).toHaveValue('10')
+    expect(screen.getByLabelText('Время прохождения: минуты')).toHaveValue('30')
+    expect(screen.getByLabelText('Доказательство (ссылка)')).toHaveValue('https://example.com/b')
+    expect(screen.getByRole('radio', { name: 'Дропнул' })).toBeChecked()
+    expect(screen.getByRole('timer')).toHaveTextContent('2:00:00')
+    for (const [slug, draft] of Object.entries(drafts)) {
+      expect(JSON.parse(localStorage.getItem(`mbr:finish:${slug}:70`)!)).toEqual(draft)
+    }
+    await act(() => router.navigate('/e/lbr/play'))
+    expect(await screen.findByRole('textbox', { name: 'Обзор' })).toHaveValue('Обзор А')
+    expect(screen.getByRole('timer')).toHaveTextContent('1:00:00')
   })
 
   it('asks before sending a drop, with what it costs', async () => {

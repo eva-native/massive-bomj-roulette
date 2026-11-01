@@ -378,8 +378,8 @@ function PlayStep({ event, view, playthrough, stepId }: { event: EventDetail; vi
   const saved = usePlayTime(event.slug, view.player.id).data ?? nothingSaved
   // The game itself is named above, in the turn's card (GameHeader).
   return view.canAct ? (
-    // A new game remounts the timer, so it starts from zero.
-    <OwnPlay key={playthrough.id} slug={event.slug} playerId={view.player.id} playthrough={playthrough} stepId={stepId} saved={saved} />
+    // IDs are local to an event: remount both the timer and draft when either changes.
+    <OwnPlay key={`${event.slug}:${playthrough.id}`} slug={event.slug} playerId={view.player.id} playthrough={playthrough} stepId={stepId} saved={saved} />
   ) : (
     <PlayTime slug={event.slug} playerId={view.player.id} saved={saved} timer={null} />
   )
@@ -454,7 +454,7 @@ function outcomePoints(o: Outcome, preview: OutcomePreview | undefined): string 
   if (o === 'tech') return '0 очков'
   if (!preview) return null
   if (o === 'dropped') return `${signed(preview.dropped)} ${plural(Math.abs(preview.dropped), 'очко', 'очка', 'очков')}`
-  return `от ${signed(preview.completedAtHltb)} ${plural(Math.abs(preview.completedAtHltb), 'очка', 'очков', 'очков')}`
+  return `${signed(preview.completedAtHltb)} ${plural(Math.abs(preview.completedAtHltb), 'очко', 'очка', 'очков')} при прохождении за HLTB`
 }
 
 /** The outcome as a group of cards, each saying what it leads to, so the stakes are seen before the choice. */
