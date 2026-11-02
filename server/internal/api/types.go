@@ -256,18 +256,20 @@ type Sector struct {
 }
 
 type PlaythroughView struct {
-	ID         int64   `json:"id"`
-	GameID     int64   `json:"gameId"`
-	Game       string  `json:"game"`
-	HLTBHours  int     `json:"hltbHours"`
-	BasePoints int     `json:"basePoints"`
-	CoverURL   string  `json:"coverUrl"`
-	Outcome    string  `json:"outcome"` // "" | "completed" | "dropped" | "tech"
-	Hours      float64 `json:"hours"`
-	Proof      string  `json:"proof"`
-	Review     string  `json:"review"`
-	Confirmed  bool    `json:"confirmed"`
-	Points     int     `json:"points"`
+	ID           int64   `json:"id"`
+	GameID       int64   `json:"gameId"`
+	Game         string  `json:"game"`
+	HLTBHours    int     `json:"hltbHours"`
+	BasePoints   int     `json:"basePoints"`
+	CoverURL     string  `json:"coverUrl"`
+	Outcome      string  `json:"outcome"` // "" | "completed" | "dropped" | "tech"
+	Hours        float64 `json:"hours"`
+	Proof        string  `json:"proof"`
+	Review       string  `json:"review"`
+	Confirmed    bool    `json:"confirmed"`
+	Rejected     bool    `json:"rejected,omitempty"`
+	RejectReason string  `json:"rejectReason,omitempty"`
+	Points       int     `json:"points"`
 	// TimerMs is the time the player saved with the timer; set in the
 	// judge's queue to compare with the hours.
 	TimerMs int64 `json:"timerMs"`
@@ -301,6 +303,7 @@ type ItemView struct {
 	NeedsConfirm bool        `json:"needsConfirm"`
 	Confirmed    bool        `json:"confirmed"`
 	Rejected     bool        `json:"rejected"`
+	RejectReason string      `json:"rejectReason,omitempty"`
 	// Locked: the owner sent the fields to the judge and cannot change them
 	// until the judge rejects. Judges can always edit.
 	Locked bool `json:"locked"`
@@ -379,7 +382,8 @@ type EditPlaythroughRequest struct {
 }
 
 type ConfirmRequest struct {
-	Accept bool `json:"accept"`
+	Accept bool   `json:"accept"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // LeaderboardRow is one player's standing.

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
-import { playKeys, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
+import { playKeys, useQueue, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
 import { MaxReview, type EventDetail, type ItemView, type OutcomePreview, type PlayerView, type PlaythroughView, type PlayTime as SavedPlayTime, type SpinResult, type StepView, type TurnView } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { Wheel } from '@/components/Wheel'
@@ -20,6 +20,7 @@ import { reviewTooLong } from '@/lib/review'
 import { wheelNames, wheelSeconds } from '@/lib/wheel'
 import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
+import { JudgeDecision } from './JudgeDecision'
 import { PlayTime } from './PlayTime'
 
 const stepNames: Record<string, string> = {
@@ -59,6 +60,8 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
   const turn = view.turn
   const isJudge = event.me?.isJudge ?? false
   // Judges may fill any field; the owner fills player fields; others only look.
+  const queue = useQueue(event.slug, isJudge && event.status === 'active')
+  const decision = queue.data?.find((e) => e.kind === 'playthrough' && e.id === turn?.playthrough?.id)
   const editAs = isJudge ? 'judge' : me?.id === view.player.id ? 'player' : null
 
   const doSpin = (stepId: number) => {
@@ -134,7 +137,8 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                       Выпало: {spinning.result.label}
                     </p>
                   )}
-                  <CurrentStep
+                  {turn.playthrough?.rejected && <p role="status" className="text-sm text-danger">Судья отклонил итог{turn.playthrough.rejectReason ? `: ${turn.playthrough.rejectReason}` : ''}. Исправьте и отправьте снова.</p>}
+                  {decision ? <JudgeDecision entry={decision} /> : <CurrentStep
                     event={event}
                     view={view}
                     turn={turn}
@@ -144,7 +148,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                       setSpinning(null)
                       doSpin(id)
                     }}
-                  />
+                  />}
                 </>
               )}
               <ErrorText error={spin.error} />

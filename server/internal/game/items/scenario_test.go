@@ -165,7 +165,7 @@ func (sc *scenario) finish(p game.PlayerID, outcome game.Outcome, hours float64)
 // confirm makes the judge accept p's current game.
 func (sc *scenario) confirm(p game.PlayerID) {
 	sc.t.Helper()
-	if err := sc.e.ConfirmGame(sc.s, sc.judge, sc.playthrough(p).ID, true); err != nil {
+	if err := sc.e.ConfirmGame(sc.s, sc.judge, sc.playthrough(p).ID, true, ""); err != nil {
 		sc.t.Fatalf("confirm: %v", err)
 	}
 }

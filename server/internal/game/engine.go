@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -581,6 +582,7 @@ func (e *Engine) FinishGame(s *State, actor PlayerID, stepID int64, outcome Outc
 	}
 	pt := s.Playthrough(t.Playthrough)
 	pt.Outcome, pt.Hours, pt.Proof = outcome, hours, strings.TrimSpace(proof)
+	pt.Rejected, pt.RejectReason = false, ""
 	r.finishStep(st)
 	return nil
 }
@@ -605,7 +607,11 @@ func checkHours(outcome Outcome, hours float64) error {
 
 // ConfirmGame is the judge's decision on a finished game. Accepting starts the
 // player's next turn; rejecting sends the player back to playing.
-func (e *Engine) ConfirmGame(s *State, actor PlayerID, playthroughID int64, accept bool) error {
+func (e *Engine) ConfirmGame(s *State, actor PlayerID, playthroughID int64, accept bool, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if utf8.RuneCountInString(reason) > 500 {
+		return fmt.Errorf("%w: причина — не больше 500 символов", ErrBadInput)
+	}
 	r := e.on(s)
 	if err := r.requireJudge(actor); err != nil {
 		return err
@@ -620,6 +626,7 @@ func (e *Engine) ConfirmGame(s *State, actor PlayerID, playthroughID int64, acce
 	t := s.Turn(pt.TurnID)
 	if !accept {
 		pt.Outcome, pt.Hours, pt.Proof = OutcomeNone, 0, ""
+		pt.Rejected, pt.RejectReason = true, reason
 		for _, st := range t.Steps {
 			if st.Kind == StepPlay {
 				st.Done, st.DoneSeq = false, 0
@@ -628,6 +635,7 @@ func (e *Engine) ConfirmGame(s *State, actor PlayerID, playthroughID int64, acce
 		return nil
 	}
 	pt.Confirmed = true
+	pt.Rejected, pt.RejectReason = false, ""
 	if s.CurrentTurn(pt.Player) == t {
 		switch pt.Outcome {
 		case OutcomeDropped:
@@ -658,7 +666,11 @@ func (r *run) carryItems(pt *Playthrough, next *Turn) {
 }
 
 // ConfirmItem is the judge's decision on an item's result.
-func (e *Engine) ConfirmItem(s *State, actor PlayerID, itemID int64, accept bool) error {
+func (e *Engine) ConfirmItem(s *State, actor PlayerID, itemID int64, accept bool, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if utf8.RuneCountInString(reason) > 500 {
+		return fmt.Errorf("%w: причина — не больше 500 символов", ErrBadInput)
+	}
 	r := e.on(s)
 	if err := r.requireJudge(actor); err != nil {
 		return err
@@ -671,6 +683,10 @@ func (e *Engine) ConfirmItem(s *State, actor PlayerID, itemID int64, accept bool
 		return fmt.Errorf("%w: игрок ещё не заполнил результат", ErrBadInput)
 	}
 	it.Confirmed, it.Rejected = accept, !accept
+	it.RejectReason = ""
+	if !accept {
+		it.RejectReason = reason
+	}
 	if !accept {
 		it.Submitted = false // the owner may fix the input and send it again
 	}
@@ -732,6 +748,7 @@ func (e *Engine) SetInput(s *State, actor PlayerID, itemID int64, values map[str
 		fillUnticked(d, it)
 	}
 	it.Confirmed, it.Rejected = false, false
+	it.RejectReason = ""
 	if !judge && d.NeedsConfirm {
 		it.Submitted = PlayerFieldsFilled(d, it)
 	}

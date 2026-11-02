@@ -106,3 +106,43 @@ func waitFor(t *testing.T, lines <-chan string, want string) {
 		}
 	}
 }
+
+func TestGameRejectionReasonAPI(t *testing.T) {
+	srv, _ := newTestServer(t)
+	judge := newClient(t, srv.URL, "Alice")
+	bob := newClient(t, srv.URL, "Bob")
+	var ev api.EventDetail
+	judge.do("POST", "/api/events", api.CreateEventRequest{Title: "ЛБР", Slug: "lbr"}, http.StatusCreated, &ev)
+	bob.do("POST", "/api/events/lbr/join", nil, http.StatusOK, &ev)
+	bob.do("POST", "/api/events/lbr/games", api.GameInput{Title: "G", HLTBHours: 10, Rating: 80, Year: 2015}, http.StatusCreated, nil)
+	var id int64
+	for _, m := range ev.Members {
+		if m.Name == "Bob" {
+			id = m.UserID
+		}
+	}
+	path := "/api/events/lbr/players/" + itoa(id)
+	var v api.PlayerView
+	bob.do("GET", path, nil, http.StatusOK, &v)
+	for v.Turn.Current.Kind != "play" {
+		var res api.SpinResult
+		bob.do("POST", "/api/events/lbr/steps/"+itoa(v.Turn.Current.ID)+"/spin", nil, http.StatusOK, &res)
+		v = res.View
+	}
+	stepPath := "/api/events/lbr/steps/" + itoa(v.Turn.Current.ID) + "/finish"
+	req := api.FinishRequest{Outcome: "completed", Hours: 8, Review: "Обзор"}
+	bob.do("POST", stepPath, req, http.StatusOK, &v)
+	confirmPath := "/api/events/lbr/playthroughs/" + itoa(v.Turn.Playthrough.ID) + "/confirm"
+	bob.do("POST", confirmPath, api.ConfirmRequest{Reason: "Причина"}, http.StatusForbidden, nil)
+	judge.do("POST", confirmPath, api.ConfirmRequest{Reason: strings.Repeat("я", 501)}, http.StatusBadRequest, nil)
+	judge.do("POST", confirmPath, api.ConfirmRequest{Reason: "  Исправьте время  "}, http.StatusNoContent, nil)
+	bob.do("GET", path, nil, http.StatusOK, &v)
+	if !v.Turn.Playthrough.Rejected || v.Turn.Playthrough.RejectReason != "Исправьте время" {
+		t.Fatalf("reason: %+v", v.Turn.Playthrough)
+	}
+	v = api.PlayerView{} // Optional JSON fields are absent once the rejection is cleared.
+	bob.do("POST", stepPath, req, http.StatusOK, &v)
+	if v.Turn.Playthrough.Rejected || v.Turn.Playthrough.RejectReason != "" {
+		t.Fatalf("resubmission: %+v", v.Turn.Playthrough)
+	}
+}
