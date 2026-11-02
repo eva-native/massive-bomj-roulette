@@ -709,3 +709,101 @@ describe('rule text', () => {
     expect(screen.getByText(/Вторая строка/)).toBeInTheDocument()
   })
 })
+
+describe('judge decisions', () => {
+  const gameEntry = (): QueueEntry => ({
+    kind: 'playthrough', id: 70, player: { id: 2, name: 'Алиса', avatarUrl: '' }, title: 'GTA San Andreas', game: 'GTA San Andreas', item: null,
+    playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: 'completed', hours: 25, proof: '', review: 'Хорошая игра', confirmed: false, points: 0, timerMs: 20 * 3600000 },
+  })
+
+  it('shows the count and asks for an optional reason before rejecting', async () => {
+    const backend = setup(judge)
+    backend.setMe(judge)
+    let queue = [gameEntry()]
+    backend.on('GET', /\/queue$/, () => queue)
+    backend.on('POST', /\/playthroughs\/70\/confirm$/, () => { queue = []; return undefined })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/judge')
+    expect(await screen.findByRole('link', { name: 'Судья (1)' })).toBeInTheDocument()
+    expect(await screen.findByText('Доказательства нет')).toBeInTheDocument()
+    expect(screen.getByText('разница 5 ч')).toHaveClass('text-danger')
+    await user.click(screen.getByRole('button', { name: 'Отклонить…' }))
+    expect(backend.requests.some((r) => r.url.endsWith('/confirm'))).toBe(false)
+    await user.type(screen.getByRole('textbox', { name: 'Причина отклонения' }), 'Уточните время')
+    await user.click(screen.getByRole('button', { name: 'Отклонить' }))
+    expect(await screen.findByText('Всё подтверждено, очередь пуста.')).toBeInTheDocument()
+    expect(backend.requests.find((r) => r.url.endsWith('/confirm'))?.body).toEqual({ accept: false, reason: 'Уточните время' })
+  })
+
+  it('saves item edits before confirmation', async () => {
+    const backend = setup(judge)
+    backend.setMe(judge)
+    const entry: QueueEntry = { ...gameEntry(), kind: 'item', id: 50, playthrough: null, item: { ...opaaa, needsConfirm: true, fields: [{ name: 'stake', label: 'Ставка', type: 'int', by: 'judge', optional: false, value: 1 }] } }
+    let queue = [entry]
+    backend.on('GET', /\/queue$/, () => queue)
+    backend.on('POST', /\/items\/50\/input$/, () => undefined)
+    backend.on('POST', /\/items\/50\/confirm$/, () => { queue = []; return undefined })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/judge')
+    const field = await screen.findByRole('spinbutton', { name: /Ставка/ })
+    await user.clear(field)
+    await user.type(field, '7')
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    expect(await screen.findByText('Всё подтверждено, очередь пуста.')).toBeInTheDocument()
+    const requests = backend.requests.filter((r) => r.method === 'POST')
+    expect(requests.map((r) => r.url.split('/').pop())).toEqual(['input', 'confirm'])
+    expect(requests[0]?.body).toEqual({ values: { stake: 7 } })
+  })
+
+  it('keeps item edits and prevents confirmation when saving fails', async () => {
+    const backend = setup(judge)
+    backend.setMe(judge)
+    const entry: QueueEntry = { ...gameEntry(), kind: 'item', id: 50, playthrough: null, item: { ...opaaa, needsConfirm: true, fields: [{ name: 'stake', label: 'Ставка', type: 'int', by: 'judge', optional: false, value: 1 }] } }
+    backend.on('GET', /\/queue$/, () => [entry])
+    backend.on('POST', /\/items\/50\/input$/, () => { throw new TypeError('Failed to fetch') })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/judge')
+    const field = await screen.findByRole('spinbutton', { name: /Ставка/ })
+    await user.clear(field)
+    await user.type(field, '7')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0)
+    expect(field).toHaveValue(7)
+    expect(backend.requests.some((r) => r.url.endsWith('/confirm'))).toBe(false)
+  })
+
+  it('groups entries by player and puts games before items', async () => {
+    const backend = setup(judge)
+    backend.setMe(judge)
+    const game = gameEntry()
+    const item: QueueEntry = { ...game, kind: 'item', id: 50, playthrough: null, item: opaaa }
+    backend.on('GET', /\/queue$/, () => [item, { ...game, id: 71, player: { id: 3, name: 'Боб', avatarUrl: '' } }, game])
+    vi.stubGlobal('fetch', backend.fetch)
+    renderApp('/e/lbr/judge')
+    const header = await screen.findByRole('heading', { name: 'Алиса · 2' })
+    const group = header.closest('section')!
+    const entries = within(group).getAllByRole('listitem')
+    expect(within(entries[0]!).getByText(/прошёл/)).toBeInTheDocument()
+    expect(within(entries[1]!).getByText('ОПАААА')).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 2 }).map((e) => e.textContent)).toEqual(['Алиса · 2', 'Боб · 1'])
+  })
+
+  it('confirms the waiting game on the player board', async () => {
+    const backend = setup(judge)
+    await joinAs(backend, judge)
+    const entry = gameEntry()
+    let queue = [entry]
+    backend.on('GET', /\/queue$/, () => queue)
+    backend.on('GET', /\/players\/2$/, () => view(turn([step(13, 'play', { done: true })], { playthrough: entry.playthrough, waiting: 'Итог ждёт подтверждения судьи' }), { canAct: false }))
+    backend.on('POST', /\/playthroughs\/70\/confirm$/, () => { queue = []; return undefined })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/players/2')
+    await user.click(await screen.findByRole('button', { name: 'Подтвердить' }))
+    expect(backend.requests.find((r) => r.url.endsWith('/confirm'))?.body).toEqual({ accept: true })
+  })
+})

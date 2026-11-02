@@ -98,8 +98,8 @@ func TestJudgeRejectsOutcome(t *testing.T) {
 	sc.finish(a, game.OutcomeCompleted, 2)
 
 	pt := sc.playthrough(a)
-	expectErr(t, sc.e.ConfirmGame(sc.s, a, pt.ID, true), game.ErrNotJudge)
-	if err := sc.e.ConfirmGame(sc.s, sc.judge, pt.ID, false); err != nil {
+	expectErr(t, sc.e.ConfirmGame(sc.s, a, pt.ID, true, ""), game.ErrNotJudge)
+	if err := sc.e.ConfirmGame(sc.s, sc.judge, pt.ID, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	if pt.Outcome != game.OutcomeNone {

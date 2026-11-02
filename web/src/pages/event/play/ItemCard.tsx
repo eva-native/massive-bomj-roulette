@@ -28,6 +28,7 @@ export function ItemCard({
   count = 1,
   hideHint = false,
   waits = false,
+  decision,
 }: {
   slug: string
   item: ItemView
@@ -42,6 +43,7 @@ export function ItemCard({
   hideHint?: boolean
   /** It waits for the board's player (lib/itemState, worked out by the board once per item). */
   waits?: boolean
+  decision?: (save: () => Promise<void>) => ReactNode
 }) {
   const use = useUseItem(slug)
   const { event } = useEventContext()
@@ -78,7 +80,8 @@ export function ItemCard({
         <RuleText text={item.concept} className="mt-1" />
       )}
 
-      {item.fields.length > 0 && <ItemFields slug={slug} item={item} members={members} editAs={editAs} />}
+      {item.rejected && item.rejectReason && <p className="mt-2 text-sm text-danger">{item.rejectReason}</p>}
+      {(item.fields.length > 0 || decision) && <ItemFields slug={slug} item={item} members={members} editAs={editAs} decision={decision} />}
 
       {item.useLabel && canUse && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -93,7 +96,7 @@ export function ItemCard({
   )
 }
 
-function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemView; members: Member[]; editAs: 'player' | 'judge' | null }) {
+function ItemFields({ slug, item, members, editAs, decision }: { decision?: (save: () => Promise<void>) => ReactNode; slug: string; item: ItemView; members: Member[]; editAs: 'player' | 'judge' | null }) {
   const input = useItemInput(slug)
   // Once sent to the judge, the owner waits for the decision (issue #2).
   const editable = (f: FieldView) => editAs === 'judge' || (editAs === 'player' && f.by === 'player' && !item.locked)
@@ -103,12 +106,12 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
   const valueOf = (f: FieldView) => (f.name in edits ? edits[f.name] : f.value)
   const anyEditable = item.fields.some(editable)
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
+  const save = async () => {
+    if (decision && Object.keys(edits).length === 0) return
     // Every field that holds an answer, and one the viewer emptied (the server clears it then).
     // An untouched blank is not sent: an unticked box would answer «no» for the player (issue #11).
     const sent = Object.fromEntries(item.fields.filter((f) => editable(f) && (!blankValue(valueOf(f)) || f.name in edits)).map((f) => [f.name, valueOf(f)]))
-    input.mutate(
+    await input.mutateAsync(
       { itemId: item.id, values: sent },
       {
         // Drop only the edits that went out and were not changed while the request ran:
@@ -119,7 +122,7 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
   }
 
   return (
-    <form onSubmit={submit} className="mt-2 flex flex-col gap-2 text-sm">
+    <form onSubmit={(e: FormEvent) => { e.preventDefault(); void save().catch(() => {}) }} className="mt-2 flex flex-col gap-2 text-sm">
       {item.fields.map((f) =>
         // Only a field the viewer may fill is a form control; the rest are read as text, so
         // nobody sees an empty form they cannot fill. In the pocket an empty one is left out.
@@ -129,12 +132,13 @@ function ItemFields({ slug, item, members, editAs }: { slug: string; item: ItemV
           <FieldValue key={f.name} field={f} members={members} hideEmpty={item.placement === 'pocket'} />
         ),
       )}
-      {anyEditable && (
+      {anyEditable && !decision && (
         <Button type="submit" variant="secondary" className="self-start" disabled={input.isPending}>
           {editAs === 'player' && item.needsConfirm ? 'Отправить результат' : 'Сохранить'}
         </Button>
       )}
       {editAs === 'player' && item.locked && !item.confirmed && <p className="text-xs text-muted">Отправлено судье. Изменить можно, если судья отклонит.</p>}
+      {decision?.(save)}
       <ErrorText error={input.error} />
     </form>
   )

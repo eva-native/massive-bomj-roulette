@@ -193,7 +193,7 @@ func TestFullTurn(t *testing.T) {
 		t.Fatalf("queue = %+v, %v", q, err)
 	}
 	// A judge who does not play confirms.
-	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, q[0].ID, true); err != nil {
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, q[0].ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -431,7 +431,7 @@ func TestJudgeTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	ptID := f.view(f.alice).Turn.Playthrough.ID
-	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, ptID, true); err != nil {
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, ptID, true, ""); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.view(f.alice).Points; got != 17+game.DefaultRecordPoints { // over HLTB: speed 0
@@ -463,7 +463,7 @@ func TestFinishFreezesTheEvent(t *testing.T) {
 	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, v.Turn.Current.ID, api.FinishRequest{Outcome: "completed", Hours: 10, Review: "Норм"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, f.view(f.alice).Turn.Playthrough.ID, true); err != nil {
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, f.view(f.alice).Turn.Playthrough.ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -636,7 +636,7 @@ func TestPlayTimeAndReview(t *testing.T) {
 	if _, err := update(f.alice, api.PlayTimeRequest{AddMs: hour}); !errors.Is(err, events.ErrConflict) {
 		t.Fatalf("time changed after sending: %v", err)
 	}
-	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, pt.ID, true); err != nil {
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, pt.ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
 	acts, _ := f.play.Activity(f.ctx, "lbr", 10)
@@ -696,5 +696,45 @@ func TestJudgeQueueWaitsForThePlayersPart(t *testing.T) {
 	}
 	if n := items(); n != 1 {
 		t.Fatalf("a filled «100 к 1» is not in the queue: %d items", n)
+	}
+}
+
+func TestRejectedGameReasonPersists(t *testing.T) {
+	f := newFixture(t)
+	f.addGame(f.alice, "G", 10, 80, 2015)
+	for i := 0; i < 3; i++ {
+		f.spin(f.alice, "reflex")
+	}
+	v := f.spin(f.alice, "G").View
+	stepID, ptID := v.Turn.Current.ID, v.Turn.Playthrough.ID
+	req := api.FinishRequest{Outcome: "completed", Hours: 8, Review: "Обзор"}
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, stepID, req); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.alice, ptID, false, "Причина"); !errors.Is(err, events.ErrForbidden) {
+		t.Fatalf("permission: %v", err)
+	}
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, ptID, false, "  Исправьте время  "); err != nil {
+		t.Fatal(err)
+	}
+	pt := f.view(f.alice).Turn.Playthrough
+	if !pt.Rejected || pt.RejectReason != "Исправьте время" {
+		t.Fatalf("view: %+v", pt)
+	}
+	activity, err := f.play.Activity(f.ctx, "lbr", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(activity, func(a api.ActivityEntry) bool {
+		return strings.Contains(a.Message, "отклоняет итог") && strings.HasSuffix(a.Message, ": Исправьте время")
+	}) {
+		t.Fatalf("missing reason in activity: %+v", activity)
+	}
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, stepID, req); err != nil {
+		t.Fatal(err)
+	}
+	pt = f.view(f.alice).Turn.Playthrough
+	if pt.Rejected || pt.RejectReason != "" {
+		t.Fatalf("resubmitted: %+v", pt)
 	}
 }

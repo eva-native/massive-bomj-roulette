@@ -182,7 +182,7 @@ func (s *Service) Input(ctx context.Context, slug string, viewer *auth.User, ite
 }
 
 // ConfirmGame is a judge's decision on a finished game.
-func (s *Service) ConfirmGame(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, accept bool) error {
+func (s *Service) ConfirmGame(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, accept bool, reason string) error {
 	return s.write(ctx, slug, viewer, func(ss *session) error {
 		if err := requireJudgeAction(ss); err != nil {
 			return err
@@ -192,7 +192,7 @@ func (s *Service) ConfirmGame(ctx context.Context, slug string, viewer *auth.Use
 			return events.ErrNotFound
 		}
 		player, title := ss.name(pt.Player), s.gameTitle(ss, pt.Game)
-		if err := s.eng.ConfirmGame(ss.st, ss.viewerID(), playthroughID, accept); err != nil {
+		if err := s.eng.ConfirmGame(ss.st, ss.viewerID(), playthroughID, accept, reason); err != nil {
 			return err
 		}
 		switch {
@@ -201,14 +201,18 @@ func (s *Service) ConfirmGame(ctx context.Context, slug string, viewer *auth.Use
 		case accept:
 			ss.log("confirm", "Судья %s подтверждает: %s — «%s»", ss.viewer.Name, player, title)
 		default:
-			ss.log("reject", "Судья %s отклоняет итог: %s — «%s»", ss.viewer.Name, player, title)
+			suffix := ""
+			if pt.RejectReason != "" {
+				suffix = ": " + pt.RejectReason
+			}
+			ss.log("reject", "Судья %s отклоняет итог: %s — «%s»%s", ss.viewer.Name, player, title, suffix)
 		}
 		return nil
 	})
 }
 
 // ConfirmItem is a judge's decision on an item's result.
-func (s *Service) ConfirmItem(ctx context.Context, slug string, viewer *auth.User, itemID int64, accept bool) error {
+func (s *Service) ConfirmItem(ctx context.Context, slug string, viewer *auth.User, itemID int64, accept bool, reason string) error {
 	return s.write(ctx, slug, viewer, func(ss *session) error {
 		if err := requireJudgeAction(ss); err != nil {
 			return err
@@ -217,14 +221,18 @@ func (s *Service) ConfirmItem(ctx context.Context, slug string, viewer *auth.Use
 		if it == nil {
 			return events.ErrNotFound
 		}
-		if err := s.eng.ConfirmItem(ss.st, ss.viewerID(), itemID, accept); err != nil {
+		if err := s.eng.ConfirmItem(ss.st, ss.viewerID(), itemID, accept, reason); err != nil {
 			return err
 		}
 		verb := "подтверждает"
 		if !accept {
 			verb = "отклоняет"
 		}
-		ss.log("confirm_item", "Судья %s %s «%s» у %s", ss.viewer.Name, verb, s.def(it.DefID).Name, ss.name(it.Player))
+		suffix := ""
+		if !accept && it.RejectReason != "" {
+			suffix = ": " + it.RejectReason
+		}
+		ss.log("confirm_item", "Судья %s %s «%s» у %s%s", ss.viewer.Name, verb, s.def(it.DefID).Name, ss.name(it.Player), suffix)
 		return nil
 	})
 }

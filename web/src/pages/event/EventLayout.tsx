@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useParams, useSearchParams } from 'react-router'
 import { useEvent, useJoinEvent } from '@/api/events'
 import { useMe } from '@/api/hooks'
-import { useEventStream } from '@/api/play'
+import { useEventStream, useQueue } from '@/api/play'
 import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { Badge, ErrorText, Loading } from '@/components/ui'
@@ -20,6 +20,8 @@ export function EventLayout() {
   const [params] = useSearchParams()
   const invite = params.get('invite') ?? ''
   const stream = useEventStream(slug).status
+
+  const queue = useQueue(slug, event.data?.me?.isJudge ?? false)
 
   if (event.isPending) return <Loading />
   if (event.isError) return <ErrorText error={event.error} />
@@ -95,7 +97,7 @@ export function EventLayout() {
               )
             }
           >
-            {t.label}
+            {t.label}{t.to === 'judge' && queue.data && queue.data.length > 0 && ` (${queue.data.length})`}
           </NavLink>
         ))}
         <a
