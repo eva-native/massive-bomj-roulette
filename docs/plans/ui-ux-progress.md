@@ -12,7 +12,7 @@
 | F5 | Двухколоночная доска игрока | Готово — [#31](https://github.com/eva-native/massive-bomj-roulette/pull/31) |
 | F6 | Время, итог, черновик формы | Готово — [#32](https://github.com/eva-native/massive-bomj-roulette/pull/32) |
 | F7 | Работа судьи | На ревью — [#33](https://github.com/eva-native/massive-bomj-roulette/pull/33), CI зелёный |
-| F8 | Навигация по ивенту | Реализовано в `feature/event-navigation`; зависит от #33 |
+| F8 | Навигация по ивенту | На ревью — [#34](https://github.com/eva-native/massive-bomj-roulette/pull/34); сливать после #33 |
 | F9 | Игры, фильмы, предметы, таблица и лента | Запланировано |
 | F10 | Настройки | Запланировано |
 | F11 | Доступность и недостающие состояния | Запланировано |
