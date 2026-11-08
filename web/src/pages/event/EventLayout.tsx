@@ -1,27 +1,51 @@
-import { Link, NavLink, Outlet, useParams, useSearchParams } from 'react-router'
+import { useEffect } from 'react'
+import { Link, Outlet, useLocation, useMatch, useNavigate, useParams, useSearchParams } from 'react-router'
 import { useEvent, useJoinEvent } from '@/api/events'
 import { useMe } from '@/api/hooks'
-import { useEventStream, useQueue } from '@/api/play'
+import { useEventStream, usePlayer, useQueue } from '@/api/play'
 import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { Badge, ErrorText, Loading } from '@/components/ui'
-import { cn } from '@/lib/cn'
 import { RULES_URL } from '@/lib/links'
+import { timerKey, useTimerRunning } from '@/lib/localTimer'
+import { EventTabs } from './EventTabs'
 import type { EventContext } from './context'
 
-/** An inactive tab brightens under the pointer: darker in the light theme, lighter in the dark one. */
-const TAB_HOVER = 'hover:text-stone-800 dark:hover:text-stone-200'
+const pageLabels: Record<string, string> = {
+  '': 'Таблица', play: 'Мой ход', judge: 'Судья', members: 'Участники',
+  games: 'Игры', movies: 'Фильмы', rules: 'Предметы', settings: 'Настройки',
+}
 
 export function EventLayout() {
   const { slug = '' } = useParams()
   const event = useEvent(slug)
   const join = useJoinEvent(slug)
+  const navigate = useNavigate()
   const { data: me } = useMe()
   const [params] = useSearchParams()
   const invite = params.get('invite') ?? ''
   const stream = useEventStream(slug).status
 
   const queue = useQueue(slug, event.data?.me?.isJudge ?? false)
+  const own = usePlayer(slug, event.data?.me?.isParticipant ? me?.id : undefined)
+  const playing = own.data?.turn?.playthrough
+  const running = useTimerRunning(playing && !playing.outcome && event.data?.status === 'active' ? timerKey(slug, playing.id) : undefined)
+  const waits = event.data?.status === 'active' && own.data?.canAct === true
+  const base = `/e/${encodeURIComponent(slug)}`
+  const location = useLocation()
+  const board = useMatch('/e/:slug/players/:id')
+  const active = board
+    ? (Number(board.params.id) === me?.id && event.data?.me?.isParticipant ? 'play' : '')
+    : location.pathname.slice(base.length).replace(/^\/|\/$/g, '')
+  const pageName = board
+    ? event.data?.members.find((m) => m.userId === Number(board.params.id))?.name ?? 'Доска игрока'
+    : pageLabels[active] ?? 'Ивент'
+  const title = `${pageName}${active === 'judge' && queue.data?.length ? ` (${queue.data.length})` : ''} · ${event.data?.title ?? slug} · MBR`
+  useEffect(() => {
+    const previous = document.title
+    document.title = title
+    return () => { document.title = previous }
+  }, [title])
 
   if (event.isPending) return <Loading />
   if (event.isError) return <ErrorText error={event.error} />
@@ -31,9 +55,13 @@ export function EventLayout() {
   // Invite-only events need the code from the link, unless you are already in the list.
   const canJoin = !ev.settings.inviteOnly || invite !== '' || Boolean(me?.isAdmin) || ev.members.some((m) => m.userId === me?.id)
   const tabs = [
-    { to: '', label: 'Таблица', end: true },
-    ...(ev.me?.isParticipant ? [{ to: 'play', label: 'Мой ход' }] : []),
-    ...(isJudge ? [{ to: 'judge', label: 'Судья' }] : []),
+    { to: '', label: 'Таблица' },
+    ...(ev.me?.isParticipant ? [{
+      to: 'play', label: 'Мой ход',
+      accessibleLabel: running ? 'Мой ход — таймер идёт' : waits ? 'Мой ход — ждёт вас' : undefined,
+      mark: running ? 'timer' as const : waits ? 'action' as const : undefined,
+    }] : []),
+    ...(isJudge ? [{ to: 'judge', label: `Судья${queue.data?.length ? ` (${queue.data.length})` : ''}` }] : []),
     { to: 'members', label: 'Участники' },
     { to: 'games', label: 'Игры' },
     { to: 'movies', label: 'Фильмы' },
@@ -46,6 +74,9 @@ export function EventLayout() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold">{ev.title}</h1>
+          <a href={RULES_URL} target="_blank" rel="noreferrer" className="text-sm text-link underline">
+            Правила ивента ↗
+          </a>
           {ev.status === 'finished' && <Badge>Завершён</Badge>}
           {isJudge && <Badge tone="amber">Судья</Badge>}
           {ev.me?.isParticipant && <Badge tone="green">Участник</Badge>}
@@ -54,7 +85,7 @@ export function EventLayout() {
           ev.status === 'active' &&
           (me ? (
             canJoin ? (
-              <Button onClick={() => join.mutate(invite)} disabled={join.isPending}>
+              <Button onClick={() => join.mutate(invite, { onSuccess: () => navigate(`/e/${encodeURIComponent(slug)}/play`) })} disabled={join.isPending}>
                 Участвовать
               </Button>
             ) : (
@@ -82,33 +113,7 @@ export function EventLayout() {
         )}
       </div>
 
-      {/* Scrolls sideways on narrow screens, never up and down. The bottom line is an inset
-          shadow, so the active tab's underline covers it without sticking out of the box. */}
-      <nav className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-stone-200)] dark:shadow-[inset_0_-1px_0_var(--color-stone-800)]">
-        {tabs.map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.end}
-            className={({ isActive }) =>
-              cn(
-                'border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap',
-                isActive ? 'border-amber-500 text-stone-900 dark:text-stone-100' : `border-transparent text-muted ${TAB_HOVER}`,
-              )
-            }
-          >
-            {t.label}{t.to === 'judge' && queue.data && queue.data.length > 0 && ` (${queue.data.length})`}
-          </NavLink>
-        ))}
-        <a
-          href={RULES_URL}
-          target="_blank"
-          rel="noreferrer"
-          className={`border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap text-muted ${TAB_HOVER}`}
-        >
-          Правила ↗
-        </a>
-      </nav>
+      <EventTabs base={base} tabs={tabs} active={active} />
 
       <Outlet context={{ event: ev } satisfies EventContext} />
     </main>

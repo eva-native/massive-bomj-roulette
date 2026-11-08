@@ -20,7 +20,7 @@ export function BoardTab() {
   return (
     <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
       <Card>
-        <h2 className="mb-3 font-semibold">Таблица</h2>
+        <h2 className="mb-3 font-semibold">Очки</h2>
         {board.isPending && <Loading />}
         <ErrorText error={board.error} />
         {board.data?.length === 0 && <p className="text-sm text-muted">Пока никто не играет.</p>}

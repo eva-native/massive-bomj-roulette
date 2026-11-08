@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 /**
  * The stopwatch of the current play session. It lives in this browser only
@@ -27,10 +27,29 @@ function load(key: string): Stored {
   }
 }
 
+const timerChanged = 'mbr:timer-changed'
+
+/** Read the running flag without starting a second stopwatch or writing its state. */
+export function useTimerRunning(key: string | undefined): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      window.addEventListener(timerChanged, changed)
+      window.addEventListener('storage', changed)
+      return () => {
+        window.removeEventListener(timerChanged, changed)
+        window.removeEventListener('storage', changed)
+      }
+    },
+    () => Boolean(key && load(key).startedAt !== null),
+    () => false,
+  )
+}
+
 function store(key: string, v: Stored) {
   try {
     if (v.elapsedMs === 0 && v.startedAt === null) localStorage.removeItem(key)
     else localStorage.setItem(key, JSON.stringify(v))
+    window.dispatchEvent(new Event(timerChanged))
   } catch {
     // Storage may be blocked (private mode); the timer still works until reload.
   }

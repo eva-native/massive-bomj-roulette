@@ -37,7 +37,7 @@ export function AppShell() {
           <span className="text-sm text-muted">Сервер недоступен</span>
         ) : (
           !isPending && (
-            <Link to={`/login?next=${encodeURIComponent(location.pathname)}`} className={buttonClass('primary')}>
+            <Link to={`/login?next=${encodeURIComponent(location.pathname)}`} className={buttonClass('secondary')}>
               Войти
             </Link>
           )

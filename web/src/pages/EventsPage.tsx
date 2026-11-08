@@ -22,7 +22,7 @@ export function EventsPage() {
         {events.data?.map((ev) => (
           <li key={ev.slug}>
             <Link
-              to={`/e/${ev.slug}`}
+              to={`/e/${encodeURIComponent(ev.slug)}${ev.isParticipant ? "/play" : ""}`}
               className="flex items-center justify-between gap-4 rounded-xl border border-stone-200 bg-white p-4 hover:border-amber-400 dark:border-stone-800 dark:bg-stone-900"
             >
               <div>
