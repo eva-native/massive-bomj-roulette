@@ -14,6 +14,7 @@ export function UndoStep({ slug, playerId, turn }: { slug: string; playerId: num
   const done = turn.steps.some((s) => s.done)
   return (
     <div className="flex flex-col gap-1 border-t border-stone-200 pt-3 dark:border-stone-800">
+      <p className="text-sm font-medium">Действия судьи</p>
       <Button
         variant="secondary"
         className="self-start"

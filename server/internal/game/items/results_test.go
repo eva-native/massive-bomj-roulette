@@ -15,7 +15,7 @@ func (sc *scenario) input(actor game.PlayerID, it *game.Item, values map[string]
 
 func (sc *scenario) confirmItem(it *game.Item) {
 	sc.t.Helper()
-	if err := sc.e.ConfirmItem(sc.s, sc.judge, it.ID, true); err != nil {
+	if err := sc.e.ConfirmItem(sc.s, sc.judge, it.ID, true, ""); err != nil {
 		sc.t.Fatalf("confirm %s: %v", it.DefID, err)
 	}
 }
@@ -96,7 +96,7 @@ func TestJudgeEditDoesNotAnswerForThePlayer(t *testing.T) {
 	if _, ok := rps.Input["won"]; ok {
 		t.Fatalf("the judge's edit filled «Победа»: %v", rps.Input)
 	}
-	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, rps.ID, true), game.ErrBadInput)
+	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, rps.ID, true, ""), game.ErrBadInput)
 	// The player still answers, and their win stands.
 	sc.input(a, rps, map[string]any{"won": true})
 	sc.confirmItem(rps)
@@ -202,7 +202,7 @@ func TestBlankInputClearsTheField(t *testing.T) {
 	if mc = sc.item(a, "mc_trup"); mc.Submitted {
 		t.Fatal("blank proof sent the result to the judge")
 	}
-	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, mc.ID, true), game.ErrBadInput)
+	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, mc.ID, true, ""), game.ErrBadInput)
 
 	sc.input(a, mc, map[string]any{"proof": "https://youtu.be/song"})
 	if !sc.item(a, "mc_trup").Submitted {

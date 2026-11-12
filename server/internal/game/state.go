@@ -192,8 +192,10 @@ type Playthrough struct {
 	Hours   float64
 	Proof   string
 	// Review is the player's own words about the game; it does not affect points.
-	Review    string `json:",omitempty"`
-	Confirmed bool
+	Review       string `json:",omitempty"`
+	Confirmed    bool
+	Rejected     bool   `json:",omitempty"`
+	RejectReason string `json:",omitempty"`
 }
 
 // Placement says where an item currently is.
@@ -217,11 +219,12 @@ type Item struct {
 	Placement Placement
 	// Chain lists the playthroughs the item works on, in order. Usually one;
 	// multi-game items («Ни шагу назад») collect up to their Lifetime.
-	Chain     []int64
-	State     json.RawMessage
-	Input     map[string]any
-	Confirmed bool
-	Rejected  bool
+	Chain        []int64
+	State        json.RawMessage
+	Input        map[string]any
+	Confirmed    bool
+	Rejected     bool
+	RejectReason string `json:",omitempty"`
 	// Submitted marks an item whose owner sent all required fields to the
 	// judge. Until the judge rejects it, the owner cannot change them.
 	Submitted bool

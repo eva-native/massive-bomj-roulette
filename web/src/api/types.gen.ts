@@ -311,6 +311,8 @@ export interface PlaythroughView {
   proof: string;
   review: string;
   confirmed: boolean;
+  rejected?: boolean;
+  rejectReason?: string;
   points: number /* int */;
   /**
    * TimerMs is the time the player saved with the timer; set in the
@@ -355,6 +357,7 @@ export interface ItemView {
   needsConfirm: boolean;
   confirmed: boolean;
   rejected: boolean;
+  rejectReason?: string;
   /**
    * Locked: the owner sent the fields to the judge and cannot change them
    * until the judge rejects. Judges can always edit.
@@ -437,6 +440,7 @@ export interface EditPlaythroughRequest {
 }
 export interface ConfirmRequest {
   accept: boolean;
+  reason?: string;
 }
 /**
  * LeaderboardRow is one player's standing.

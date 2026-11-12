@@ -4,6 +4,7 @@ import { api } from './client'
 import { eventKeys } from './events'
 import type {
   ActivityEntry,
+  ConfirmRequest,
   EditPlaythroughRequest,
   FinishRequest,
   LeaderboardRow,
@@ -99,14 +100,14 @@ export function useItemInput(slug: string) {
 }
 
 export function useConfirmGame(slug: string) {
-  return useEventAction(slug, ({ id, accept }: { id: number; accept: boolean }) =>
-    api<void>(`${base(slug)}/playthroughs/${id}/confirm`, { method: 'POST', json: { accept } }),
+  return useEventAction(slug, ({ id, ...req }: ConfirmRequest & { id: number }) =>
+    api<void>(`${base(slug)}/playthroughs/${id}/confirm`, { method: 'POST', json: req }),
   )
 }
 
 export function useConfirmItem(slug: string) {
-  return useEventAction(slug, ({ id, accept }: { id: number; accept: boolean }) =>
-    api<void>(`${base(slug)}/items/${id}/confirm`, { method: 'POST', json: { accept } }),
+  return useEventAction(slug, ({ id, ...req }: ConfirmRequest & { id: number }) =>
+    api<void>(`${base(slug)}/items/${id}/confirm`, { method: 'POST', json: req }),
   )
 }
 

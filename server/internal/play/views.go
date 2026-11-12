@@ -249,7 +249,7 @@ func (s *Service) stepView(ss *session, t *game.Turn, st *game.Step) api.StepVie
 func (s *Service) playthroughView(ss *session, pt *game.Playthrough, entries []game.Entry) api.PlaythroughView {
 	v := api.PlaythroughView{
 		ID: pt.ID, GameID: pt.Game, Game: s.gameTitle(ss, pt.Game),
-		Outcome: string(pt.Outcome), Hours: pt.Hours, Proof: pt.Proof, Review: pt.Review, Confirmed: pt.Confirmed,
+		Outcome: string(pt.Outcome), Hours: pt.Hours, Proof: pt.Proof, Review: pt.Review, Confirmed: pt.Confirmed, Rejected: pt.Rejected, RejectReason: pt.RejectReason,
 	}
 	if g := ss.st.Game(pt.Game); g != nil {
 		v.HLTBHours = g.HLTB
@@ -269,7 +269,7 @@ func (s *Service) itemView(ss *session, it *game.Item, t *game.Turn) api.ItemVie
 	d := s.def(it.DefID)
 	v := api.ItemView{
 		ID: it.ID, DefID: it.DefID, Placement: string(it.Placement), Fields: []api.FieldView{},
-		Confirmed: it.Confirmed, Rejected: it.Rejected, Blocked: s.eng.Blocked(ss.st, it.ID),
+		Confirmed: it.Confirmed, Rejected: it.Rejected, RejectReason: it.RejectReason, Blocked: s.eng.Blocked(ss.st, it.ID),
 	}
 	if d == nil {
 		v.Name = it.DefID
