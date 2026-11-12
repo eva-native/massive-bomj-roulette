@@ -53,6 +53,7 @@ describe('events', () => {
     expect(screen.queryByText('Добавить игру')).not.toBeInTheDocument() // not a member yet
     await user.click(screen.getByRole('button', { name: 'Участвовать' }))
 
+    await user.click(await screen.findByRole('link', { name: 'Игры' }))
     expect(await screen.findByText('Добавить игру')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument() // Bob's game
 
@@ -76,6 +77,7 @@ describe('events', () => {
     renderApp('/e/lbr/members')
 
     await user.click(await screen.findByRole('button', { name: 'Участвовать' }))
+    await user.click(await screen.findByRole('link', { name: 'Участники' }))
     expect(await screen.findByRole('link', { name: 'Алиса' })).toHaveAttribute('href', '/e/lbr/players/2')
     // A judge only, with no board: the name is plain text.
     expect(screen.getByText('Админ')).toBeInTheDocument()
@@ -99,7 +101,7 @@ describe('events', () => {
     vi.stubGlobal('fetch', backend.fetch)
     renderApp('/e/lbr/rules')
 
-    expect(await screen.findByRole('link', { name: 'Правила ↗' })).toHaveAttribute('href', RULES_URL)
+    expect(await screen.findByRole('link', { name: 'Правила ивента ↗' })).toHaveAttribute('href', RULES_URL)
     expect(await screen.findByRole('link', { name: 'общих правилах ивента' })).toHaveAttribute('href', RULES_URL)
   })
 
