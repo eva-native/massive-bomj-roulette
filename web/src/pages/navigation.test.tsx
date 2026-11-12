@@ -117,3 +117,40 @@ it('does not request a personal board for guests or judge-only members', async (
   expect(backend.requests.some((r) => /\/players\//.test(r.url))).toBe(false)
   expect(tabs().queryByRole('link', { name: /^Мой ход/ })).not.toBeInTheDocument()
 })
+
+it.each([false, true])('marks a pending item result while the game outcome waits for the judge (rejected: %s)', async (rejected) => {
+  const backend = await setup()
+  const waiting = view(false)
+  waiting.turn!.current = null
+  waiting.turn!.steps[0]!.done = true
+  waiting.turn!.playthrough = { ...pt, outcome: 'completed', hours: 3 }
+  waiting.turn!.waiting = 'Итог ждёт подтверждения судьи'
+  waiting.turn!.items = [{
+    id: 50, defId: 'duel', name: 'Дуэль', concept: 'Результат дуэли', kind: 'effect', placement: 'attached',
+    blocked: false, status: '', note: '', needsConfirm: true, confirmed: false, rejected, locked: false,
+    rejectReason: rejected ? 'Уточните результат' : '', useLabel: '', canUse: false, useHint: '',
+    fields: [{ name: 'won', label: 'Победа', type: 'bool', by: 'player', optional: false, value: null }],
+  }]
+  backend.on('GET', /\/players\/2$/, () => waiting)
+  const { queryClient, router } = renderApp('/e/lbr/play')
+  expect(await screen.findByText('Нужно действие')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Отправить результат' })).toBeEnabled()
+  await act(() => router.navigate('/e/lbr/games'))
+  expect(queryClient.getQueryData(playKeys.player('lbr', 2))).toEqual(waiting)
+  expect(tabs().getByRole('link', { name: 'Мой ход — ждёт вас' })).toBeInTheDocument()
+  // Blocked items do not need a response; an unblocked item waits again.
+  const item = waiting.turn!.items[0]!
+  item.blocked = true
+  await act(() => queryClient.invalidateQueries({ queryKey: playKeys.player('lbr', 2) }))
+  expect(await tabs().findByRole('link', { name: 'Мой ход' })).toBeInTheDocument()
+  item.blocked = false
+  await act(() => queryClient.invalidateQueries({ queryKey: playKeys.player('lbr', 2) }))
+  expect(await tabs().findByRole('link', { name: 'Мой ход — ждёт вас' })).toBeInTheDocument()
+  // Sending the result removes the marker even though the judge has not confirmed it yet.
+  item.locked = true
+  item.rejected = false
+  item.rejectReason = ''
+  item.fields[0]!.value = true
+  await act(() => queryClient.invalidateQueries({ queryKey: playKeys.player('lbr', 2) }))
+  expect(await tabs().findByRole('link', { name: 'Мой ход' })).toBeInTheDocument()
+})

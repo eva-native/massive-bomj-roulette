@@ -7,6 +7,7 @@ import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { Badge, ErrorText, Loading } from '@/components/ui'
 import { RULES_URL } from '@/lib/links'
+import { needsAction } from '@/lib/itemState'
 import { timerKey, useTimerRunning } from '@/lib/localTimer'
 import { EventTabs } from './EventTabs'
 import type { EventContext } from './context'
@@ -30,7 +31,10 @@ export function EventLayout() {
   const own = usePlayer(slug, event.data?.me?.isParticipant ? me?.id : undefined)
   const playing = own.data?.turn?.playthrough
   const running = useTimerRunning(playing && !playing.outcome && event.data?.status === 'active' ? timerKey(slug, playing.id) : undefined)
-  const waits = event.data?.status === 'active' && own.data?.canAct === true
+  const canAct = own.data?.canAct === true
+  const waits = event.data?.status === 'active' && (
+    canAct || own.data?.turn?.items.some((item) => needsAction(item, { own: true, canAct })) === true
+  )
   const base = `/e/${encodeURIComponent(slug)}`
   const location = useLocation()
   const board = useMatch('/e/:slug/players/:id')
