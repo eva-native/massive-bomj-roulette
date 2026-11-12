@@ -13,6 +13,12 @@ const outcomeNames: Record<string, string> = { completed: 'прошёл', droppe
 
 export function JudgeDecision({ entry }: { entry: QueueEntry }) {
   const { event } = useEventContext()
+  // Drafts, errors and item edits belong to one decision, including across cached routes.
+  return <JudgeDecisionForm key={`${event.slug}:${entry.kind}:${entry.id}`} entry={entry} />
+}
+
+function JudgeDecisionForm({ entry }: { entry: QueueEntry }) {
+  const { event } = useEventContext()
   const game = useConfirmGame(event.slug)
   const item = useConfirmItem(event.slug)
   const [busy, setBusy] = useState(false)
@@ -76,7 +82,9 @@ export function JudgeDecision({ entry }: { entry: QueueEntry }) {
           {actions()}
         </>
       ) : entry.item && (
-        <ItemCard slug={event.slug} item={entry.item} members={event.members} editAs="judge" canUse={false} decision={entry.item.needsConfirm ? actions : undefined} />
+        <fieldset disabled={busy} className="min-w-0">
+          <ItemCard slug={event.slug} item={entry.item} members={event.members} editAs="judge" canUse={false} decision={entry.item.needsConfirm ? actions : undefined} />
+        </fieldset>
       )}
     </Card>
   )

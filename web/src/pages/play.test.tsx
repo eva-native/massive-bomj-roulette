@@ -716,6 +716,105 @@ describe('judge decisions', () => {
     playthrough: { id: 70, gameId: 5, game: 'GTA San Andreas', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: 'completed', hours: 25, proof: '', review: 'Хорошая игра', confirmed: false, points: 0, timerMs: 20 * 3600000 },
   })
 
+  it('resets the inline rejection draft when switching player boards', async () => {
+    const backend = setup(judge)
+    await joinAs(backend, judge)
+    const aliceEntry = gameEntry()
+    const bobEntry = { ...gameEntry(), id: 71, player: { id: 3, name: 'Боб', avatarUrl: '' }, playthrough: { ...gameEntry().playthrough!, id: 71 } }
+    const boardView = (entry: QueueEntry) => view(turn([step(13, 'play', { done: true })], { playthrough: entry.playthrough, waiting: 'Итог ждёт подтверждения судьи' }), { player: entry.player, canAct: false })
+    backend.on('GET', /\/queue$/, () => [aliceEntry, bobEntry])
+    backend.on('GET', /\/players\/2$/, () => boardView(aliceEntry))
+    backend.on('GET', /\/players\/3$/, () => boardView(bobEntry))
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    const { router, queryClient } = renderApp('/e/lbr/players/2')
+    await user.click(await screen.findByRole('button', { name: 'Отклонить…' }))
+    await user.type(screen.getByRole('textbox', { name: 'Причина отклонения' }), 'Причина только для Алисы')
+    queryClient.setQueryData(playKeys.player('lbr', 3), boardView(bobEntry))
+    await act(() => router.navigate('/e/lbr/players/3'))
+    expect(screen.getByRole('heading', { name: 'Боб' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Причина отклонения' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Отклонить…' }))
+    expect(screen.getByRole('textbox', { name: 'Причина отклонения' })).toHaveValue('')
+  })
+
+  it('locks item fields throughout a slow save and confirmation', async () => {
+    const backend = setup(judge)
+    backend.setMe(judge)
+    const entry: QueueEntry = { ...gameEntry(), kind: 'item', id: 50, playthrough: null, item: { ...opaaa, needsConfirm: true, fields: [{ name: 'levels', label: 'Уровни', type: 'int', by: 'player', optional: false, value: 1 }] } }
+    let queue = [entry]
+    backend.on('GET', /\/queue$/, () => queue)
+    backend.on('POST', /\/items\/50\/input$/, (body) => {
+      entry.item!.fields[0]!.value = (body as { values: { levels: number } }).values.levels
+    })
+    backend.on('POST', /\/items\/50\/confirm$/, () => { queue = []; return undefined })
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    let confirmStarted = () => {}
+    const confirming = new Promise<void>((resolve) => { confirmStarted = resolve })
+    let releaseConfirm = () => {}
+    const confirmGate = new Promise<void>((resolve) => { releaseConfirm = resolve })
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/input')) await gate
+      if (String(input).endsWith('/confirm')) {
+        confirmStarted()
+        await confirmGate
+      }
+      return backend.fetch(input, init)
+    })
+    const user = userEvent.setup()
+    renderApp('/e/lbr/judge')
+    const field = await screen.findByRole('spinbutton', { name: /Уровни/ })
+    await user.clear(field)
+    await user.type(field, '7')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    await screen.findByRole('button', { name: 'Отправка…' })
+    expect(field).toBeDisabled()
+    await user.type(field, '9')
+    expect(field).toHaveValue(7)
+    release()
+    await act(() => confirming)
+    expect(field).toBeDisabled() // saving succeeded, but confirmation is still in flight
+    await vi.waitFor(() => expect(field).toHaveValue(7))
+    releaseConfirm()
+    await screen.findByText('Всё подтверждено, очередь пуста.')
+    expect(entry.item!.fields[0]!.value).toBe(7)
+  })
+
+  it('unlocks saved item fields after confirmation fails so the judge can retry', async () => {
+    const backend = setup(judge)
+    backend.setMe(judge)
+    const entry: QueueEntry = { ...gameEntry(), kind: 'item', id: 50, playthrough: null, item: { ...opaaa, needsConfirm: true, fields: [{ name: 'levels', label: 'Уровни', type: 'int', by: 'player', optional: false, value: 1 }] } }
+    let queue = [entry]
+    let failConfirm = true
+    backend.on('GET', /\/queue$/, () => queue)
+    backend.on('POST', /\/items\/50\/input$/, (body) => {
+      entry.item!.fields[0]!.value = (body as { values: { levels: number } }).values.levels
+    })
+    backend.on('POST', /\/items\/50\/confirm$/, () => { queue = []; return undefined })
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/confirm') && failConfirm) {
+        return new Response(JSON.stringify({ error: 'Попробуйте снова' }), { status: 500 })
+      }
+      return backend.fetch(input, init)
+    })
+    const user = userEvent.setup()
+    renderApp('/e/lbr/judge')
+    const field = await screen.findByRole('spinbutton', { name: /Уровни/ })
+    await user.clear(field)
+    await user.type(field, '7')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Попробуйте снова')
+    expect(field).toBeEnabled()
+    expect(field).toHaveValue(7)
+    await user.clear(field)
+    await user.type(field, '9')
+    failConfirm = false
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    await screen.findByText('Всё подтверждено, очередь пуста.')
+    expect(entry.item!.fields[0]!.value).toBe(9)
+  })
+
   it('shows the count and asks for an optional reason before rejecting', async () => {
     const backend = setup(judge)
     backend.setMe(judge)
