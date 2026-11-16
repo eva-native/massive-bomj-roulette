@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Navigate } from 'react-router'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Navigate, useBlocker } from 'react-router'
 import { inviteLink, useItems, useNewInvite, useUpdateEvent } from '@/api/events'
 import { exportUrl, useFinishEvent } from '@/api/play'
 import type { EventDetail, ItemDef, SpinsRow } from '@/api/types.gen'
@@ -21,10 +21,20 @@ export function SettingsTab() {
 
   if (!event.me?.isJudge) return <Navigate to=".." replace />
   if (items.isPending) return <Loading />
-  if (items.isError) return <ErrorText error={items.error} />
+  if (items.isError && !items.data) return <ErrorText error={items.error} />
   // The form keeps its own state; it starts from the saved values of this event.
+  const sections = [
+    ['event', 'Ивент'], ['pool', 'Пул'], ['points', 'Очки'], ['wheels', 'Колёса'],
+    ['spins', 'Крутки'], ['items', 'Предметы'], ['export', 'Экспорт и завершение'],
+  ]
   return (
     <div className="flex flex-col gap-4">
+      <ErrorText error={items.error} />
+      <nav aria-label="Разделы настроек" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+        {sections.filter(([id]) => event.status === 'active' || id === 'export').map(([id, label]) => (
+          <a key={id} href={`#settings-${id}`} className="text-link underline">{label}</a>
+        ))}
+      </nav>
       {event.status === 'active' && <SettingsForm key={event.slug} event={event} items={items.data} />}
       <EventActions event={event} />
     </div>
@@ -35,8 +45,8 @@ export function SettingsTab() {
 function EventActions({ event }: { event: EventDetail }) {
   const finish = useFinishEvent(event.slug)
   return (
-    <Card className="flex flex-col gap-3">
-      <h2 className="font-semibold">Ивент целиком</h2>
+    <Card id="settings-export" className="flex flex-col gap-3">
+      <h2 className="font-semibold">Экспорт и завершение</h2>
       <div className="flex flex-wrap gap-2">
         <a href={exportUrl(event.slug)} download className={buttonClass('secondary')}>
           Скачать экспорт (JSON)
@@ -93,7 +103,19 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
     ),
   )
+  const snapshot = JSON.stringify({ title, startSpins, rows, webhook, gameWheel, itemWheel, recordPoints, maxGames, inviteOnly, icons, itemRows })
+  const [savedSnapshot, setSavedSnapshot] = useState(snapshot)
   const [saved, setSaved] = useState(false)
+  const dirty = snapshot !== savedSnapshot
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && (
+    currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search
+  ))
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   const setRow = (i: number, patch: Partial<SpinsRow>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const setItem = (id: string, patch: Partial<ItemRow>) =>
@@ -102,7 +124,9 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
+    if (update.isPending || !dirty) return
     setSaved(false)
+    const submitted = snapshot
     showIcons(unshownIcons())
     const weights: Record<string, number> = {}
     const disabled: string[] = []
@@ -135,13 +159,13 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
           icons: Object.fromEntries(Object.entries(icons).filter(([, v]) => v.trim() !== '')),
         },
       },
-      { onSuccess: () => setSaved(true) },
+      { onSuccess: () => { setSavedSnapshot(submitted); setSaved(true) } },
     )
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Card className="flex flex-col gap-3">
+      <Card id="settings-event" className="flex flex-col gap-3">
         <h2 className="font-semibold">Ивент</h2>
         <Field label="Название">
           <Input value={title} maxLength={100} onChange={(e) => setTitle(e.target.value)} />
@@ -151,7 +175,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         </Field>
       </Card>
 
-      <Card className="flex flex-col gap-3">
+      <Card id="settings-pool" className="flex flex-col gap-3">
         <h2 className="font-semibold">Пул и вступление</h2>
         <Field label="Игр на участника" hint="Сколько игр каждый может добавить в пул. 0 — без ограничений. Судей не касается." className="max-w-56">
           <Input type="number" min={0} max={1000} value={maxGames} onChange={(e) => setMaxGames(num(e.target.value))} />
@@ -164,14 +188,14 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         {inviteOnly && !event.settings.inviteOnly && <p className="text-xs text-muted">Ссылка появится после сохранения.</p>}
       </Card>
 
-      <Card className="flex flex-col gap-3">
+      <Card id="settings-points" className="flex flex-col gap-3">
         <h2 className="font-semibold">Очки</h2>
         <Field label="За рекорд скорости" hint="Самое быстрое прохождение игры среди всех участников." className="max-w-56">
           <Input type="number" min={0} max={100} value={recordPoints} onChange={(e) => setRecordPoints(num(e.target.value))} />
         </Field>
       </Card>
 
-      <Card className="flex flex-col gap-3">
+      <Card id="settings-wheels" className="flex flex-col gap-3">
         <h2 className="font-semibold">Длительность вращения колеса</h2>
         <p className="text-xs text-muted">В секундах, до 120. Пусто или 0 — как обычно ({String(DEFAULT_WHEEL_SECONDS).replace('.', ',')} с). Действует и на оверлей.</p>
         <div className="flex flex-wrap gap-3">
@@ -184,7 +208,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-3">
+      <Card id="settings-spins" className="flex flex-col gap-3">
         <h2 className="font-semibold">Крутки колеса эффектов и бонусов</h2>
         <Field label="В начале ивента" className="max-w-40">
           <Input type="number" min={1} max={20} value={startSpins} onChange={(e) => setStartSpins(num(e.target.value))} />
@@ -215,11 +239,14 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-4">
+      <Card id="settings-items" className="flex flex-col gap-4">
         <h2 className="font-semibold">Предметы</h2>
         <p className="text-xs text-muted">
           Вес — относительная частота на колесе. Эффекты и бонусы делят одно колесо. Иконка — ссылка на картинку; без неё показывается эмодзи.
         </p>
+        <div aria-hidden="true" className="hidden gap-3 text-xs font-medium text-muted sm:grid sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_5rem]">
+          <span>Вкл · Предмет</span><span>Иконка</span><span>Вес</span>
+        </div>
         {Object.entries(kindLabels).map(([kind, label]) => (
           <div key={kind} className="flex flex-col gap-1">
             <h3 className="text-sm font-medium text-muted">{label}</h3>
@@ -230,30 +257,36 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                 return (
                   <div key={it.id} className="flex flex-col gap-1 text-sm">
                     {/* On a phone the name keeps its own line and the inputs wrap below it. */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <div className="grid items-center gap-3 sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_5rem]">
                       <label className="flex min-w-48 flex-1 items-center gap-2">
                         <input type="checkbox" checked={row.enabled} onChange={(e) => setItem(it.id, { enabled: e.target.checked })} />
                         <ItemIcon defId={it.id} kind={it.kind} icons={shownIcons} size="sm" />
                         {it.name}
                       </label>
-                      <Input
-                        type="url"
-                        className="w-40 text-xs"
-                        placeholder="иконка: https://…"
-                        aria-label={`Иконка «${it.name}»`}
-                        value={icons[it.id] ?? ''}
-                        onChange={(e) => setIcons((m) => ({ ...m, [it.id]: e.target.value }))}
-                        onBlur={() => showIcons([it.id])}
-                      />
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1000}
-                        className="w-20"
-                        aria-label={`Вес «${it.name}»`}
-                        value={row.weight}
-                        onChange={(e) => setItem(it.id, { weight: num(e.target.value) })}
-                      />
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-muted sm:hidden">Иконка</span>
+                        <Input
+                          type="url"
+                          className="min-w-0 text-xs"
+                          placeholder="иконка: https://…"
+                          aria-label={`Иконка «${it.name}»`}
+                          value={icons[it.id] ?? ''}
+                          onChange={(e) => setIcons((m) => ({ ...m, [it.id]: e.target.value }))}
+                          onBlur={() => showIcons([it.id])}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-muted sm:hidden">Вес</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={1000}
+                          className="w-20"
+                          aria-label={`Вес «${it.name}»`}
+                          value={row.weight}
+                          onChange={(e) => setItem(it.id, { weight: num(e.target.value) })}
+                        />
+                      </label>
                     </div>
                     {/* Hidden while the judge edits the link: the edit is checked when they leave the field. */}
                     {(icons[it.id] ?? '').trim() === (shownIcons[it.id] ?? '') && <IconLinkStatus url={shownIcons[it.id] ?? ''} />}
@@ -279,13 +312,26 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         ))}
       </Card>
 
-      <div className="flex items-center gap-3">
-        <Button type="submit" disabled={!title.trim() || update.isPending}>
-          Сохранить
-        </Button>
-        {saved && !update.isPending && <span className="text-sm text-success">Сохранено</span>}
+      <div className="sticky bottom-2 z-30 flex flex-col gap-2 rounded-xl border border-stone-300 bg-white p-3 shadow-lg dark:border-stone-700 dark:bg-stone-900">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={!dirty || !title.trim() || update.isPending}>
+            {update.isPending ? 'Сохранение…' : 'Сохранить'}
+          </Button>
+          <span role="status" className="text-sm text-muted">
+            {update.isPending ? 'Сохраняем отправленные изменения…' : dirty ? 'Есть несохранённые изменения' : saved ? 'Сохранено' : 'Изменений нет'}
+          </span>
+        </div>
+        <ErrorText error={update.error} />
+        {blocker.state === 'blocked' && (
+          <div role="alertdialog" aria-label="Несохранённые настройки" onKeyDown={(e) => { if (e.key === 'Escape') blocker.reset() }} className="flex flex-col gap-2">
+            <p className="text-sm">Есть несохранённые изменения. Уйти без сохранения?</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" autoFocus onClick={() => blocker.reset()}>Остаться</Button>
+              <Button variant="secondary" onClick={() => blocker.proceed()}>Уйти без сохранения</Button>
+            </div>
+          </div>
+        )}
       </div>
-      <ErrorText error={update.error} />
     </form>
   )
 }
