@@ -62,9 +62,9 @@ export function RequiredMark() {
   )
 }
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
+export function Card({ className, children, id }: { className?: string; children: ReactNode; id?: string }) {
   return (
-    <section className={cn('rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900', className)}>
+    <section id={id} className={cn('scroll-mt-4 rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900', className)}>
       {children}
     </section>
   )
