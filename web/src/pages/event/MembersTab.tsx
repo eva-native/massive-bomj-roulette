@@ -69,7 +69,7 @@ function RoleControls({
 }) {
   return (
     <div className="flex items-center gap-4 text-sm">
-      <label className="flex items-center gap-1">
+      <label className="flex min-h-6 items-center gap-1 py-1">
         <input
           type="checkbox"
           checked={member.isParticipant}
@@ -78,11 +78,11 @@ function RoleControls({
         />
         Участник
       </label>
-      <label className="flex items-center gap-1">
+      <label className="flex min-h-6 items-center gap-1 py-1">
         <input type="checkbox" checked={member.isJudge} disabled={busy} onChange={(e) => onChange({ isJudge: e.target.checked })} />
         Судья
       </label>
-      <button type="button" className="text-danger hover:underline disabled:opacity-50" disabled={busy} onClick={onRemove}>
+      <button type="button" className="min-h-6 py-1 text-danger hover:underline disabled:opacity-50" disabled={busy} onClick={onRemove}>
         Убрать
       </button>
     </div>

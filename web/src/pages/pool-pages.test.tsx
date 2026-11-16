@@ -42,8 +42,14 @@ it('prevents adding at the limit while allowing an existing game to be edited', 
   await user.click(screen.getByRole('button', { name: 'Изменить' }))
   const form = screen.getByRole('button', { name: 'Сохранить' }).closest('form')!
   expect(within(form).getByLabelText('Название')).toBeEnabled()
+  expect(within(form).getByLabelText('Название')).toHaveFocus()
   expect(within(form).getByLabelText('Рейтинг (из 100)')).toHaveValue(8)
   expect(screen.getByText(/Похоже на оценку из 5 или 10/)).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+  expect(screen.getByRole('button', { name: 'Изменить' })).toHaveFocus()
+  await user.click(screen.getByRole('button', { name: 'Изменить' }))
+  await user.click(screen.getByRole('button', { name: 'Отмена' }))
+  expect(screen.getByRole('button', { name: 'Изменить' })).toHaveFocus()
 })
 
 it('only turns HTTP movie titles into links', async () => {
@@ -54,4 +60,29 @@ it('only turns HTTP movie titles into links', async () => {
   expect(await screen.findByRole('link', { name: 'https://example.com/movie' })).toHaveAttribute('target', '_blank')
   expect(screen.getByText('javascript:alert(1)')).toBeInTheDocument()
   expect(screen.queryByRole('link', { name: 'javascript:alert(1)' })).not.toBeInTheDocument()
+})
+
+it('focuses a movie title on edit and restores the trigger on Escape', async () => {
+  const backend = fakeBackend({ me: judge })
+  backend.addEvent('lbr', 'ЛБР', judge, { movies: [{ id: 7, title: 'Фильм', addedBy: 1, addedByName: 'Судья' }] })
+  vi.stubGlobal('fetch', backend.fetch)
+  const user = userEvent.setup()
+  renderApp('/e/lbr/movies')
+  await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+  expect(screen.getByDisplayValue('Фильм')).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(screen.getByRole('button', { name: 'Изменить' })).toHaveFocus()
+})
+
+it('keeps focus in the newly opened game editor when switching rows', async () => {
+  const backend = fakeBackend({ me: judge })
+  backend.addEvent('lbr', 'ЛБР', judge, { games: ['Первая', 'Вторая'].map((title, id) => ({ id, title, hltbHours: 10, rating: 80, year: 2015, specialKey: '', basePoints: 17, addedBy: 1, addedByName: 'Судья', coverUrl: '' })) })
+  vi.stubGlobal('fetch', backend.fetch)
+  const user = userEvent.setup()
+  renderApp('/e/lbr/games')
+  const second = (await screen.findByText('Вторая')).closest('li')!
+  await user.click(within(second).getByRole('button', { name: 'Изменить' }))
+  const first = screen.getByText('Первая').closest('li')!
+  await user.click(within(first).getByRole('button', { name: 'Изменить' }))
+  expect(screen.getByDisplayValue('Первая')).toHaveFocus()
 })

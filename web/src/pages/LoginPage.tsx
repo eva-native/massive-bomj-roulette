@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 import { useAppConfig, useDevLogin, useMe } from '@/api/hooks'
 import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
+import { ErrorText, Loading } from '@/components/ui'
 
 export function LoginPage() {
   const me = useMe()
@@ -27,6 +28,10 @@ export function LoginPage() {
         </p>
       )}
 
+      {(me.isPending || config.isPending) && <Loading />}
+      <ErrorText error={me.error ?? config.error} />
+      {config.data && !config.data.discordLogin && !config.data.devLogin && <p>Вход сейчас недоступен.</p>}
+
       {config.data?.discordLogin && (
         <a href={next === '/' ? '/auth/discord/login' : `/auth/discord/login?next=${encodeURIComponent(next)}`} className={buttonClass('discord', 'w-full')}>
           Войти через Discord
@@ -34,6 +39,7 @@ export function LoginPage() {
       )}
 
       {config.data?.devLogin && <DevLoginForm />}
+      <Link to="/" className="text-center text-link underline">← К ивентам</Link>
     </main>
   )
 }

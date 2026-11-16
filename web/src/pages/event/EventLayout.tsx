@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Link, Outlet, useLocation, useMatch, useNavigate, useParams, useSearchParams } from 'react-router'
+import { ApiError } from '@/api/client'
 import { useEvent, useJoinEvent } from '@/api/events'
 import { useMe } from '@/api/hooks'
 import { useEventStream, usePlayer, useQueue } from '@/api/play'
@@ -52,7 +53,13 @@ export function EventLayout() {
   }, [title])
 
   if (event.isPending) return <Loading />
-  if (event.isError) return <ErrorText error={event.error} />
+  if (event.isError && !event.data) return (
+    <main className="flex flex-col gap-3">
+      <h1 className="text-2xl font-bold">{event.error instanceof ApiError && event.error.status === 404 ? 'Ивент не найден' : 'Не удалось загрузить ивент'}</h1>
+      <ErrorText error={event.error} />
+      <Link to="/" className="text-link underline">К ивентам</Link>
+    </main>
+  )
 
   const ev = event.data
   const isJudge = ev.me?.isJudge ?? false
@@ -101,7 +108,7 @@ export function EventLayout() {
             </Link>
           ))}
       </div>
-      <ErrorText error={join.error} />
+      <ErrorText error={event.error ?? join.error} />
       {ev.status === 'finished' && (
         <p className="rounded-lg bg-stone-100 px-3 py-2 text-sm dark:bg-stone-800">Ивент завершён — итоги заморожены.</p>
       )}

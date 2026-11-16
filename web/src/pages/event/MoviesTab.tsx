@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMovieMutations, useMovies } from '@/api/events'
 import { useMe } from '@/api/hooks'
 import type { Movie } from '@/api/types.gen'
+import { InlineEdit } from '@/components/InlineEdit'
 import { Button } from '@/components/Button'
 import { Card, ErrorText, Input, Loading } from '@/components/ui'
 import { useEventContext } from './context'
@@ -49,50 +50,49 @@ export function MoviesTab() {
 
       <ul className="flex flex-col gap-2">
         {movies.data?.map((m) => (
-          <li
-            key={m.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900"
-          >
-            {editing?.id === m.id ? (
-              <form
-                className="flex w-full flex-wrap gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  update.mutate({ id: m.id, input: { title: editing.title.trim() } }, { onSuccess: () => setEditing(null) })
-                }}
-              >
-                <Input value={editing.title} maxLength={200} aria-label="Название фильма" onChange={(e) => setEditing({ id: m.id, title: e.target.value })} />
-                <Button type="submit" disabled={!editing.title.trim() || update.isPending}>
-                  Сохранить
-                </Button>
-                <Button variant="secondary" onClick={() => setEditing(null)}>
-                  Отмена
-                </Button>
-              </form>
-            ) : (
-              <>
-                <div>
-                  <p className="font-medium">{safeMovieURL(m.title) ? <a href={m.title.trim()} target="_blank" rel="noreferrer" className="text-link underline">{m.title}</a> : m.title}</p>
-                  <p className="text-sm text-muted">добавил {m.addedByName}</p>
-                </div>
-                {canEdit(m) && (
-                  <div className="flex gap-3">
-                    <button type="button" className="text-sm text-link hover:underline" onClick={() => setEditing({ id: m.id, title: m.title })}>
-                      Изменить
-                    </button>
-                    <button
-                      type="button"
-                      className="text-sm text-danger hover:underline"
-                      onClick={() => {
-                        if (confirm(`Удалить «${m.title}»?`)) remove.mutate(m.id)
-                      }}
-                    >
-                      Удалить
-                    </button>
+          <li key={m.id}>
+            <InlineEdit active={editing?.id === m.id} onCancel={() => { if (!update.isPending) setEditing(null) }} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
+              {editing?.id === m.id ? (
+                <form
+                  className="flex w-full flex-wrap gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    update.mutate({ id: m.id, input: { title: editing.title.trim() } }, { onSuccess: () => setEditing(null) })
+                  }}
+                >
+                  <Input disabled={update.isPending} value={editing.title} maxLength={200} aria-label="Название фильма" onChange={(e) => setEditing({ id: m.id, title: e.target.value })} />
+                  <Button type="submit" disabled={!editing.title.trim() || update.isPending}>
+                    Сохранить
+                  </Button>
+                  <Button variant="secondary" disabled={update.isPending} onClick={() => setEditing(null)}>
+                    Отмена
+                  </Button>
+                </form>
+              ) : (
+                <>
+                  <div>
+                    <p className="font-medium">{safeMovieURL(m.title) ? <a href={m.title.trim()} target="_blank" rel="noreferrer" className="text-link underline">{m.title}</a> : m.title}</p>
+                    <p className="text-sm text-muted">добавил {m.addedByName}</p>
                   </div>
-                )}
-              </>
-            )}
+                  {canEdit(m) && (
+                    <div className="flex gap-3">
+                      <button data-edit-trigger type="button" className="min-h-6 py-1 text-sm text-link hover:underline" onClick={() => setEditing({ id: m.id, title: m.title })}>
+                        Изменить
+                      </button>
+                      <button
+                        type="button"
+                        className="min-h-6 py-1 text-sm text-danger hover:underline"
+                        onClick={() => {
+                          if (confirm(`Удалить «${m.title}»?`)) remove.mutate(m.id)
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </InlineEdit>
           </li>
         ))}
       </ul>

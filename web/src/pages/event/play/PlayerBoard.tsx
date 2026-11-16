@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
 import { playKeys, useQueue, useChoose, useFinish, usePlayTime, useSpin, useUpdatePlayTime } from '@/api/play'
 import { MaxReview, type EventDetail, type ItemView, type OutcomePreview, type PlayerView, type PlaythroughView, type PlayTime as SavedPlayTime, type SpinResult, type StepView, type TurnView } from '@/api/types.gen'
@@ -83,12 +83,28 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
     if (!own) return
     for (const pt of live.history) if (pt.confirmed) dropFinishDraft(finishKey(event.slug, pt.id))
   }, [own, live.history, event.slug])
+  const resultRef = useRef<HTMLParagraphElement>(null)
+  const actionArea = useRef<HTMLDivElement>(null)
+  const finishSubmitted = useRef(false)
+  useLayoutEffect(() => {
+    // An update from SSE must not steal focus. A local spin or submitted form may
+    // move it only if the previous control disappeared, leaving focus on the body.
+    if (document.activeElement !== document.body) return
+    if (spinning?.done) resultRef.current?.focus()
+  }, [spinning?.done])
+  useLayoutEffect(() => {
+    if (!turn?.waiting || !finishSubmitted.current) return
+    finishSubmitted.current = false
+    if (document.activeElement === document.body) actionArea.current?.querySelector<HTMLElement>('[data-turn-waiting]')?.focus()
+  }, [turn?.waiting])
   const groups = turn ? stepGroups(turn) : []
   const side = onGame.length > 0 || view.pocket.length > 0
   const sharedHint = view.canAct ? sharedPocketHint(view.pocket) : null
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={actionArea} onSubmitCapture={(e) => {
+      if (e.target instanceof HTMLFormElement && e.target.hasAttribute('data-finish-form')) finishSubmitted.current = true
+    }} className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-xl font-semibold">{view.player.name}</h2>
         <span className="text-2xl font-bold" title="Очки">
@@ -117,7 +133,12 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
 
           {turn && (
             // Empty (nothing to do, nothing to show) is hidden, so no blank card stays behind.
-            <Card className="order-3 flex flex-col gap-4 empty:hidden">
+            <Card className="order-3 flex flex-col gap-4 empty:hidden has-[>.sr-only:only-child]:hidden">
+              <p ref={resultRef} tabIndex={-1} role="status" className={spinning?.done
+                ? 'rounded-lg bg-amber-100 px-3 py-2 text-center font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                : 'sr-only'}>
+                {spinning?.done ? `Выпало: ${spinning.result.label}` : ''}
+              </p>
               {spinning && !spinning.done ? (
                 <div className="flex flex-col items-center gap-3">
                   <Wheel
@@ -129,17 +150,12 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                     className={BOARD_WHEEL}
                     onStop={finishSpin}
                   />
-                  <p className="text-sm text-muted">Крутится…</p>
+                  <p role="status" className="text-sm text-muted">Крутится…</p>
                 </div>
               ) : (
                 <>
-                  {spinning?.done && (
-                    <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                      Выпало: {spinning.result.label}
-                    </p>
-                  )}
                   {turn.playthrough?.rejected && <p role="status" className="text-sm text-danger">Судья отклонил итог{turn.playthrough.rejectReason ? `: ${turn.playthrough.rejectReason}` : ''}. Исправьте и отправьте снова.</p>}
-                  {decision ? <JudgeDecision entry={decision} /> : <CurrentStep
+                  {(!decision || Boolean(turn.waiting)) && <CurrentStep
                     event={event}
                     view={view}
                     turn={turn}
@@ -150,6 +166,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
                       doSpin(id)
                     }}
                   />}
+                  {decision && <JudgeDecision entry={decision} />}
                 </>
               )}
               <ErrorText error={spin.error} />
@@ -336,7 +353,7 @@ function CurrentStep({
 }) {
   const step = turn.current
   if (turn.waiting) {
-    return <p className="rounded-lg bg-stone-100 px-3 py-2 text-center text-sm dark:bg-stone-800">{turn.waiting}{step?.kind === 'spin_game' && !turn.wheel && <> · <Link to={`/e/${event.slug}/games`} className="text-link underline">Добавить игры в пул</Link></>}</p>
+    return <p data-turn-waiting tabIndex={-1} role="status" className="rounded-lg bg-stone-100 px-3 py-2 text-center text-sm dark:bg-stone-800">{turn.waiting}{step?.kind === 'spin_game' && !turn.wheel && <> · <Link to={`/e/${event.slug}/games`} className="text-link underline">Добавить игры в пул</Link></>}</p>
   }
   if (!step) return null
 
@@ -559,7 +576,7 @@ function FinishForm({
 
   return (
     // Fields stay about 60 characters wide, an easy line to read and fill, not the card's full width.
-    <form onSubmit={submit} className="flex max-w-2xl flex-col gap-3 border-t border-stone-200 pt-3 dark:border-stone-800">
+    <form data-finish-form onSubmit={submit} className="flex max-w-2xl flex-col gap-3 border-t border-stone-200 pt-3 dark:border-stone-800">
       <OutcomeChoice value={outcome} onChange={setOutcome} preview={preview} />
       {outcome === 'tech' && (
         <p className="text-xs text-muted">

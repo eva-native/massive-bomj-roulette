@@ -98,7 +98,8 @@ describe('my turn', () => {
     // jsdom has no CSS animations: end the spin by hand.
     fireEvent.animationEnd(screen.getByTestId('wheel-rotor'))
 
-    expect(await screen.findByText('Выпало: ОПАААА')).toHaveRole('status') // the page has another status region: the connection notice
+    expect(await screen.findByText('Выпало: ОПАААА')).toHaveFocus()
+    expect(screen.getByText('Выпало: ОПАААА')).toHaveRole('status') // the page has another status region: the connection notice
     expect(screen.getByText('Уже выпало: ОПАААА')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'ОПАААА' })).toBeInTheDocument() // the item on the game
   })
@@ -204,7 +205,7 @@ describe('my turn', () => {
     expect(screen.queryByText(/^Чтобы отправить/)).not.toBeInTheDocument()
     await user.click(send)
 
-    expect(await screen.findByText('Итог ждёт подтверждения судьи')).toBeInTheDocument()
+    expect(await screen.findByText('Итог ждёт подтверждения судьи')).toHaveFocus()
     const post = backend.requests.find((r) => r.url.endsWith('/finish'))
     expect(post?.body).toEqual({ outcome: 'completed', hours: 25.5, proof: 'https://imgur.com/x', review: 'Классика' })
   })
@@ -905,4 +906,83 @@ describe('judge decisions', () => {
     await user.click(await screen.findByRole('button', { name: 'Подтвердить' }))
     expect(backend.requests.find((r) => r.url.endsWith('/confirm'))?.body).toEqual({ accept: true })
   })
+})
+
+
+it('focuses the time editor and returns to its trigger on Escape', async () => {
+  const backend = setup(alice)
+  await joinAs(backend, alice)
+  backend.on('GET', /\/players\/2$/, () => view(turn([step(13, 'play')], {
+    playthrough: { id: 70, gameId: 5, game: 'GTA', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
+  })))
+  vi.stubGlobal('fetch', backend.fetch)
+  const user = userEvent.setup()
+  renderApp('/e/lbr/play')
+  await user.click(await screen.findByRole('button', { name: 'Изменить сессию' }))
+  expect(screen.getByLabelText('Текущая сессия: часы')).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(screen.getByRole('button', { name: 'Изменить сессию' })).toHaveFocus()
+})
+
+it('does not steal focus when a player moved elsewhere during the spin', async () => {
+  const backend = setup(alice)
+  await joinAs(backend, alice)
+  const wheel = { kind: 'items', sectors: [{ label: 'ОПАААА', weight: 1, kind: 'effect', defId: 'opaaa' }] }
+  const current = view(turn([step(11, 'spin_items')], { wheel }))
+  backend.on('GET', /\/players\/2$/, () => current)
+  backend.on('POST', /\/steps\/11\/spin$/, () => ({ wheel, result: 0, label: 'ОПАААА', view: current } satisfies SpinResult))
+  vi.stubGlobal('fetch', backend.fetch)
+  const user = userEvent.setup()
+  renderApp('/e/lbr/play')
+  await user.click(await screen.findByRole('button', { name: 'Крутить' }))
+  await screen.findByText('Крутится…')
+  const elsewhere = screen.getByRole('link', { name: 'Игры' })
+  elsewhere.focus()
+  fireEvent.animationEnd(screen.getByTestId('wheel-rotor'))
+  await screen.findByText('Выпало: ОПАААА')
+  expect(elsewhere).toHaveFocus()
+})
+
+it('warns about blocked timer storage on the board', async () => {
+  const backend = setup(alice)
+  await joinAs(backend, alice)
+  backend.on('GET', /\/players\/2$/, () => view(turn([step(13, 'play')], {
+    playthrough: { id: 70, gameId: 5, game: 'GTA', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 },
+  })))
+  vi.stubGlobal('fetch', backend.fetch)
+  const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('blocked') })
+  const remove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new DOMException('blocked') })
+  try {
+    renderApp('/e/lbr/play')
+    expect(await screen.findByText(/Браузер не даёт сохранять таймер/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Старт' })).toBeEnabled()
+  } finally {
+    write.mockRestore()
+    remove.mockRestore()
+  }
+})
+
+it('keeps focus on the waiting notice when a playing judge receives their own decision card', async () => {
+  const backend = setup(judge)
+  await joinAs(backend, judge)
+  await backend.fetch('/api/events/lbr/join', { method: 'POST' })
+  const pt = { id: 70, gameId: 5, game: 'GTA', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: '', hours: 0, proof: '', review: '', confirmed: false, points: 0, timerMs: 0 }
+  const playing = turn([step(13, 'play')], { playthrough: pt })
+  const player = { id: 1, name: 'Судья', avatarUrl: '' }
+  let current = view(playing, { player })
+  let queue: QueueEntry[] = []
+  backend.on('GET', /\/players\/1$/, () => current)
+  backend.on('GET', /\/queue$/, () => queue)
+  backend.on('POST', /\/steps\/13\/finish$/, () => (current = view({ ...playing, current: null, waiting: 'Итог ждёт подтверждения судьи' }, { player, canAct: false })))
+  vi.stubGlobal('fetch', backend.fetch)
+  const user = userEvent.setup()
+  const { queryClient } = renderApp('/e/lbr/play')
+  await user.click(await screen.findByRole('radio', { name: 'Тех. дроп' }))
+  await user.click(screen.getByRole('button', { name: 'Отправить судье' }))
+  const notice = await screen.findByText('Итог ждёт подтверждения судьи')
+  expect(notice).toHaveFocus()
+  queue = [{ kind: 'playthrough', id: 70, player, title: 'GTA', game: 'GTA', playthrough: { ...pt, outcome: 'tech' }, item: null }]
+  await act(() => queryClient.invalidateQueries({ queryKey: playKeys.queue('lbr') }))
+  await screen.findByRole('button', { name: 'Подтвердить' })
+  expect(notice).toHaveFocus()
 })

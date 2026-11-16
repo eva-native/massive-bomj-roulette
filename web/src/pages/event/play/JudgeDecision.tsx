@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { useConfirmGame, useConfirmItem } from '@/api/play'
 import type { QueueEntry } from '@/api/types.gen'
+import { InlineEdit } from '@/components/InlineEdit'
 import { Button } from '@/components/Button'
 import { ReviewText } from '@/components/Review'
 import { Avatar, Badge, Card, ErrorText, Field, Textarea } from '@/components/ui'
@@ -40,7 +41,7 @@ function JudgeDecisionForm({ entry }: { entry: QueueEntry }) {
     }
   }
   const actions = (save?: () => Promise<void>) => (
-    <div className="flex flex-col gap-2">
+    <InlineEdit active={rejecting} onCancel={() => { if (!busy) setRejecting(false) }} className="flex flex-col gap-2">
       {rejecting ? (
         <>
           <Field label="Причина отклонения" hint="Необязательно, до 500 символов">
@@ -54,11 +55,11 @@ function JudgeDecisionForm({ entry }: { entry: QueueEntry }) {
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button disabled={busy} onClick={() => void decide(true, save)}>{busy ? 'Отправка…' : 'Подтвердить'}</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => setRejecting(true)}>Отклонить…</Button>
+          <Button data-edit-trigger variant="secondary" disabled={busy} onClick={() => setRejecting(true)}>Отклонить…</Button>
         </div>
       )}
       <ErrorText error={error} />
-    </div>
+    </InlineEdit>
   )
   const pt = entry.playthrough
   const timer = pt ? pt.timerMs / 3600000 : 0

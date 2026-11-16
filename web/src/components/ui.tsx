@@ -1,10 +1,11 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import { cloneElement, isValidElement, useId } from 'react'
+import type { ComponentPropsWithRef, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { cn } from '@/lib/cn'
 
 const control =
   'w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900 disabled:opacity-60'
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: ComponentPropsWithRef<'input'>) {
   return <input className={cn(control, className)} {...props} />
 }
 
@@ -16,11 +17,7 @@ export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
   return <select className={cn(control, className)} {...props} />
 }
 
-/**
- * A labelled form control. The label wraps the control so it is linked
- * without ids; the hint stays outside so it is not part of the field name.
- */
-/** A labelled field. `after` and `hint` stay outside the label, so they are not part of the field name. */
+/** A single labelled control. Its hint describes it, while `after` stays separate. */
 export function Field({
   label,
   hint,
@@ -37,6 +34,10 @@ export function Field({
   className?: string
   children: ReactNode
 }) {
+  const hintId = useId()
+  const control = hint && isValidElement<{ 'aria-describedby'?: string }>(children)
+    ? cloneElement(children, { 'aria-describedby': [children.props['aria-describedby'], hintId].filter(Boolean).join(' ') })
+    : children
   return (
     <div className={cn('flex flex-col gap-1 text-sm', className)}>
       <label className="flex flex-col gap-1">
@@ -44,10 +45,10 @@ export function Field({
           {label}
           {required && <RequiredMark />}
         </span>
-        {children}
+        {control}
       </label>
       {after}
-      {hint && <span className="text-xs text-muted">{hint}</span>}
+      {hint && <span id={hintId} className="text-xs text-muted">{hint}</span>}
     </div>
   )
 }
