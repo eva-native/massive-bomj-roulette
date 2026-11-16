@@ -5,7 +5,7 @@
 #   KEEP=30 deploy/backup.sh       # keep the newest 30 backups (default 14)
 #   BACKUP_DIR=/srv/mbr-backups deploy/backup.sh
 #
-# Run it from the repository root, e.g. from cron every night:
+# Run it from the directory with compose.yaml, e.g. from cron every night:
 #   0 4 * * * cd /srv/mbr && deploy/backup.sh >> backups/backup.log 2>&1
 #
 # Restore: see docs/dev/deploy.md.

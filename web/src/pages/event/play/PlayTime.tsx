@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useUpdatePlayTime } from '@/api/play'
 import type { PlayTime as Saved } from '@/api/types.gen'
+import { InlineEdit } from '@/components/InlineEdit'
 import { Button } from '@/components/Button'
 import { DurationInput } from '@/components/DurationInput'
 import { ErrorText } from '@/components/ui'
@@ -14,6 +15,8 @@ const hoursOf = (ms: number) => ms / 3600000
  * Time spent on the game: the running session (kept in this browser) and
  * the saved total (kept on the server, so it adds up across days). `timer`
  * is set for the player; the player and judges may correct the total.
+ * Each number has one name, used in the outcome form too: «Текущая сессия»,
+ * «Сохранено», «Итого по игре» (the two added up).
  */
 export function PlayTime({ slug, playerId, saved, timer }: { slug: string; playerId: number; saved: Saved; timer: LocalTimer | null }) {
   const update = useUpdatePlayTime(slug, playerId)
@@ -21,13 +24,14 @@ export function PlayTime({ slug, playerId, saved, timer }: { slug: string; playe
   const total = saved.totalMs + (timer?.ms ?? 0)
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg bg-stone-100 p-3 text-sm dark:bg-stone-800" aria-label="Время в игре">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h4 className="font-semibold">Время в игре</h4>
-        <span className="text-stone-600 dark:text-stone-300">
-          всего <span className="font-semibold">{formatHours(hoursOf(total))}</span>
-        </span>
-      </div>
+    // The surface differs from the secondary buttons' grey (stone-200 / stone-800), so they still look like buttons.
+    <section
+      className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm dark:border-stone-800 dark:bg-stone-950/40"
+      aria-labelledby="play-time-title"
+    >
+      <h4 id="play-time-title" className="font-semibold">
+        Время
+      </h4>
 
       {timer && (
         <CurrentSession
@@ -38,6 +42,12 @@ export function PlayTime({ slug, playerId, saved, timer }: { slug: string; playe
       )}
 
       <SavedTotal saved={saved} pending={update.isPending} onSet={(ms) => update.mutate({ setMs: ms })} />
+      {/* Without a running session the total is the saved time: one row is enough. */}
+      {timer && (
+        <p>
+          <span className="text-muted">Итого по игре:</span> <span className="font-semibold">{formatHours(hoursOf(total))}</span>
+        </p>
+      )}
       <ErrorText error={update.error} />
     </section>
   )
@@ -49,67 +59,78 @@ function CurrentSession({ timer, saving, onSave }: { timer: LocalTimer; saving: 
 
   if (editing) {
     return (
-      <div className="flex flex-wrap items-end gap-2">
-        <DurationInput label="Текущая сессия" value={editing} onChange={setEditing} />
-        <Button
-          variant="secondary"
-          disabled={edited === null}
-          onClick={() => {
-            if (edited === null) return
-            timer.set(msOf(edited))
-            setEditing(null)
-          }}
-        >
-          Готово
-        </Button>
-        <Button variant="secondary" onClick={() => setEditing(null)}>
-          Отмена
-        </Button>
-      </div>
+      <InlineEdit active onCancel={() => setEditing(null)}>
+        <div className="flex flex-wrap items-end gap-2">
+          <DurationInput label="Текущая сессия" value={editing} onChange={setEditing} />
+          <Button
+            variant="secondary"
+            disabled={edited === null}
+            onClick={() => {
+              if (edited === null) return
+              timer.set(msOf(edited))
+              setEditing(null)
+            }}
+          >
+            Готово
+          </Button>
+          <Button variant="secondary" onClick={() => setEditing(null)}>
+            Отмена
+          </Button>
+        </div>
+      </InlineEdit>
     )
   }
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="font-mono text-2xl tabular-nums" role="timer" aria-label="Текущая сессия">
-          {formatClock(timer.ms)}
+    <InlineEdit active={false} onCancel={() => setEditing(null)}>
+      <div className="flex flex-col gap-1">
+        <span className="text-muted" aria-hidden>
+          Текущая сессия
         </span>
-        <div className="flex flex-wrap items-center gap-2">
-          {timer.running ? (
-            <Button variant="secondary" onClick={timer.pause}>
-              Пауза
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-mono text-2xl tabular-nums" role="timer" aria-label="Текущая сессия">
+            {formatClock(timer.ms)}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {timer.running ? (
+              <Button variant="secondary" onClick={timer.pause}>
+                Пауза
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={timer.start}>
+                {timer.ms > 0 ? 'Продолжить' : 'Старт'}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              disabled={saving || timer.ms < 1000}
+              onClick={() => {
+                timer.pause()
+                onSave(Math.round(timer.ms))
+              }}
+            >
+              Сохранить сессию
             </Button>
-          ) : (
-            <Button variant="secondary" onClick={timer.start}>
-              {timer.ms > 0 ? 'Продолжить' : 'Старт'}
-            </Button>
-          )}
-          <Button
-            variant="secondary"
-            disabled={saving || timer.ms < 1000}
-            onClick={() => {
-              timer.pause()
-              onSave(Math.round(timer.ms))
-            }}
-          >
-            Сохранить сессию
-          </Button>
-          <button
-            type="button"
-            className="text-xs text-amber-700 hover:underline"
-            onClick={() => {
-              timer.pause()
-              setEditing(hoursToHMS(hoursOf(timer.ms)))
-            }}
-          >
-            Изменить
-          </button>
+            <button
+              data-edit-trigger
+              type="button"
+              className="min-h-6 py-1 text-xs text-link hover:underline"
+              onClick={() => {
+                timer.pause()
+                setEditing(hoursToHMS(hoursOf(timer.ms)))
+              }}
+            >
+              Изменить сессию
+            </button>
+          </div>
         </div>
+        <p className="text-xs text-muted">
+          {timer.persistent
+            ? 'Таймер идёт в этом браузере и не сбросится при перезагрузке.'
+            : 'Браузер не даёт сохранять таймер: не перезагружайте страницу.'}{' '}
+          «Сохранить сессию» прибавит сессию к сохранённому — так время копится между днями.
+        </p>
       </div>
-      <p className="text-xs text-stone-500">
-        Таймер идёт в этом браузере и не сбросится при перезагрузке. «Сохранить сессию» прибавит время к игре — так оно копится между днями.
-      </p>
-    </div>
+    </InlineEdit>
   )
 }
 
@@ -119,35 +140,39 @@ function SavedTotal({ saved, pending, onSet }: { saved: Saved; pending: boolean;
   const edited = editing && hmsToHours(editing)
   if (editing) {
     return (
-      <div className="flex flex-wrap items-end gap-2">
-        <DurationInput label="Сохранено" value={editing} onChange={setEditing} />
-        <Button
-          variant="secondary"
-          disabled={pending || edited === null}
-          onClick={() => {
-            if (edited === null) return
-            onSet(msOf(edited))
-            setEditing(null)
-          }}
-        >
-          Сохранить
-        </Button>
-        <Button variant="secondary" onClick={() => setEditing(null)}>
-          Отмена
-        </Button>
-      </div>
+      <InlineEdit active onCancel={() => setEditing(null)}>
+        <div className="flex flex-wrap items-end gap-2">
+          <DurationInput label="Сохранено" value={editing} onChange={setEditing} />
+          <Button
+            variant="secondary"
+            disabled={pending || edited === null}
+            onClick={() => {
+              if (edited === null) return
+              onSet(msOf(edited))
+              setEditing(null)
+            }}
+          >
+            Сохранить
+          </Button>
+          <Button variant="secondary" onClick={() => setEditing(null)}>
+            Отмена
+          </Button>
+        </div>
+      </InlineEdit>
     )
   }
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <span>
-        Сохранено: <span className="font-medium">{formatHours(hoursOf(saved.totalMs))}</span>
-      </span>
-      {saved.canEdit && (
-        <button type="button" className="text-xs text-amber-700 hover:underline" onClick={() => setEditing(hoursToHMS(hoursOf(saved.totalMs)))}>
-          Изменить
-        </button>
-      )}
-    </div>
+    <InlineEdit active={false} onCancel={() => setEditing(null)}>
+      <div className="flex flex-wrap items-center gap-3">
+        <span>
+          <span className="text-muted">Сохранено:</span> <span className="font-medium">{formatHours(hoursOf(saved.totalMs))}</span>
+        </span>
+        {saved.canEdit && (
+          <button data-edit-trigger type="button" className="min-h-6 py-1 text-xs text-link hover:underline" onClick={() => setEditing(hoursToHMS(hoursOf(saved.totalMs)))}>
+            Изменить сохранённое
+          </button>
+        )}
+      </div>
+    </InlineEdit>
   )
 }

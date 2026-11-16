@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { Link, Outlet, useLocation, useMatch } from 'react-router'
+import { Link, Outlet, useLocation, useMatch, useMatches } from 'react-router'
 import { useEvent } from '@/api/events'
 import { useLogout, useMe } from '@/api/hooks'
+import { cn } from '@/lib/cn'
 import { Button } from './Button'
 import { buttonClass } from './buttonClass'
 import { ScrollToBottom } from './ScrollToBottom'
@@ -9,12 +10,14 @@ import { Avatar } from './ui'
 
 /** The page frame: header with the user and logout, or a login link. */
 export function AppShell() {
-  const { data: me, isPending } = useMe()
+  const { data: me, isPending, isError } = useMe()
   const logout = useLogout()
   const location = useLocation()
+  // A route marked `handle: { wide: true }` (the player boards) gets a wider page; the rest keep theirs.
+  const wide = useMatches().some((m) => (m.handle as { wide?: boolean } | undefined)?.wide)
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
+    <div className={cn('mx-auto px-4 py-6', wide ? 'max-w-6xl' : 'max-w-4xl')}>
       <header className="mb-6 flex items-center justify-between gap-4">
         <Link to="/" className="text-xl font-bold">
           MBR
@@ -29,9 +32,12 @@ export function AppShell() {
               Выйти
             </Button>
           </div>
+        ) : isError ? (
+          // useMe turns 401 into null, so an error means the server did not answer, not a logout.
+          <span className="text-sm text-muted">Сервер недоступен</span>
         ) : (
           !isPending && (
-            <Link to={`/login?next=${encodeURIComponent(location.pathname)}`} className={buttonClass('primary')}>
+            <Link to={`/login?next=${encodeURIComponent(location.pathname)}`} className={buttonClass('secondary')}>
               Войти
             </Link>
           )

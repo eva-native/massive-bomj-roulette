@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -112,10 +113,10 @@ func TestInputPointsForTwoPlayersAfterRoundTrip(t *testing.T) {
 	if err := e.SetInput(s, 3, it.ID, map[string]any{"won": true, "stake": 5, "late": []any{1, 2}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.ConfirmItem(s, 1, it.ID, true); !errors.Is(err, ErrNotJudge) {
+	if err := e.ConfirmItem(s, 1, it.ID, true, ""); !errors.Is(err, ErrNotJudge) {
 		t.Fatalf("a player confirmed: %v", err)
 	}
-	if err := e.ConfirmItem(s, 3, it.ID, true); err != nil {
+	if err := e.ConfirmItem(s, 3, it.ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -170,7 +171,7 @@ func TestInputLockedOnceSentToJudge(t *testing.T) {
 		t.Fatal("judge's edit unlocked the item")
 	}
 	// A rejection opens the fields again, and the lock survives saving.
-	if err := e.ConfirmItem(s, 3, it.ID, false); err != nil {
+	if err := e.ConfirmItem(s, 3, it.ID, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	if e.InputLocked(s, it.ID) {
@@ -179,7 +180,7 @@ func TestInputLockedOnceSentToJudge(t *testing.T) {
 	if err := e.SetInput(s, 1, it.ID, map[string]any{"opponent": 2}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.ConfirmItem(s, 3, it.ID, true); err != nil {
+	if err := e.ConfirmItem(s, 3, it.ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
 	s = roundTrip(t, s)
@@ -206,10 +207,10 @@ func TestFinishGameValidation(t *testing.T) {
 	if err := e.FinishGame(s, 1, step, OutcomeDropped, 0, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.ConfirmGame(s, 3, s.Playthroughs[0].ID, true); err != nil {
+	if err := e.ConfirmGame(s, 3, s.Playthroughs[0].ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.ConfirmGame(s, 3, s.Playthroughs[0].ID, true); !errors.Is(err, ErrNotAllowed) {
+	if err := e.ConfirmGame(s, 3, s.Playthroughs[0].ID, true, ""); !errors.Is(err, ErrNotAllowed) {
 		t.Errorf("confirming twice: %v", err)
 	}
 }
@@ -285,5 +286,63 @@ func TestFingerprintFollowsRuleChanges(t *testing.T) {
 	}
 	if mk(4).Fingerprint() == mk(5).Fingerprint() {
 		t.Fatal("a changed parameter must change the fingerprint")
+	}
+}
+
+func TestRejectionReasonLifecycle(t *testing.T) {
+	for _, reason := range []string{"", "  Исправьте время  ", strings.Repeat("я", 500)} {
+		e, s := testEngine(t)
+		play(t, e, s, 1)
+		step := s.CurrentTurn(1).CurrentStep().ID
+		if err := e.FinishGame(s, 1, step, OutcomeCompleted, 8, ""); err != nil {
+			t.Fatal(err)
+		}
+		id := s.CurrentTurn(1).Playthrough
+		if err := e.ConfirmGame(s, 3, id, false, strings.Repeat("я", 501)); !errors.Is(err, ErrBadInput) {
+			t.Fatalf("long reason: %v", err)
+		}
+		if s.Playthrough(id).Outcome != OutcomeCompleted {
+			t.Fatal("invalid rejection changed state")
+		}
+		if err := e.ConfirmGame(s, 3, id, false, reason); err != nil {
+			t.Fatal(err)
+		}
+		s = roundTrip(t, s)
+		pt := s.Playthrough(id)
+		if !pt.Rejected || pt.RejectReason != strings.TrimSpace(reason) {
+			t.Fatalf("rejection lost: %+v", pt)
+		}
+		if err := e.FinishGame(s, 1, step, OutcomeCompleted, 9, ""); err != nil {
+			t.Fatal(err)
+		}
+		if pt.Rejected || pt.RejectReason != "" {
+			t.Fatal("resubmission kept rejection")
+		}
+	}
+}
+
+func TestItemRejectionReasonLifecycle(t *testing.T) {
+	e, s := testEngine(t)
+	play(t, e, s, 1)
+	it := s.Items[0]
+	if err := e.SetInput(s, 1, it.ID, map[string]any{"opponent": 2}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.ConfirmItem(s, 3, it.ID, false, strings.Repeat("я", 501)); !errors.Is(err, ErrBadInput) {
+		t.Fatal(err)
+	}
+	if err := e.ConfirmItem(s, 3, it.ID, false, "  Проверьте результат  "); err != nil {
+		t.Fatal(err)
+	}
+	s = roundTrip(t, s)
+	it = s.Items[0]
+	if !it.Rejected || it.RejectReason != "Проверьте результат" {
+		t.Fatalf("rejection lost: %+v", it)
+	}
+	if err := e.SetInput(s, 1, it.ID, map[string]any{"opponent": 2}); err != nil {
+		t.Fatal(err)
+	}
+	if it.Rejected || it.RejectReason != "" {
+		t.Fatal("resubmission kept rejection")
 	}
 }

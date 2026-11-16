@@ -29,9 +29,10 @@ export const routes: RouteObject[] = [
             element: <EventLayout />,
             children: [
               { index: true, element: <BoardTab /> },
-              { path: 'play', element: <PlayTab /> },
+              // Boards take a wider page for their two columns (see AppShell).
+              { path: 'play', element: <PlayTab />, handle: { wide: true } },
               { path: 'judge', element: <JudgeTab /> },
-              { path: 'players/:userId', element: <PlayerPage /> },
+              { path: 'players/:userId', element: <PlayerPage />, handle: { wide: true } },
               { path: 'members', element: <MembersTab /> },
               { path: 'games', element: <GamesTab /> },
               { path: 'movies', element: <MoviesTab /> },

@@ -1,8 +1,21 @@
 import { digits, type HMS } from '@/lib/hours'
-import { Input } from './ui'
+import { Input, RequiredMark } from './ui'
 
 /** Hours, minutes and seconds in three small fields; only digits go in. */
-export function DurationInput({ label, value, onChange, disabled }: { label: string; value: HMS; onChange: (v: HMS) => void; disabled?: boolean }) {
+export function DurationInput({
+  label,
+  value,
+  onChange,
+  disabled,
+  required = false,
+}: {
+  label: string
+  value: HMS
+  onChange: (v: HMS) => void
+  disabled?: boolean
+  /** Marks it «обязательно»; any one of the three parts may hold the time, so the inputs are not `required`. */
+  required?: boolean
+}) {
   const part = (key: keyof HMS, unit: string, name: string, max?: number) => (
     <label className="flex items-center gap-1">
       <Input
@@ -14,12 +27,15 @@ export function DurationInput({ label, value, onChange, disabled }: { label: str
         disabled={disabled}
         onChange={(e) => onChange({ ...value, [key]: digits(e.target.value) })}
       />
-      <span className="text-stone-500">{unit}</span>
+      <span className="text-muted">{unit}</span>
     </label>
   )
   return (
     <fieldset className="flex flex-col gap-1 text-sm">
-      <legend className="mb-1 font-medium">{label}</legend>
+      <legend className="mb-1 font-medium">
+        {label}
+        {required && <RequiredMark />}
+      </legend>
       <div className="flex flex-wrap items-center gap-2">
         {part('h', 'ч', 'часы')}
         {part('m', 'мин', 'минуты', 59)}

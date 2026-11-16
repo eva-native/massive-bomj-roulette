@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 import { useAppConfig, useDevLogin, useMe } from '@/api/hooks'
 import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
+import { ErrorText, Loading } from '@/components/ui'
 
 export function LoginPage() {
   const me = useMe()
@@ -18,7 +19,7 @@ export function LoginPage() {
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-4">
       <div className="text-center">
         <h1 className="text-3xl font-bold">MBR</h1>
-        <p className="mt-1 text-stone-500">Massive Bomj Roulette</p>
+        <p className="mt-1 text-muted">Massive Bomj Roulette</p>
       </div>
 
       {params.get('error') === 'discord' && (
@@ -27,6 +28,10 @@ export function LoginPage() {
         </p>
       )}
 
+      {(me.isPending || config.isPending) && <Loading />}
+      <ErrorText error={me.error ?? config.error} />
+      {config.data && !config.data.discordLogin && !config.data.devLogin && <p>Вход сейчас недоступен.</p>}
+
       {config.data?.discordLogin && (
         <a href={next === '/' ? '/auth/discord/login' : `/auth/discord/login?next=${encodeURIComponent(next)}`} className={buttonClass('discord', 'w-full')}>
           Войти через Discord
@@ -34,6 +39,7 @@ export function LoginPage() {
       )}
 
       {config.data?.devLogin && <DevLoginForm />}
+      <Link to="/" className="text-center text-link underline">← К ивентам</Link>
     </main>
   )
 }
@@ -60,7 +66,7 @@ function DevLoginForm() {
         maxLength={32}
         className="rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700"
       />
-      {login.error && <p className="text-sm text-red-600">{login.error.message}</p>}
+      {login.error && <p className="text-sm text-danger">{login.error.message}</p>}
       <Button type="submit" variant="secondary" disabled={!name.trim() || login.isPending}>
         Войти как «{name.trim() || '…'}»
       </Button>

@@ -15,7 +15,7 @@ func (sc *scenario) input(actor game.PlayerID, it *game.Item, values map[string]
 
 func (sc *scenario) confirmItem(it *game.Item) {
 	sc.t.Helper()
-	if err := sc.e.ConfirmItem(sc.s, sc.judge, it.ID, true); err != nil {
+	if err := sc.e.ConfirmItem(sc.s, sc.judge, it.ID, true, ""); err != nil {
 		sc.t.Fatalf("confirm %s: %v", it.DefID, err)
 	}
 }
@@ -96,7 +96,7 @@ func TestJudgeEditDoesNotAnswerForThePlayer(t *testing.T) {
 	if _, ok := rps.Input["won"]; ok {
 		t.Fatalf("the judge's edit filled «Победа»: %v", rps.Input)
 	}
-	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, rps.ID, true), game.ErrBadInput)
+	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, rps.ID, true, ""), game.ErrBadInput)
 	// The player still answers, and their win stands.
 	sc.input(a, rps, map[string]any{"won": true})
 	sc.confirmItem(rps)
@@ -186,6 +186,36 @@ func TestZemskySoborIsItsOwnSpecialGame(t *testing.T) {
 	startGame(sc, a, "G", "zemsky_sobor")
 	if got := sc.currentGame(a); got != "Земский собор" {
 		t.Fatalf("game = %q", got)
+	}
+}
+
+// An empty answer clears a field instead of filling it, so a result cannot go to
+// the judge empty (the frontend's «is this field blank» agrees with this).
+func TestBlankInputClearsTheField(t *testing.T) {
+	sc := newScenario(t)
+	a := sc.player("Алиса")
+	sc.addGame("G", 10, 80, 2015, a)
+	startGame(sc, a, "G", "mc_trup")
+	mc := sc.item(a, "mc_trup")
+
+	sc.input(a, mc, map[string]any{"proof": "   "})
+	if mc = sc.item(a, "mc_trup"); mc.Submitted {
+		t.Fatal("blank proof sent the result to the judge")
+	}
+	expectErr(t, sc.e.ConfirmItem(sc.s, sc.judge, mc.ID, true, ""), game.ErrBadInput)
+
+	sc.input(a, mc, map[string]any{"proof": "https://youtu.be/song"})
+	if !sc.item(a, "mc_trup").Submitted {
+		t.Fatal("the proof should send the result")
+	}
+	if _, ok := sc.item(a, "mc_trup").Input["proof"]; !ok {
+		t.Fatal("the proof should be stored")
+	}
+
+	// A judge clearing the field takes the answer back out.
+	sc.input(sc.judge, mc, map[string]any{"proof": ""})
+	if _, ok := sc.item(a, "mc_trup").Input["proof"]; ok {
+		t.Fatal("empty text should clear the field")
 	}
 }
 

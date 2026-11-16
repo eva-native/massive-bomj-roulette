@@ -140,13 +140,13 @@ func act(t *testing.T, e *game.Engine, s *game.State, rnd *rand.Rand, p, judge g
 	if rnd.IntN(3) == 0 {
 		for _, pt := range s.Playthroughs {
 			if pt.Outcome != game.OutcomeNone && !pt.Confirmed {
-				ok(e.ConfirmGame(s, judge, pt.ID, rnd.IntN(5) != 0))
+				ok(e.ConfirmGame(s, judge, pt.ID, rnd.IntN(5) != 0, ""))
 				return
 			}
 		}
 		for _, it := range s.Items {
 			if !it.Confirmed && !it.Rejected && it.Placement != game.PlaceVoided && e.Catalog().Def(it.DefID).NeedsConfirm {
-				ok(e.ConfirmItem(s, judge, it.ID, true))
+				ok(e.ConfirmItem(s, judge, it.ID, true, ""))
 				return
 			}
 		}

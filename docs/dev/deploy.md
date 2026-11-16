@@ -1,19 +1,24 @@
 # Деплой
 
-Приложение — это один Docker-образ (Go-сервер со встроенным фронтендом), PostgreSQL 17 и Caddy, который выпускает HTTPS-сертификат. Всё поднимается одним `docker compose`.
+Приложение — это один Docker-образ (Go-сервер со встроенным фронтендом) и PostgreSQL 17. HTTPS даёт либо Caddy из того же `compose.yaml` (сертификат он выпускает сам), либо ваш собственный прокси. Образ каждого релиза опубликован в GHCR: `ghcr.io/eva-native/massive-bomj-roulette`. Клон репозитория, Node и Go на сервере не нужны.
 
 ## Что нужно
 
 - **Сервер с Docker** (Docker Engine + Compose v2). Хватит 1 vCPU и 1 ГБ памяти.
-- **Домен**, у которого A-запись указывает на сервер. Порты 80 и 443 открыты: Caddy получает сертификат сам.
+- **Домен**, у которого A-запись указывает на сервер. С Caddy порты 80 и 443 должны быть открыты: Caddy получает сертификат сам. За своим прокси сертификат настраивается на нём.
 - **Приложение Discord** для входа (см. [README](README.md#вход-через-discord)). Redirect: `https://<домен>/auth/discord/callback`.
 
 ## Первый запуск
 
+Скачайте файлы нужного релиза, v0.3.0 или новее (теги релизов — в [CHANGELOG](../../CHANGELOG.md)):
+
 ```bash
-git clone https://github.com/eva-native/massive-bomj-roulette.git /srv/mbr
-cd /srv/mbr
-cp .env.example .env
+V=v0.3.0   # релиз, который ставите
+mkdir -p /srv/mbr/deploy && cd /srv/mbr
+base=https://raw.githubusercontent.com/eva-native/massive-bomj-roulette/$V
+curl -fsSL -o .env $base/.env.example
+for f in compose.yaml deploy/Caddyfile deploy/backup.sh; do curl -fsSL -o $f $base/$f; done
+chmod +x deploy/backup.sh
 ```
 
 Заполните `.env`:
@@ -24,37 +29,118 @@ MBR_DISCORD_CLIENT_ID=…
 MBR_DISCORD_CLIENT_SECRET=…
 MBR_ADMIN_DISCORD_IDS=<ваш Discord ID>   # кто может создавать ивенты
 MBR_DEV_LOGIN=false                      # обязательно false в продакшене
+
+MBR_VERSION=v0.3.0                       # какой релиз запущен
+COMPOSE_PROFILES=app,prod                # приложение и Caddy
+MBR_DOMAIN=<домен>                       # для сертификата Caddy
 ```
 
 Ваш Discord ID: включите в Discord «Режим разработчика» (Настройки → Расширенные), затем ПКМ по себе → «Копировать ID».
 
+`MBR_VERSION` — тег релиза. По нему compose берёт образ, а ссылка «Правила» на сайте ведёт на правила этой версии на GitHub. `MBR_VERSION`, `COMPOSE_PROFILES` и `MBR_DOMAIN` compose читает из `.env` сам, поэтому команды ниже обходятся без флагов.
+
 Строку `MBR_DATABASE_URL` из `.env` compose подменяет адресом своего контейнера PostgreSQL, трогать её не нужно. Пароль базы задан в `compose.yaml` (`POSTGRES_PASSWORD: mbr`). База не открыта наружу: порт `5433` слушает только localhost сервера. Если хотите сменить пароль, поменяйте его в `compose.yaml` в обоих местах до первого запуска.
 
 ```bash
-export MBR_VERSION=$(git describe --tags --exact-match 2>/dev/null || git rev-parse HEAD)
-MBR_DOMAIN=<домен> docker compose --profile app --profile prod up -d --build
+docker compose pull
+docker compose up -d
 docker compose logs -f app   # «mbr: listening» — готово
 ```
 
-`MBR_VERSION` — тег релиза (или коммит), из которого собран образ. Ссылка «Правила» на сайте ведёт на правила этой версии на GitHub. Без него ссылка ведёт на ветку `main`.
-
 Откройте `https://<домен>`, войдите через Discord и создайте ивент.
+
+Compose называет том с базой по имени папки (`/srv/mbr` → `mbr_pgdata`). Если перенесёте файлы в другую папку, задайте в `.env` `COMPOSE_PROJECT_NAME=mbr`, иначе поднимется пустая база.
+
+### За своим прокси
+
+Если на сервере уже есть nginx или другой прокси, Caddy не нужен: он занял бы порты 80 и 443. В `.env`:
+
+```bash
+COMPOSE_PROFILES=app                     # без Caddy
+MBR_HOST_PORT=127.0.0.1:8001             # порт приложения только на localhost
+```
+
+`MBR_ADDR` для этого не подходит: это адрес внутри контейнера, его задаёт `compose.yaml`.
+
+`MBR_DOMAIN` и `deploy/Caddyfile` тогда не нужны. Прокси передаёт запросы на `127.0.0.1:8001` и не должен буферизовать ответы, иначе страница ивента и оверлей не получают изменения вживую (SSE). Для nginx:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8001;
+    proxy_set_header Host $host;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+}
+```
 
 ## Обновление
 
 ```bash
 cd /srv/mbr
-deploy/backup.sh                       # сначала бэкап
-git pull
-export MBR_VERSION=$(git describe --tags --exact-match 2>/dev/null || git rev-parse HEAD)
-MBR_DOMAIN=<домен> docker compose --profile app --profile prod up -d --build
+deploy/backup.sh                         # сначала бэкап
+V=v0.4.0                                 # новый релиз
+base=https://raw.githubusercontent.com/eva-native/massive-bomj-roulette/$V
+for f in compose.yaml deploy/Caddyfile deploy/backup.sh; do curl -fsSL -o $f $base/$f; done
+sed -i '/^MBR_VERSION=/d' .env && echo "MBR_VERSION=$V" >> .env
+docker compose pull app
+docker compose up -d
 ```
 
+- **`compose.yaml` и `deploy/`** скачиваются из того же тега, что и образ. `.env` не перезаписывается, в нём меняется только строка `MBR_VERSION`. Если в релизе появились новые настройки, они есть в `.env.example` этого тега и в CHANGELOG.
 - **Миграции** применяются сами при старте.
 - **Если изменились правила** (тексты, параметры или механика предметов), в журнал каждого идущего ивента запишется «Правила обновлены»: очки там всегда считаются по текущим правилам.
 - **Завершённые ивенты не меняются:** их итоги заморожены.
 
 Отпечаток правил видит тексты, флаги, поля и параметры предметов, а изменения внутри кода хуков — нет. Об изменении только логики хука в журнал ничего не запишется, хотя очки, как всегда, пересчитаются.
+
+## Откат
+
+Меняется только версия образа, `compose.yaml` и `deploy/` остаются текущими: они подходят и для старых образов, а в релизах до v0.3.0 `compose.yaml` ещё собирал образ на сервере.
+
+```bash
+cd /srv/mbr
+V=v0.3.0                                 # релиз, на который откатываетесь
+sed -i '/^MBR_VERSION=/d' .env && echo "MBR_VERSION=$V" >> .env
+docker compose pull app
+docker compose up -d
+```
+
+Откатиться можно на любой релиз, у которого есть образ в GHCR (список — на странице пакета). Для v0.2.0 и старше его публикуют вручную (см. «Как публикуется образ»). Если в новом релизе были миграции базы (см. CHANGELOG), старая версия может не работать с новой схемой. Тогда после отката восстановите бэкап, сделанный перед обновлением (см. «Восстановление»). Действия в ивентах, сделанные после этого бэкапа, пропадут.
+
+## Переход с git-клона
+
+Готовые образы работают с `compose.yaml` начиная с v0.3.0. Если сервер работает из клона в `/srv/mbr` на более старом релизе, переходите вместе с обновлением до v0.3.0 или новее. Папку можно оставить, база останется той же:
+
+```bash
+cd /srv/mbr
+deploy/backup.sh
+git checkout -- compose.yaml             # убрать локальные правки (порт теперь в .env)
+git fetch --tags && git checkout v0.3.0  # compose.yaml с готовым образом
+```
+
+Добавьте в `.env` `MBR_VERSION=v0.3.0`, `COMPOSE_PROFILES` и, если нужно, `MBR_DOMAIN` или `MBR_HOST_PORT` (см. «Первый запуск» и «За своим прокси»), затем:
+
+```bash
+docker compose pull app
+docker compose up -d
+```
+
+Дальше обновляйтесь, как описано выше: скачиванием файлов или `git checkout <тег>` в клоне. Собирать образ на сервере больше не нужно.
+
+## Как публикуется образ
+
+При пуше тега `vX.Y.Z` (его ставят на мерж `release/*` в `main`) workflow «Release image» (`.github/workflows/release.yml`) собирает образ и публикует его с тегом `vX.Y.Z`. Перед этим он проверяет, что тег стоит на `main`, и прогоняет весь CI на коммите тега. Внутри образа `MBR_VERSION=vX.Y.Z`, а метки OCI указывают на версию, коммит и репозиторий.
+
+- **`vX.Y`** получает самая новая версия своей линии, **`latest`** — самая новая из всех. Хотфикс старой линии (v0.2.1 после v0.3.0) или повторная публикация не сдвигают их назад.
+- **Пре-релиз** (`v0.3.0-rc.1`) получает только свой тег, и ему не обязательно быть на `main`.
+- **Уже существующий тег** можно опубликовать вручную: Actions → Release image → Run workflow, указать тег. У таких образов нет аттестации происхождения: GitHub записал бы в неё коммит ветки, с которой запущен workflow, а не коммит тега.
+
+Новый пакет в GHCR приватный. После первой публикации его один раз делают публичным: страница пакета → Package settings → Change visibility → Public. Если пакет оставить приватным, сервер должен войти в registry: `docker login ghcr.io -u <логин GitHub>` с personal access token с правом `read:packages`.
+
+Путь образа (`ghcr.io/eva-native/massive-bomj-roulette`) записан в `compose.yaml` и в `release.yml`. Меняйте его в обоих местах сразу.
+
+Собрать образ из исходников можно в клоне: `make docker` (образ `mbr`) или `docker compose -f compose.yaml -f compose.build.yaml --profile app up --build` (образ `mbr:dev`). Локальная сборка не получает тег релиза и не подменяет опубликованный образ.
 
 ## Бэкапы
 

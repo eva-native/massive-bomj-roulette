@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 /**
  * The stopwatch of the current play session. It lives in this browser only
@@ -27,18 +27,41 @@ function load(key: string): Stored {
   }
 }
 
+const timerChanged = 'mbr:timer-changed'
+const storageStatus = new Map<string, boolean>()
+
+/** Read the running flag without starting a second stopwatch or writing its state. */
+export function useTimerRunning(key: string | undefined): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      window.addEventListener(timerChanged, changed)
+      window.addEventListener('storage', changed)
+      return () => {
+        window.removeEventListener(timerChanged, changed)
+        window.removeEventListener('storage', changed)
+      }
+    },
+    () => Boolean(key && load(key).startedAt !== null),
+    () => false,
+  )
+}
+
 function store(key: string, v: Stored) {
   try {
     if (v.elapsedMs === 0 && v.startedAt === null) localStorage.removeItem(key)
     else localStorage.setItem(key, JSON.stringify(v))
+    storageStatus.set(key, true)
   } catch {
     // Storage may be blocked (private mode); the timer still works until reload.
+    storageStatus.set(key, false)
   }
+  window.dispatchEvent(new Event(timerChanged))
 }
 
 export type LocalTimer = {
   ms: number
   running: boolean
+  persistent: boolean
   start: () => void
   pause: () => void
   /** Sets the time of the current session, keeping it running if it was. */
@@ -49,6 +72,14 @@ export type LocalTimer = {
 export function useLocalTimer(key: string): LocalTimer {
   const [state, setState] = useState<Stored>(() => load(key))
   const [now, setNow] = useState(() => Date.now())
+  const persistent = useSyncExternalStore(
+    (changed) => {
+      window.addEventListener(timerChanged, changed)
+      return () => window.removeEventListener(timerChanged, changed)
+    },
+    () => storageStatus.get(key) ?? true,
+    () => true,
+  )
 
   useEffect(() => store(key, state), [key, state])
   useEffect(() => {
@@ -61,6 +92,7 @@ export function useLocalTimer(key: string): LocalTimer {
   return {
     ms: elapsed(state, now),
     running: state.startedAt !== null,
+    persistent,
     start: () => {
       const at = Date.now()
       setNow(at)

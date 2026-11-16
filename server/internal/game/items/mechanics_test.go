@@ -37,7 +37,7 @@ func TestBabina(t *testing.T) {
 
 	sc.play(a, game.OutcomeCompleted, 10)
 	sc.expectTotal(a, 17+rec) // +10 waits for the judge
-	if err := sc.e.ConfirmItem(sc.s, sc.judge, bab.ID, true); err != nil {
+	if err := sc.e.ConfirmItem(sc.s, sc.judge, bab.ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
 	sc.expectTotal(a, 17+rec+10)

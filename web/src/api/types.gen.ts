@@ -311,12 +311,31 @@ export interface PlaythroughView {
   proof: string;
   review: string;
   confirmed: boolean;
+  rejected?: boolean;
+  rejectReason?: string;
   points: number /* int */;
   /**
    * TimerMs is the time the player saved with the timer; set in the
    * judge's queue to compare with the hours.
    */
   timerMs: number /* int64 */;
+  /**
+   * Preview is set for the player while they play this game, for the
+   * outcome form.
+   */
+  preview?: OutcomePreview;
+}
+/**
+ * OutcomePreview is how the player's total would change with each outcome
+ * of the game in progress, scored by the engine on a copy of the event.
+ */
+export interface OutcomePreview {
+  dropped: number /* int */;
+  /**
+   * CompletedAtHLTB is a completion in exactly the HLTB hours; each hour
+   * faster adds a point of speed.
+   */
+  completedAtHltb: number /* int */;
 }
 export interface ItemView {
   id: number /* int64 */;
@@ -338,6 +357,7 @@ export interface ItemView {
   needsConfirm: boolean;
   confirmed: boolean;
   rejected: boolean;
+  rejectReason?: string;
   /**
    * Locked: the owner sent the fields to the judge and cannot change them
    * until the judge rejects. Judges can always edit.
@@ -420,6 +440,7 @@ export interface EditPlaythroughRequest {
 }
 export interface ConfirmRequest {
   accept: boolean;
+  reason?: string;
 }
 /**
  * LeaderboardRow is one player's standing.

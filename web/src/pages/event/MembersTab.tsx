@@ -28,17 +28,16 @@ export function MembersTab() {
                 {/* Whoever is on the leaderboard has a board: participants,
                     former players with turns, the frozen list of a finished event. */}
                 {players.has(m.userId) ? (
-                  <Link to={playerPath(event.slug, m.userId)} className="hover:text-amber-700 hover:underline">
+                  <Link to={playerPath(event.slug, m.userId)} className="text-link underline">
                     {m.name}
                   </Link>
                 ) : (
                   m.name
                 )}
-                {m.userId === me?.id && <span className="text-stone-500"> (вы)</span>}
+                {m.userId === me?.id && <span className="text-muted"> (вы)</span>}
               </span>
               {m.isJudge && <Badge tone="amber">Судья</Badge>}
-              {m.isParticipant && <Badge tone="green">Участник</Badge>}
-              {!m.isParticipant && !m.isJudge && <Badge>без роли</Badge>}
+              {!m.isParticipant && <Badge>не играет</Badge>}
             </div>
             {isJudge && (
               <RoleControls
@@ -70,7 +69,7 @@ function RoleControls({
 }) {
   return (
     <div className="flex items-center gap-4 text-sm">
-      <label className="flex items-center gap-1">
+      <label className="flex min-h-6 items-center gap-1 py-1">
         <input
           type="checkbox"
           checked={member.isParticipant}
@@ -79,11 +78,11 @@ function RoleControls({
         />
         Участник
       </label>
-      <label className="flex items-center gap-1">
+      <label className="flex min-h-6 items-center gap-1 py-1">
         <input type="checkbox" checked={member.isJudge} disabled={busy} onChange={(e) => onChange({ isJudge: e.target.checked })} />
         Судья
       </label>
-      <button type="button" className="text-red-600 hover:underline disabled:opacity-50" disabled={busy} onClick={onRemove}>
+      <button type="button" className="min-h-6 py-1 text-danger hover:underline disabled:opacity-50" disabled={busy} onClick={onRemove}>
         Убрать
       </button>
     </div>

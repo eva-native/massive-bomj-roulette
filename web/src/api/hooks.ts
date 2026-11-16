@@ -15,7 +15,14 @@ export function useAppConfig() {
   })
 }
 
-/** The logged-in user, or null when nobody is logged in. */
+/** How often to ask again who is logged in while the server does not answer. */
+export const ME_RETRY_MS = 10_000
+
+/**
+ * The logged-in user, or null when nobody is logged in. An error means the
+ * server did not answer; it is asked again until it does, so the header
+ * recovers without a reload.
+ */
 export function useMe() {
   return useQuery({
     queryKey: queryKeys.me,
@@ -27,6 +34,7 @@ export function useMe() {
         throw err
       }
     },
+    refetchInterval: (query) => (query.state.status === 'error' ? ME_RETRY_MS : false),
   })
 }
 

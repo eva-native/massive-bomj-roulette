@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useEditPlaythrough, useUndoStep } from '@/api/play'
 import type { PlaythroughView, TurnView } from '@/api/types.gen'
+import { InlineEdit } from '@/components/InlineEdit'
 import { Button } from '@/components/Button'
 import { DurationInput } from '@/components/DurationInput'
 import { ReviewCounter } from '@/components/Review'
@@ -14,6 +15,7 @@ export function UndoStep({ slug, playerId, turn }: { slug: string; playerId: num
   const done = turn.steps.some((s) => s.done)
   return (
     <div className="flex flex-col gap-1 border-t border-stone-200 pt-3 dark:border-stone-800">
+      <p className="text-sm font-medium">Действия судьи</p>
       <Button
         variant="secondary"
         className="self-start"
@@ -40,31 +42,35 @@ export function EditPlaythrough({ slug, pt }: { slug: string; pt: PlaythroughVie
 
   if (!open) {
     return (
-      <button type="button" className="text-xs text-amber-700 hover:underline" onClick={() => setOpen(true)}>
-        Исправить
-      </button>
+      <InlineEdit active={false} onCancel={() => setOpen(false)}>
+        <button data-edit-trigger type="button" className="min-h-6 py-1 text-xs text-link hover:underline" onClick={() => setOpen(true)}>
+          Исправить
+        </button>
+      </InlineEdit>
     )
   }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (hours === null) return
+    if (edit.isPending || hours === null) return
     edit.mutate({ id: pt.id, hours, proof, review }, { onSuccess: () => setOpen(false) })
   }
   return (
-    <form onSubmit={submit} className="flex w-full flex-col gap-2">
-      <DurationInput label="Время" value={time} onChange={setTime} />
-      <Input aria-label="Ссылка" type="url" value={proof} onChange={(e) => setProof(e.target.value)} />
-      <Textarea aria-label="Обзор" value={review} onChange={(e) => setReview(e.target.value)} />
-      <ReviewCounter text={review} />
-      <div className="flex gap-2">
-        <Button type="submit" variant="secondary" disabled={edit.isPending || hours === null || reviewTooLong(review)}>
-          Сохранить
-        </Button>
-        <Button variant="secondary" onClick={() => setOpen(false)}>
-          Отмена
-        </Button>
-      </div>
-      <ErrorText error={edit.error} />
-    </form>
+    <InlineEdit active onCancel={() => { if (!edit.isPending) setOpen(false) }}>
+      <form onSubmit={submit} className="flex w-full flex-col gap-2">
+        <DurationInput disabled={edit.isPending} label="Время" value={time} onChange={setTime} />
+        <Input disabled={edit.isPending} aria-label="Ссылка" type="url" value={proof} onChange={(e) => setProof(e.target.value)} />
+        <Textarea disabled={edit.isPending} aria-label="Обзор" value={review} onChange={(e) => setReview(e.target.value)} />
+        <ReviewCounter text={review} />
+        <div className="flex gap-2">
+          <Button type="submit" variant="secondary" disabled={edit.isPending || hours === null || reviewTooLong(review)}>
+            Сохранить
+          </Button>
+          <Button variant="secondary" disabled={edit.isPending} onClick={() => setOpen(false)}>
+            Отмена
+          </Button>
+        </div>
+        <ErrorText error={edit.error} />
+      </form>
+    </InlineEdit>
   )
 }

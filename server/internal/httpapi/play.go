@@ -118,7 +118,7 @@ func (s *Server) confirmItem(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.play.ConfirmItem(r.Context(), r.PathValue("slug"), user(r), id, req.Accept); err != nil {
+	if err := s.play.ConfirmItem(r.Context(), r.PathValue("slug"), user(r), id, req.Accept, req.Reason); err != nil {
 		s.serviceError(w, err)
 		return
 	}
@@ -134,7 +134,7 @@ func (s *Server) confirmGame(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.play.ConfirmGame(r.Context(), r.PathValue("slug"), user(r), id, req.Accept); err != nil {
+	if err := s.play.ConfirmGame(r.Context(), r.PathValue("slug"), user(r), id, req.Accept, req.Reason); err != nil {
 		s.serviceError(w, err)
 		return
 	}

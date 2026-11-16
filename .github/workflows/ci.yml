@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  # Run by release.yml on the commit of a release tag before publishing it.
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ""
 
 jobs:
   server:
@@ -24,6 +30,8 @@ jobs:
         working-directory: server
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: server/go.mod
@@ -52,6 +60,8 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -68,4 +78,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - run: docker build -t mbr .

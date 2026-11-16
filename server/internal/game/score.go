@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"math"
 	"slices"
 )
@@ -239,4 +240,55 @@ func Totals(entries []Entry) map[PlayerID]int {
 		out[e.Player] += e.Points
 	}
 	return out
+}
+
+// Preview is what a game in progress would bring its player with each
+// outcome: the change in the player's total, so the drop penalty, its
+// cancelling («Парашют»), records and items over several games count exactly
+// as Score counts them.
+type Preview struct {
+	Dropped int
+	// CompletedAtHLTB is a completion in exactly the HLTB hours: no speed
+	// points; each hour faster adds one.
+	CompletedAtHLTB int
+}
+
+// PreviewOutcome scores a copy of the state with the playthrough confirmed
+// as dropped and as completed in its HLTB hours. The state itself is not
+// changed. ok is false when the playthrough is unknown or already finished.
+func (e *Engine) PreviewOutcome(s *State, playthroughID int64) (p Preview, ok bool) {
+	pt := s.Playthrough(playthroughID)
+	if pt == nil || pt.Outcome != OutcomeNone {
+		return Preview{}, false
+	}
+	g := s.Game(pt.Game)
+	if g == nil {
+		return Preview{}, false
+	}
+	cp, err := cloneState(s)
+	if err != nil {
+		return Preview{}, false
+	}
+	before := Totals(e.Score(cp))[pt.Player]
+	cpt := cp.Playthrough(playthroughID)
+	cpt.Confirmed = true
+	cpt.Outcome, cpt.Hours = OutcomeDropped, 0
+	p.Dropped = Totals(e.Score(cp))[pt.Player] - before
+	cpt.Outcome, cpt.Hours = OutcomeCompleted, float64(g.HLTB)
+	p.CompletedAtHLTB = Totals(e.Score(cp))[pt.Player] - before
+	return p, true
+}
+
+// cloneState copies the state the way it is saved and loaded, so the copy
+// shares nothing with the original.
+func cloneState(s *State) (*State, error) {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	var out State
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

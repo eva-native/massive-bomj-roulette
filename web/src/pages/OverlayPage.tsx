@@ -1,17 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
+import { ApiError } from '@/api/client'
 import { useEvent } from '@/api/events'
 import { useActivity, useEventStream, useLeaderboard } from '@/api/play'
 import { ItemIcon } from '@/components/ItemIcon'
 import { Wheel } from '@/components/Wheel'
-import { wheelSeconds } from '@/lib/wheel'
-
-const wheelNames: Record<string, string> = {
-  items: 'Колесо эффектов и бонусов',
-  drops: 'Колесо дроп-дебаффов',
-  games: 'Колесо игр',
-  movies: 'Киноколесо',
-}
+import { wheelNames, wheelSeconds } from '@/lib/wheel'
 
 /** How long the result stays on screen after the wheel stops. */
 const RESULT_MS = 6000
@@ -27,7 +21,7 @@ export function OverlayPage() {
   const { slug = '' } = useParams()
   const [params] = useSearchParams()
   const show = (key: string) => params.get(key) !== '0'
-  useEventStream(slug)
+  const { resyncs } = useEventStream(slug)
   const activity = useActivity(slug)
   const board = useLeaderboard(slug)
   const event = useEvent(slug) // for the wheel's length
@@ -36,7 +30,14 @@ export function OverlayPage() {
   const [baseline, setBaseline] = useState<number | null>(null)
   const [stopped, setStopped] = useState<number | null>(null)
   const [hidden, setHidden] = useState<number | null>(null)
+  const [resyncSeen, setResyncSeen] = useState(0)
   if (baseline === null && activity.data) {
+    setBaseline(activity.data[0]?.id ?? 0)
+  }
+  // Nor are spins made while the stream was down: they would play minutes late.
+  // The stream counts a resync once the refetched feed is in, so it is the one shown now.
+  if (resyncs !== resyncSeen && activity.data) {
+    setResyncSeen(resyncs)
     setBaseline(activity.data[0]?.id ?? 0)
   }
 
@@ -47,6 +48,12 @@ export function OverlayPage() {
 
   const latest = activity.data?.find((a) => a.spin)
   const current = latest?.spin && baseline !== null && latest.id > baseline && latest.id !== hidden ? latest : null
+
+  if (event.isError && !event.data) return (
+    <p role="alert" className="p-4 text-white" style={shadow}>
+      {event.error instanceof ApiError && event.error.status === 404 ? `MBR: ивент «${slug}» не найден` : 'MBR: нет связи с сервером'}
+    </p>
+  )
 
   return (
     <div className="flex min-h-screen gap-6 p-6 text-white" style={shadow}>
@@ -62,6 +69,9 @@ export function OverlayPage() {
                 sectors={current.spin.wheel.sectors}
                 target={current.spin.result}
                 legend={false}
+                ticker={false} // the OBS scenes are laid out for the overlay as it was
+                icons={event.data?.settings.icons} // the judge's pictures, as in the result line below
+                name={wheelNames[current.spin.wheel.kind]}
                 seconds={wheelSeconds(event.data?.settings, current.spin.wheel.kind)}
                 onStop={() => {
                   setStopped(current.id)

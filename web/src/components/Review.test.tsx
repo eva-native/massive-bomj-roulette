@@ -51,9 +51,9 @@ it('counts characters only near the limit, outside the field name', () => {
   expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument()
 
   rerender(field('я'.repeat(MaxReview - 100)))
-  expect(screen.getByText('9 900 / 10 000')).toHaveClass('text-stone-500')
+  expect(screen.getByText('9 900 / 10 000')).toHaveClass('text-muted')
   expect(screen.getByRole('textbox', { name: 'Обзор' })).toBeInTheDocument()
 
   rerender(field('я'.repeat(MaxReview + 1)))
-  expect(screen.getByText('10 001 / 10 000')).toHaveClass('text-red-600')
+  expect(screen.getByText('10 001 / 10 000')).toHaveClass('text-danger')
 })
