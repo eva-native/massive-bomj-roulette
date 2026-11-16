@@ -738,3 +738,29 @@ func TestRejectedGameReasonPersists(t *testing.T) {
 		t.Fatalf("resubmitted: %+v", pt)
 	}
 }
+
+func TestJudgeConfirmsOwnOutcome(t *testing.T) {
+	for _, outcome := range []string{"completed", "dropped", "tech"} {
+		t.Run(outcome, func(t *testing.T) {
+			f := newFixture(t)
+			if _, err := f.events.Join(f.ctx, f.admin, "lbr", ""); err != nil {
+				t.Fatal(err)
+			}
+			f.addGame(f.admin, "G", 10, 80, 2015)
+			for range 3 {
+				f.spin(f.admin, "reflex")
+			}
+			v := f.spin(f.admin, "G").View
+			if _, err := f.play.Finish(f.ctx, "lbr", f.admin, v.Turn.Current.ID, api.FinishRequest{Outcome: outcome, Hours: 8, Review: "Обзор"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, v.Turn.Playthrough.ID, true, ""); err != nil {
+				t.Fatal(err)
+			}
+			acts, err := f.play.Activity(f.ctx, "lbr", 1)
+			if err != nil || len(acts) != 1 || !strings.Contains(acts[0].Message, "подтверждает свой итог") {
+				t.Fatalf("self-confirmation: %+v, %v", acts, err)
+			}
+		})
+	}
+}

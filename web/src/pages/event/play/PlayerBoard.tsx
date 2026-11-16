@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useMe } from '@/api/hooks'
@@ -91,7 +92,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-xl font-semibold">{view.player.name}</h2>
         <span className="text-2xl font-bold" title="Очки">
-          {view.points}
+          {view.points} {plural(view.points, 'очко', 'очка', 'очков')}
         </span>
       </div>
 
@@ -247,7 +248,7 @@ function GameHeader({ playthrough }: { playthrough: PlaythroughView }) {
       <div>
         <p className="text-lg font-semibold">{playthrough.game}</p>
         <p className="text-sm text-muted">
-          {playthrough.hltbHours} ч HLTB · база {playthrough.basePoints}
+          <span title="Базовые очки: часы HLTB, рейтинг и год игры">база {playthrough.basePoints}</span> · {playthrough.hltbHours} ч HLTB
         </p>
       </div>
     </div>
@@ -335,7 +336,7 @@ function CurrentStep({
 }) {
   const step = turn.current
   if (turn.waiting) {
-    return <p className="rounded-lg bg-stone-100 px-3 py-2 text-center text-sm dark:bg-stone-800">{turn.waiting}</p>
+    return <p className="rounded-lg bg-stone-100 px-3 py-2 text-center text-sm dark:bg-stone-800">{turn.waiting}{step?.kind === 'spin_game' && !turn.wheel && <> · <Link to={`/e/${event.slug}/games`} className="text-link underline">Добавить игры в пул</Link></>}</p>
   }
   if (!step) return null
 

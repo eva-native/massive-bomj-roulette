@@ -28,7 +28,7 @@ export function MembersTab() {
                 {/* Whoever is on the leaderboard has a board: participants,
                     former players with turns, the frozen list of a finished event. */}
                 {players.has(m.userId) ? (
-                  <Link to={playerPath(event.slug, m.userId)} className="hover:text-link hover:underline">
+                  <Link to={playerPath(event.slug, m.userId)} className="text-link underline">
                     {m.name}
                   </Link>
                 ) : (
@@ -37,8 +37,7 @@ export function MembersTab() {
                 {m.userId === me?.id && <span className="text-muted"> (вы)</span>}
               </span>
               {m.isJudge && <Badge tone="amber">Судья</Badge>}
-              {m.isParticipant && <Badge tone="green">Участник</Badge>}
-              {!m.isParticipant && !m.isJudge && <Badge>без роли</Badge>}
+              {!m.isParticipant && <Badge>не играет</Badge>}
             </div>
             {isJudge && (
               <RoleControls

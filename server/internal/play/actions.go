@@ -196,6 +196,15 @@ func (s *Service) ConfirmGame(ctx context.Context, slug string, viewer *auth.Use
 			return err
 		}
 		switch {
+		case accept && ss.viewerID() == pt.Player:
+			outcome := "прохождение"
+			if pt.Outcome == game.OutcomeDropped {
+				outcome = "дроп"
+			}
+			if pt.Outcome == game.OutcomeTech {
+				outcome = "тех. дроп"
+			}
+			ss.log("confirm", "Судья %s подтверждает свой итог (%s): «%s»", ss.viewer.Name, outcome, title)
 		case accept && pt.Outcome == game.OutcomeTech:
 			ss.log("confirm", "Судья %s подтверждает тех. дроп: %s — «%s»", ss.viewer.Name, player, title)
 		case accept:
