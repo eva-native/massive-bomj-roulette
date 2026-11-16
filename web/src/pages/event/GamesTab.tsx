@@ -24,6 +24,8 @@ export function GamesTab() {
   const limit = event.settings.maxGamesPerMember
   const mine = games.data?.filter((g) => g.addedBy === me?.id).length ?? 0
 
+  const atLimit = !isJudge && limit > 0 && mine >= limit
+
   return (
     <div className="flex flex-col gap-4">
       {isMember && event.status === 'active' && (
@@ -34,7 +36,9 @@ export function GamesTab() {
               Вы добавили {mine} из {limit}.
             </p>
           )}
+          {atLimit && <p className="mb-3 text-sm text-muted">Лимит: {mine} из {limit}. Удалите свою игру, чтобы добавить другую.</p>}
           <GameForm
+            disabled={games.isPending || games.isError || atLimit}
             initial={emptyGame}
             specialGames={isJudge ? specialGames : []}
             submitLabel="Добавить"
@@ -45,6 +49,7 @@ export function GamesTab() {
         </Card>
       )}
 
+      {!isMember && event.status === 'active' && <p className="text-muted">Вступите в ивент, чтобы добавлять игры.</p>}
       {games.isPending && <Loading />}
       <ErrorText error={games.error ?? remove.error} />
       {games.data?.length === 0 && <p className="text-muted">В пуле пока нет игр.</p>}
@@ -74,7 +79,7 @@ export function GamesTab() {
                 <GameCover url={g.coverUrl} title={g.title} />
                 <div className="flex flex-col gap-0.5">
                 <p className="font-medium">
-                  {g.title} {g.specialKey && <Badge tone="amber">особая</Badge>}
+                  {g.title} {isJudge && g.rating >= 1 && g.rating <= 10 && <Badge tone="amber">Проверьте шкалу рейтинга</Badge>} {g.specialKey && <Badge tone="amber">особая</Badge>}
                 </p>
                 <p className="text-sm text-muted">
                   {g.hltbHours} ч HLTB · рейтинг {g.rating} · {g.year} · добавил {g.addedByName}
@@ -83,7 +88,7 @@ export function GamesTab() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-lg font-semibold" title="Базовые очки">
-                  {g.basePoints}
+                  база {g.basePoints}
                 </span>
                 {canEdit(g) && event.status === 'active' && (
                   <>
@@ -118,7 +123,9 @@ function GameForm({
   error,
   onSubmit,
   onCancel,
+  disabled = false,
 }: {
+  disabled?: boolean
   initial: GameInput
   specialGames: SpecialGame[]
   submitLabel: string
@@ -140,51 +147,55 @@ function GameForm({
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
+    if (disabled || pending) return
     onSubmit({ ...form, title: form.title.trim() }, () => setForm({ ...emptyGame }))
   }
 
   return (
-    <form onSubmit={submit} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <Field label="Название" className="col-span-2 sm:col-span-4">
-        <Input value={form.title} maxLength={200} onChange={(e) => set('title', e.target.value)} />
-      </Field>
-      <Field label="Часы HLTB">
-        <Input type="number" min={0} max={999} value={form.hltbHours} onChange={(e) => set('hltbHours', num(e.target.value))} />
-      </Field>
-      <Field label="Рейтинг">
-        <Input type="number" min={0} max={100} value={form.rating} onChange={(e) => set('rating', num(e.target.value))} />
-      </Field>
-      <Field label="Год">
-        <Input type="number" min={1950} max={2100} value={form.year} onChange={(e) => set('year', num(e.target.value))} />
-      </Field>
-      <Field label="Обложка (ссылка на картинку)" hint="Необязательно, можно попросить судью" className="col-span-2 sm:col-span-4">
-        <Input type="url" value={form.coverUrl} placeholder="https://…" onChange={(e) => set('coverUrl', e.target.value)} />
-      </Field>
-      {specialGames.length > 0 && (
-        <Field label="Особая игра" hint="Не выпадает на колесе, её подставляет предмет">
-          <Select value={form.specialKey} onChange={(e) => set('specialKey', e.target.value)}>
-            <option value="">Обычная игра</option>
-            {specialGames.map((sg) => (
-              <option key={sg.key} value={sg.key}>
-                {sg.title}
-              </option>
-            ))}
-          </Select>
+    <form onSubmit={submit}>
+      <fieldset disabled={disabled || pending} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Field label="Название" className="col-span-2 sm:col-span-4">
+          <Input value={form.title} maxLength={200} onChange={(e) => set('title', e.target.value)} />
         </Field>
-      )}
-      <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
-        <ErrorText error={error} />
-        <div className="flex gap-2">
-          <Button type="submit" disabled={!form.title.trim() || pending}>
-            {submitLabel}
-          </Button>
-          {onCancel && (
-            <Button variant="secondary" onClick={onCancel}>
-              Отмена
+        <Field label="Часы HLTB">
+          <Input type="number" min={0} max={999} value={form.hltbHours} onChange={(e) => set('hltbHours', num(e.target.value))} />
+        </Field>
+        <Field label="Рейтинг (из 100)" hint="Чем ниже, тем больше очков: меньше 45 — +10, от 90 — +1.">
+          <Input type="number" min={0} max={100} value={form.rating} onChange={(e) => set('rating', num(e.target.value))} />
+        </Field>
+        {form.rating >= 1 && form.rating <= 10 && <p className="col-span-full text-sm text-muted">Похоже на оценку из 5 или 10 — переведите в шкалу из 100.</p>}
+        <Field label="Год">
+          <Input type="number" min={1950} max={2100} value={form.year} onChange={(e) => set('year', num(e.target.value))} />
+        </Field>
+        <Field label="Обложка (ссылка на картинку)" hint="Необязательно, можно попросить судью" className="col-span-2 sm:col-span-4">
+          <Input type="url" value={form.coverUrl} placeholder="https://…" onChange={(e) => set('coverUrl', e.target.value)} />
+        </Field>
+        {specialGames.length > 0 && (
+          <Field label="Особая игра" hint="Не выпадает на колесе, её подставляет предмет">
+            <Select value={form.specialKey} onChange={(e) => set('specialKey', e.target.value)}>
+              <option value="">Обычная игра</option>
+              {specialGames.map((sg) => (
+                <option key={sg.key} value={sg.key}>
+                  {sg.title}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
+          <ErrorText error={error} />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={!form.title.trim() || pending}>
+              {submitLabel}
             </Button>
-          )}
+            {onCancel && (
+              <Button variant="secondary" onClick={onCancel}>
+                Отмена
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      </fieldset>
     </form>
   )
 }

@@ -35,6 +35,8 @@ export function MoviesTab() {
               Добавить
             </Button>
           </form>
+          <p className="mt-2 text-xs text-muted">Название фильма, не ссылка.</p>
+          {/^http/i.test(title.trim()) && <p className="text-sm text-muted">Вставьте название фильма вместо ссылки.</p>}
           <div className="mt-2">
             <ErrorText error={add.error} />
           </div>
@@ -70,7 +72,7 @@ export function MoviesTab() {
             ) : (
               <>
                 <div>
-                  <p className="font-medium">{m.title}</p>
+                  <p className="font-medium">{safeMovieURL(m.title) ? <a href={m.title.trim()} target="_blank" rel="noreferrer" className="text-link underline">{m.title}</a> : m.title}</p>
                   <p className="text-sm text-muted">добавил {m.addedByName}</p>
                 </div>
                 {canEdit(m) && (
@@ -96,4 +98,8 @@ export function MoviesTab() {
       </ul>
     </div>
   )
+}
+
+function safeMovieURL(title: string) {
+  try { return ['http:', 'https:'].includes(new URL(title.trim()).protocol) } catch { return false }
 }
