@@ -3,6 +3,7 @@ import { useGameMutations, useGames, useItems } from '@/api/events'
 import { useMe } from '@/api/hooks'
 import type { Game, GameInput, SpecialGame } from '@/api/types.gen'
 import { Button } from '@/components/Button'
+import { InlineEdit } from '@/components/InlineEdit'
 import { GameCover } from '@/components/GameCover'
 import { Badge, Card, ErrorText, Field, Input, Loading, Select } from '@/components/ui'
 import { useEventContext } from './context'
@@ -55,9 +56,10 @@ export function GamesTab() {
       {games.data?.length === 0 && <p className="text-muted">В пуле пока нет игр.</p>}
 
       <ul className="flex flex-col gap-2">
-        {games.data?.map((g) =>
-          editing === g.id ? (
-            <li key={g.id}>
+        {games.data?.map((g) => (
+          <li key={g.id}>
+            <InlineEdit active={editing === g.id} onCancel={() => { if (!update.isPending) setEditing(null) }} className={editing === g.id ? 'contents' : 'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900'}>
+          {editing === g.id ? (
               <Card>
                 <GameForm
                   initial={g}
@@ -69,12 +71,8 @@ export function GamesTab() {
                   onCancel={() => setEditing(null)}
                 />
               </Card>
-            </li>
           ) : (
-            <li
-              key={g.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900"
-            >
+            <>
               <div className="flex items-center gap-3">
                 <GameCover url={g.coverUrl} title={g.title} />
                 <div className="flex flex-col gap-0.5">
@@ -92,12 +90,12 @@ export function GamesTab() {
                 </span>
                 {canEdit(g) && event.status === 'active' && (
                   <>
-                    <button type="button" className="text-sm text-link hover:underline" onClick={() => setEditing(g.id)}>
+                    <button data-edit-trigger type="button" className="min-h-6 py-1 text-sm text-link hover:underline" onClick={() => setEditing(g.id)}>
                       Изменить
                     </button>
                     <button
                       type="button"
-                      className="text-sm text-danger hover:underline"
+                      className="min-h-6 py-1 text-sm text-danger hover:underline"
                       onClick={() => {
                         if (confirm(`Удалить «${g.title}»?`)) remove.mutate(g.id)
                       }}
@@ -107,9 +105,11 @@ export function GamesTab() {
                   </>
                 )}
               </div>
-            </li>
-          ),
-        )}
+            </>
+          )}
+            </InlineEdit>
+          </li>
+        ))}
       </ul>
     </div>
   )
@@ -189,7 +189,7 @@ function GameForm({
               {submitLabel}
             </Button>
             {onCancel && (
-              <Button variant="secondary" onClick={onCancel}>
+              <Button variant="secondary" disabled={pending} onClick={onCancel}>
                 Отмена
               </Button>
             )}

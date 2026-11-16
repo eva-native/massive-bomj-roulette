@@ -193,7 +193,7 @@ function FieldControl({
   switch (field.type) {
     case 'bool':
       return (
-        <label className="flex items-center gap-2">
+        <label className="flex min-h-6 items-center gap-2 py-1">
           <input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />
           <span>{label}</span>
         </label>
@@ -235,7 +235,7 @@ function FieldControl({
           {members
             .filter((m) => m.isParticipant)
             .map((m) => (
-              <label key={m.userId} className="flex items-center gap-2">
+              <label key={m.userId} className="flex min-h-6 items-center gap-2 py-1">
                 <input
                   type="checkbox"
                   checked={list.includes(m.userId)}

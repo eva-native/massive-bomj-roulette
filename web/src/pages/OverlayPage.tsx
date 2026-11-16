@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
+import { ApiError } from '@/api/client'
 import { useEvent } from '@/api/events'
 import { useActivity, useEventStream, useLeaderboard } from '@/api/play'
 import { ItemIcon } from '@/components/ItemIcon'
@@ -47,6 +48,12 @@ export function OverlayPage() {
 
   const latest = activity.data?.find((a) => a.spin)
   const current = latest?.spin && baseline !== null && latest.id > baseline && latest.id !== hidden ? latest : null
+
+  if (event.isError && !event.data) return (
+    <p role="alert" className="p-4 text-white" style={shadow}>
+      {event.error instanceof ApiError && event.error.status === 404 ? `MBR: ивент «${slug}» не найден` : 'MBR: нет связи с сервером'}
+    </p>
+  )
 
   return (
     <div className="flex min-h-screen gap-6 p-6 text-white" style={shadow}>

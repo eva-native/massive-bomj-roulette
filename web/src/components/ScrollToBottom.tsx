@@ -14,16 +14,25 @@ export function ScrollToBottom() {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    const update = () => setShow(screensLeft() > minScreensLeft)
+    const update = () => {
+      const typing = document.activeElement?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+      setShow(window.innerWidth >= 640 && screensLeft() > minScreensLeft && !typing)
+    }
     update()
     window.addEventListener('scroll', update, { passive: true })
     window.addEventListener('resize', update)
+    document.addEventListener('focusin', update)
+    // focusout fires before activeElement moves to the next target.
+    const afterBlur = () => queueMicrotask(update)
+    document.addEventListener('focusout', afterBlur)
     // Pages grow when their data arrives, without any scroll or resize.
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
     observer?.observe(document.body)
     return () => {
       window.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
+      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', afterBlur)
       observer?.disconnect()
     }
   }, [])

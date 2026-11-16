@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useBlocker } from 'react-router'
 import { inviteLink, useItems, useNewInvite, useUpdateEvent } from '@/api/events'
 import { exportUrl, useFinishEvent } from '@/api/play'
@@ -180,7 +180,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
         <Field label="Игр на участника" hint="Сколько игр каждый может добавить в пул. 0 — без ограничений. Судей не касается." className="max-w-56">
           <Input type="number" min={0} max={1000} value={maxGames} onChange={(e) => setMaxGames(num(e.target.value))} />
         </Field>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-6 items-center gap-2 py-1 text-sm">
           <input type="checkbox" checked={inviteOnly} onChange={(e) => setInviteOnly(e.target.checked)} />
           Вступление только по ссылке-приглашению
         </label>
@@ -258,7 +258,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
                   <div key={it.id} className="flex flex-col gap-1 text-sm">
                     {/* On a phone the name keeps its own line and the inputs wrap below it. */}
                     <div className="grid items-center gap-3 sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_5rem]">
-                      <label className="flex min-w-48 flex-1 items-center gap-2">
+                      <label className="flex min-h-6 min-w-48 flex-1 items-center gap-2 py-1">
                         <input type="checkbox" checked={row.enabled} onChange={(e) => setItem(it.id, { enabled: e.target.checked })} />
                         <ItemIcon defId={it.id} kind={it.kind} icons={shownIcons} size="sm" />
                         {it.name}
@@ -351,30 +351,43 @@ function IconLinkStatus({ url }: { url: string }) {
 /** The invite link with copy and replace buttons. */
 function InviteLink({ event }: { event: EventDetail }) {
   const renew = useNewInvite(event.slug)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+  const [manual, setManual] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
   const link = inviteLink(event.slug, event.settings.inviteCode ?? '')
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <Input readOnly value={link} aria-label="Ссылка-приглашение" onFocus={(e) => e.target.select()} />
+      <Input ref={input} readOnly value={link} aria-label="Ссылка-приглашение" onFocus={(e) => e.target.select()} />
       <div className="flex flex-wrap gap-2">
         <Button
           variant="secondary"
-          onClick={() => {
-            void navigator.clipboard?.writeText(link).then(() => setCopied(true))
+          onClick={async () => {
+            try {
+              if (!navigator.clipboard) throw new Error('Clipboard unavailable')
+              await navigator.clipboard.writeText(link)
+              setCopied(link)
+              setManual(false)
+            } catch {
+              setCopied(null)
+              setManual(true)
+              input.current?.focus()
+              input.current?.select()
+            }
           }}
         >
-          {copied ? 'Скопировано' : 'Копировать'}
+          {copied === link ? 'Скопировано' : 'Копировать'}
         </Button>
         <Button
           variant="secondary"
           disabled={renew.isPending}
           onClick={() => {
-            if (confirm('Выпустить новую ссылку? Старая перестанет работать.')) renew.mutate(undefined, { onSuccess: () => setCopied(false) })
+            if (confirm('Выпустить новую ссылку? Старая перестанет работать.')) renew.mutate(undefined, { onSuccess: () => { setCopied(null); setManual(false) } })
           }}
         >
           Новая ссылка
         </Button>
       </div>
+      {manual && <p role="status" className="text-muted">Скопируйте вручную.</p>}
       <ErrorText error={renew.error} />
     </div>
   )
