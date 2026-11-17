@@ -13,9 +13,9 @@
 | F6 | Время, итог, черновик формы | Готово — [#32](https://github.com/eva-native/massive-bomj-roulette/pull/32) |
 | F7 | Работа судьи | Готово — [#33](https://github.com/eva-native/massive-bomj-roulette/pull/33) |
 | F8 | Навигация по ивенту | Готово — [#34](https://github.com/eva-native/massive-bomj-roulette/pull/34) |
-| F9 | Игры, фильмы, предметы, таблица и лента | На ревью — [#35](https://github.com/eva-native/massive-bomj-roulette/pull/35), CI зелёный |
-| F10 | Настройки | На ревью — [#36](https://github.com/eva-native/massive-bomj-roulette/pull/36), CI зелёный; после #35 |
-| F11 | Доступность и недостающие состояния | На ревью — [#37](https://github.com/eva-native/massive-bomj-roulette/pull/37); после #36 |
+| F9 | Игры, фильмы, предметы, таблица и лента | Готово — [#35](https://github.com/eva-native/massive-bomj-roulette/pull/35) |
+| F10 | Настройки | Готово — [#36](https://github.com/eva-native/massive-bomj-roulette/pull/36) |
+| F11 | Доступность и недостающие состояния | Готово — [#37](https://github.com/eva-native/massive-bomj-roulette/pull/37) |
 
 ## F8 — что сделано и почему
 
@@ -45,7 +45,7 @@
 - Переходы ведут к семи разделам; «Ивент целиком» переименован в «Экспорт и завершение».
 - Заголовки колонок предметов объясняют галочки, иконки и веса; на узком экране подписи остаются рядом с полями. Колонка иконок расширена, прежнее превью сохранено.
 
-Проверено: 149 frontend-тестов, TypeScript, ESLint и production build. PR зависит от фазы 9; порядок слияния — F9, затем F10.
+Проверено: 149 frontend-тестов, TypeScript, ESLint и production build. Фаза слита после F9.
 
 ## F11 — что сделано и почему
 
@@ -59,5 +59,5 @@
 
 ## Что ещё требуется для закрытия плана
 
-- Ревью и последовательное слияние F9 → F10 → F11. Ветки зависимы и направлены в develop; слияния выполняет владелец.
+- Все фазы F1–F11 слиты в develop; F9 → F10 → F11 вошли через #35, #36, #37.
 - Визуальная проверка экрана пула, предметов, настроек и доски в светлой/тёмной теме на 1440 и 390 px, затем актуальные скриншоты аудита. 16 ноября повторная попытка браузерного доступа вернула `The browser access host is unavailable`; визуальная проверка не считается выполненной.
