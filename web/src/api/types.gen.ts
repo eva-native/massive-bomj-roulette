@@ -438,6 +438,9 @@ export interface EditPlaythroughRequest {
   proof: string;
   review: string;
 }
+export interface EditReviewRequest {
+  review: string;
+}
 export interface ConfirmRequest {
   accept: boolean;
   reason?: string;

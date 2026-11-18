@@ -381,6 +381,10 @@ type EditPlaythroughRequest struct {
 	Review string  `json:"review"`
 }
 
+type EditReviewRequest struct {
+	Review string `json:"review"`
+}
+
 type ConfirmRequest struct {
 	Accept bool   `json:"accept"`
 	Reason string `json:"reason,omitempty"`

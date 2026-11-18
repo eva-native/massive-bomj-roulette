@@ -6,6 +6,7 @@ import type {
   ActivityEntry,
   ConfirmRequest,
   EditPlaythroughRequest,
+  EditReviewRequest,
   FinishRequest,
   LeaderboardRow,
   PlayTime,
@@ -205,6 +206,12 @@ export function useUndoStep(slug: string) {
 export function useEditPlaythrough(slug: string) {
   return useEventAction(slug, ({ id, ...req }: EditPlaythroughRequest & { id: number }) =>
     api<void>(`${base(slug)}/playthroughs/${id}`, { method: 'PATCH', json: req }),
+  )
+}
+
+export function useEditReview(slug: string) {
+  return useEventAction(slug, ({ id, ...req }: EditReviewRequest & { id: number }) =>
+    api<void>(`${base(slug)}/playthroughs/${id}/review`, { method: 'PATCH', json: req }),
   )
 }
 

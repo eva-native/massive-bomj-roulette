@@ -397,6 +397,35 @@ func (s *Service) UndoStep(ctx context.Context, slug string, viewer *auth.User, 
 	})
 }
 
+// EditReview changes only the owner's review, including after judge confirmation.
+func (s *Service) EditReview(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, req api.EditReviewRequest) error {
+	review, err := cleanReview(req.Review)
+	if err != nil {
+		return err
+	}
+	return s.write(ctx, slug, viewer, func(ss *session) error {
+		if err := requirePlayer(ss); err != nil {
+			return err
+		}
+		pt := ss.st.Playthrough(playthroughID)
+		if pt == nil {
+			return events.ErrNotFound
+		}
+		if pt.Player != ss.viewerID() {
+			return events.ErrForbidden
+		}
+		if pt.Outcome == game.OutcomeNone {
+			return fmt.Errorf("%w: игра ещё не завершена", events.ErrConflict)
+		}
+		if review == "" && pt.Outcome != game.OutcomeTech {
+			return &events.InvalidError{Msg: "напишите обзор игры"}
+		}
+		pt.Review = review
+		ss.log("review", "%s исправляет обзор «%s»", ss.viewer.Name, s.gameTitle(ss, pt.Game))
+		return nil
+	})
+}
+
 // EditPlaythrough lets a judge correct the hours, proof and review of a finished game.
 // The review may be left empty here: games finished before reviews were required have none.
 func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, req api.EditPlaythroughRequest) error {

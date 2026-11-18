@@ -103,6 +103,7 @@ it('shows queue size in the browser title and keeps external rules out of the ta
   await screen.findByRole('link', { name: 'Судья (1)' })
   expect(document.title).toBe('Судья (1) · ЛБР · MBR')
   expect(screen.getByRole('link', { name: 'Правила ивента ↗' })).toHaveAttribute('target', '_blank')
+  expect(screen.getByRole('link', { name: 'Правила ивента ↗' }).closest('footer')).not.toBeNull()
   expect(tabs().queryByRole('link', { name: /Правила/ })).not.toBeInTheDocument()
   queue = []
   await act(() => queryClient.invalidateQueries({ queryKey: playKeys.queue('lbr') }))

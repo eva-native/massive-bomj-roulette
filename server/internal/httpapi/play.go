@@ -20,6 +20,7 @@ func (s *Server) routePlay(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/events/{slug}/items/{id}/confirm", s.confirmItem)
 	mux.HandleFunc("POST /api/events/{slug}/playthroughs/{id}/confirm", s.confirmGame)
 	mux.HandleFunc("PATCH /api/events/{slug}/playthroughs/{id}", s.editPlaythrough)
+	mux.HandleFunc("PATCH /api/events/{slug}/playthroughs/{id}/review", s.editReview)
 	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/undo", s.undoStep)
 	mux.HandleFunc("GET /api/events/{slug}/players/{userID}/playtime", s.playTime)
 	mux.HandleFunc("POST /api/events/{slug}/players/{userID}/playtime", s.updatePlayTime)
@@ -135,6 +136,22 @@ func (s *Server) confirmGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.play.ConfirmGame(r.Context(), r.PathValue("slug"), user(r), id, req.Accept, req.Reason); err != nil {
+		s.serviceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) editReview(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok || !requireLogin(w, r) {
+		return
+	}
+	var req api.EditReviewRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := s.play.EditReview(r.Context(), r.PathValue("slug"), user(r), id, req); err != nil {
 		s.serviceError(w, err)
 		return
 	}

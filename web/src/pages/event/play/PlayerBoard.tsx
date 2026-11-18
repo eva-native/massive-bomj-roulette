@@ -23,6 +23,7 @@ import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
 import { JudgeDecision } from './JudgeDecision'
 import { PlayTime } from './PlayTime'
+import { EditReview } from './EditReview'
 
 const stepNames: Record<string, string> = {
   spin_items: 'Колесо эффектов и бонусов',
@@ -174,7 +175,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
             </Card>
           )}
 
-          <History className="order-5" view={view} judgeSlug={isJudge && event.status === 'active' ? event.slug : null} />
+          <History className="order-5" view={view} judgeSlug={isJudge && event.status === 'active' ? event.slug : null} reviewSlug={own && event.me?.isParticipant && event.status === 'active' ? event.slug : null} />
         </div>
 
         {side && (
@@ -620,7 +621,7 @@ function FinishForm({
 
 const outcomeNames: Record<string, string> = { completed: 'пройдена', dropped: 'дропнута', tech: 'тех. дроп' }
 
-function History({ view, judgeSlug, className }: { view: PlayerView; judgeSlug: string | null; className?: string }) {
+function History({ view, judgeSlug, reviewSlug, className }: { view: PlayerView; judgeSlug: string | null; reviewSlug: string | null; className?: string }) {
   if (view.history.length === 0 && view.entries.length === 0) return null
   return (
     <section className={cn('flex flex-col gap-2', className)}>
@@ -638,6 +639,7 @@ function History({ view, judgeSlug, className }: { view: PlayerView; judgeSlug: 
               <span className="font-semibold">{pt.points > 0 ? `+${pt.points}` : pt.points}</span>
             </span>
             {pt.review && <ReviewText text={pt.review} />}
+            {reviewSlug && <EditReview slug={reviewSlug} pt={pt} />}
           </li>
         ))}
       </ul>

@@ -73,6 +73,69 @@ async function joinAs(backend: ReturnType<typeof setup>, me: Me) {
   backend.setMe(me)
 }
 
+describe('editing own reviews', () => {
+  const history = (): PlayerView['history'] => [{ id: 70, gameId: 5, game: 'GTA', hltbHours: 30, basePoints: 39, coverUrl: '', outcome: 'completed', hours: 25, proof: '', review: 'Первый обзор', confirmed: true, points: 44, timerMs: 0 }]
+
+  it('edits only the review, refreshes the history and returns focus to the trigger', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const past = history()
+    backend.on('GET', /\/players\/2$/, () => view(null, { history: past }))
+    backend.on('PATCH', /\/playthroughs\/70\/review$/, (body) => { past[0]!.review = (body as { review: string }).review })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+    await user.click(await screen.findByRole('button', { name: 'Редактировать обзор' }))
+    const field = screen.getByRole('textbox', { name: 'Обзор' })
+    expect(field).toHaveFocus()
+    await user.clear(field)
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
+    await user.type(field, 'Новый обзор')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(await screen.findByText('Новый обзор')).toBeInTheDocument()
+    expect(backend.requests.find((r) => r.method === 'PATCH')?.body).toEqual({ review: 'Новый обзор' })
+    expect(screen.getByRole('button', { name: 'Редактировать обзор' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Редактировать обзор' }))
+    await user.type(screen.getByRole('textbox', { name: 'Обзор' }), ' не сохранять')
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Редактировать обзор' }))
+    expect(screen.getByRole('textbox', { name: 'Обзор' })).toHaveValue('Новый обзор')
+  })
+
+  it('keeps the draft after a failed save', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    backend.on('GET', /\/players\/2$/, () => view(null, { history: history() }))
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return new Response(JSON.stringify({ error: 'Попробуйте снова' }), { status: 500 })
+      return backend.fetch(input, init)
+    })
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+    await user.click(await screen.findByRole('button', { name: 'Редактировать обзор' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Обзор' }))
+    await user.type(screen.getByRole('textbox', { name: 'Обзор' }), 'Черновик')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Попробуйте снова')
+    expect(screen.getByRole('textbox', { name: 'Обзор' })).toHaveValue('Черновик')
+  })
+
+  it('does not offer editing on another player’s board or after the event ends', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    backend.on('GET', /\/players\/3$/, () => view(null, { player: { id: 3, name: 'Боб', avatarUrl: '' }, history: history() }))
+    backend.on('GET', /\/players\/2$/, () => view(null, { history: history() }))
+    vi.stubGlobal('fetch', backend.fetch)
+    const { router, queryClient } = renderApp('/e/lbr/players/3')
+    await screen.findByText('Первый обзор')
+    expect(screen.queryByRole('button', { name: 'Редактировать обзор' })).not.toBeInTheDocument()
+    queryClient.setQueryData(eventKeys.detail('lbr'), (ev: { status: string } | undefined) => ({ ...ev, status: 'finished' }))
+    await act(() => router.navigate('/e/lbr/play'))
+    await screen.findByText('Ивент завершён — итоги заморожены.')
+    expect(screen.queryByRole('button', { name: 'Редактировать обзор' })).not.toBeInTheDocument()
+  })
+})
+
 describe('my turn', () => {
   it('spins the wheel, animates to the server result and shows the next step', async () => {
     const backend = setup(alice)
