@@ -9,6 +9,11 @@ import { reviewTooLong } from '@/lib/review'
 
 /** An owner's review editor; scoring and judge confirmation are separate. */
 export function EditReview({ slug, pt }: { slug: string; pt: PlaythroughView }) {
+  // Playthrough IDs are local to an event; drafts and mutations belong to both.
+  return <ReviewEditor key={`${slug}:${pt.id}`} slug={slug} pt={pt} />
+}
+
+function ReviewEditor({ slug, pt }: { slug: string; pt: PlaythroughView }) {
   const edit = useEditReview(slug)
   const [open, setOpen] = useState(false)
   const [review, setReview] = useState(pt.review)
