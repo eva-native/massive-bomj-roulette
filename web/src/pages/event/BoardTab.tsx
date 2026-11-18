@@ -20,7 +20,7 @@ export function BoardTab() {
   const hasLeader = rows.length > 0 && (leaders < rows.length || top !== 0)
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+    <div className="grid items-start gap-4 lg:grid-cols-[3fr_2fr]">
       <Card>
         <h2 className="mb-3 font-semibold">Очки</h2>
         {board.isPending && <Loading />}
@@ -60,7 +60,7 @@ export function BoardTab() {
         <ul
           aria-label="Лента событий"
           tabIndex={0}
-          className="flex max-h-80 flex-col gap-2 overflow-y-auto overscroll-contain pr-2 text-sm lg:max-h-[32rem]"
+          className="flex max-h-[min(32rem,60dvh)] flex-col gap-2 overflow-y-auto overscroll-contain pr-2 text-sm"
         >
           {activity.data?.map((a) => (
             <li key={a.id}>

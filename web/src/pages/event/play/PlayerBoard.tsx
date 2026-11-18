@@ -23,6 +23,7 @@ import { ItemCard } from './ItemCard'
 import { EditPlaythrough, UndoStep } from './JudgeTools'
 import { JudgeDecision } from './JudgeDecision'
 import { PlayTime } from './PlayTime'
+import { EditReview } from './EditReview'
 
 const stepNames: Record<string, string> = {
   spin_items: 'Колесо эффектов и бонусов',
@@ -76,6 +77,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
 
   // Whose board it is, apart from who may edit: a judge who plays fills their own fields too.
   const own = me?.id === view.player.id
+  const reviewSlug = own && event.me?.isParticipant && event.status === 'active' ? event.slug : null
   const onGame = waitingFirst(turn?.items ?? [], { own, canAct: view.canAct })
 
   // Once the judge confirms a game, the outcome form kept for it in this browser is done with.
@@ -174,7 +176,7 @@ export function PlayerBoard({ event, view: live }: { event: EventDetail; view: P
             </Card>
           )}
 
-          <History className="order-5" view={view} judgeSlug={isJudge && event.status === 'active' ? event.slug : null} />
+          <History className="order-5" view={view} judgeSlug={isJudge && event.status === 'active' ? event.slug : null} reviewSlug={reviewSlug} />
         </div>
 
         {side && (
@@ -432,7 +434,7 @@ function OwnPlay({
   return (
     <>
       <PlayTime slug={slug} playerId={playerId} saved={saved} timer={timer} />
-      <FinishForm slug={slug} playthroughId={playthrough.id} stepId={stepId} totalMs={saved.totalMs + timer.ms} preview={playthrough.preview} beforeSend={saveTimer} />
+      <FinishForm slug={slug} playthroughId={playthrough.id} stepId={stepId} totalMs={saved.totalMs + timer.ms} preview={playthrough.preview} rejectedReview={playthrough.rejected ? playthrough.review : undefined} beforeSend={saveTimer} />
     </>
   )
 }
@@ -532,6 +534,7 @@ function FinishForm({
   stepId,
   totalMs,
   preview,
+  rejectedReview,
   beforeSend,
 }: {
   slug: string
@@ -539,11 +542,12 @@ function FinishForm({
   stepId: number
   totalMs: number
   preview: OutcomePreview | undefined
+  rejectedReview: string | undefined
   beforeSend: () => Promise<void>
 }) {
   const finish = useFinish(slug)
   // Kept in the browser until the judge confirms: a reload or a rejection loses nothing.
-  const [{ outcome, time, proof, review }, setDraft] = useFinishDraft(finishKey(slug, playthroughId))
+  const [{ outcome, time, proof, review }, setDraft] = useFinishDraft(finishKey(slug, playthroughId), rejectedReview)
   const setOutcome = (outcome: Outcome) => setDraft({ outcome })
   const setTime = (time: HMS) => setDraft({ time })
   const [sending, setSending] = useState(false)
@@ -620,13 +624,17 @@ function FinishForm({
 
 const outcomeNames: Record<string, string> = { completed: 'пройдена', dropped: 'дропнута', tech: 'тех. дроп' }
 
-function History({ view, judgeSlug, className }: { view: PlayerView; judgeSlug: string | null; className?: string }) {
-  if (view.history.length === 0 && view.entries.length === 0) return null
+function History({ view, judgeSlug, reviewSlug, className }: { view: PlayerView; judgeSlug: string | null; reviewSlug: string | null; className?: string }) {
+  // The API keeps the current game outside history until the judge closes its turn.
+  // Keep its submitted review in this list so it remains editable while waiting.
+  const current = view.turn?.playthrough
+  const history = current?.outcome ? [current, ...view.history] : view.history
+  if (history.length === 0 && view.entries.length === 0) return null
   return (
     <section className={cn('flex flex-col gap-2', className)}>
       <h3 className="font-semibold">История</h3>
       <ul className="flex flex-col gap-1">
-        {view.history.map((pt) => (
+        {history.map((pt) => (
           <li key={pt.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 text-sm dark:border-stone-800">
             <span>
               {pt.game} — {outcomeNames[pt.outcome]}
@@ -638,6 +646,7 @@ function History({ view, judgeSlug, className }: { view: PlayerView; judgeSlug: 
               <span className="font-semibold">{pt.points > 0 ? `+${pt.points}` : pt.points}</span>
             </span>
             {pt.review && <ReviewText text={pt.review} />}
+            {reviewSlug && <EditReview slug={reviewSlug} pt={pt} />}
           </li>
         ))}
       </ul>

@@ -1,6 +1,7 @@
 import { cloneElement, isValidElement, useId } from 'react'
 import type { ComponentPropsWithRef, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { cn } from '@/lib/cn'
+import { markBroken, useBrokenImages } from '@/lib/brokenImages'
 
 const control =
   'w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900 disabled:opacity-60'
@@ -91,10 +92,11 @@ export function ErrorText({ error }: { error: Error | null | undefined }) {
 }
 
 export function Avatar({ name, url, size = 'md' }: { name: string; url?: string; size?: 'sm' | 'md' }) {
+  const isBroken = useBrokenImages()
   const box = size === 'sm' ? 'size-7 text-xs' : 'size-10'
-  if (url) return <img src={url} alt="" className={cn(box, 'rounded-full')} />
+  if (url && !isBroken(url)) return <img key={url} src={url} alt="" onError={() => markBroken(url)} className={cn(box, 'shrink-0 rounded-full object-cover')} />
   return (
-    <div className={cn(box, 'flex items-center justify-center rounded-full bg-amber-500 font-bold text-stone-950')}>
+    <div aria-hidden className={cn(box, 'flex shrink-0 items-center justify-center rounded-full bg-amber-500 font-bold text-stone-950')}>
       {name.slice(0, 1).toUpperCase()}
     </div>
   )
