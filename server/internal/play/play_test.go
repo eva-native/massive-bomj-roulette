@@ -131,6 +131,35 @@ func (f *fixture) spin(u *auth.User, label string) api.SpinResult {
 	return res
 }
 
+func TestOpeningGameWheelUsesEachPlayersSubmissions(t *testing.T) {
+	f := newFixture(t)
+	aliceGame := f.addGame(f.alice, "Celeste", 8, 92, 2018)
+	bobGame := f.addGame(f.bob, "Portal", 3, 90, 2007)
+
+	for _, tc := range []struct {
+		player *auth.User
+		game   api.Game
+	}{{f.alice, aliceGame}, {f.bob, bobGame}} {
+		t.Run(tc.player.Name, func(t *testing.T) {
+			for range 3 {
+				f.spin(tc.player, "reflex")
+			}
+			turn := f.view(tc.player).Turn
+			if turn.Wheel == nil || len(turn.Wheel.Sectors) != 1 || turn.Wheel.Sectors[0].Label != tc.game.Title {
+				t.Fatalf("opening wheel = %+v, want only %q", turn.Wheel, tc.game.Title)
+			}
+			// Let the picker take the first available sector, as opposed to scripting the game.
+			res, err := f.play.Spin(f.ctx, "lbr", tc.player, turn.Current.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(res.Wheel.Sectors, turn.Wheel.Sectors) || res.Label != tc.game.Title {
+				t.Fatalf("spin sectors = %+v, result = %q, want only %q", res.Wheel.Sectors, res.Label, tc.game.Title)
+			}
+		})
+	}
+}
+
 func TestFullTurn(t *testing.T) {
 	f := newFixture(t)
 	f.addGame(f.alice, "GTA San Andreas", 30, 87, 2004) // base 39
