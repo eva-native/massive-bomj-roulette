@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Ctx is the read-only view a hook gets of the event.
@@ -279,7 +282,7 @@ func (u *UseOps) ReplaceGameSpinWithChoice() error {
 
 // gameSpinToChoice turns a game spin step into a choice from the same wheel.
 func (r *run) gameSpinToChoice(t *Turn, st *Step) error {
-	sectors, err := r.gameWheel(t)
+	_, sectors, err := r.wheelFor(t, st)
 	if err != nil {
 		return err
 	}
@@ -327,6 +330,14 @@ func (ri *RolledItem) ForceActivate() {
 		return
 	}
 	ri.item.Forced = true
+	if award, ok := ri.r.def(ri.item).Impl.(InventoryAward); ok {
+		award.Activate(ri.r.self(ri.item, 0))
+		return
+	}
+	if _, ok := ri.r.def(ri.item).Impl.(ItemWheelChooser); ok {
+		ri.r.applyForcedChoices(ri.turn)
+		return
+	}
 	switch ri.r.def(ri.item).Use {
 	case UseAfterSpin:
 		ri.item.Placement = PlaceUsed
@@ -365,4 +376,121 @@ func (w *GameWheel) OnlyAddedBy(p PlayerID) {
 // Exclude removes a game from the wheel.
 func (w *GameWheel) Exclude(gameID int64) {
 	w.sectors = slices.DeleteFunc(w.sectors, func(s Sector) bool { return s.ID == gameID })
+}
+
+// MatchingAlternatives returns other sectors of the last game spin starting with the same letter.
+func (c *Ctx) MatchingAlternatives() []int64 {
+	var last *Step
+	for _, st := range c.turn.Steps {
+		if st.Done && (last == nil || st.DoneSeq > last.DoneSeq) {
+			last = st
+		}
+	}
+	if last == nil || last.Kind != StepSpinGame {
+		return nil
+	}
+	sp := c.r.s.Spin(last.SpinID)
+	if sp == nil || sp.Voided {
+		return nil
+	}
+	initial := func(title string) rune {
+		ch, _ := utf8.DecodeRuneInString(strings.TrimSpace(title))
+		return unicode.ToLower(ch)
+	}
+	first := initial(sp.Picked().Label)
+	var ids []int64
+	for _, sec := range sp.Sectors {
+		if sec.ID != sp.Picked().ID && initial(sec.Label) == first && c.r.s.Game(sec.ID) != nil {
+			ids = append(ids, sec.ID)
+		}
+	}
+	return ids
+}
+
+func (u *UseOps) RedoWithGames(ids []int64) error {
+	if len(ids) == 0 {
+		return ErrNotAllowed
+	}
+	if err := u.RedoLastSpin(); err != nil {
+		return err
+	}
+	u.turn.CurrentStep().Options = ids
+	return nil
+}
+
+func (r *run) itemChoices(t *Turn, wheel WheelKind) []Sector {
+	if wheel == WheelDrops {
+		return r.itemWheel(t.Player, KindDrop)
+	}
+	return r.itemWheel(t.Player, KindEffect, KindBonus)
+}
+
+func (c *Ctx) CanChooseItem(kind StepKind) bool {
+	st := c.turn.CurrentStep()
+	if st == nil || st.Kind != kind {
+		return false
+	}
+	_, _, err := c.r.wheelFor(c.turn, st)
+	return err == nil
+}
+
+func (u *UseOps) ChooseItem(kind StepKind) error {
+	st := u.turn.CurrentStep()
+	if st == nil || st.Kind != kind {
+		return ErrNotAllowed
+	}
+	return u.r.prepareItemChoice(u.turn, st, u.item)
+}
+
+func (r *run) prepareItemChoice(t *Turn, st *Step, it *Item) error {
+	wheel, _, err := r.wheelFor(t, st)
+	if err != nil {
+		return err
+	}
+	st.Kind, st.ChoiceWheel = StepChooseItem, wheel
+	st.ChoiceBy = it.ID
+	for _, d := range r.e.cat.All() {
+		if (wheel == WheelDrops) == (d.Kind == KindDrop) {
+			st.ItemChoices = append(st.ItemChoices, d.ID)
+		}
+	}
+	return nil
+}
+
+func (c *Ctx) HeldByAnotherPlayer() bool {
+	return slices.ContainsFunc(c.r.s.Items, func(it *Item) bool {
+		return it.DefID == c.item.DefID && it.Player != c.Player() && it.Placement == PlacePocket
+	})
+}
+
+// SpendPocket marks an automatically activated inventory award as spent.
+func (s *Self) SpendPocket() { s.item.Placement = PlaceUsed }
+
+// ItemOptions exposes currently eligible options with IDs stable across settings changes.
+func (e *Engine) ItemOptions(s *State, t *Turn, st *Step) map[int64]string {
+	options := map[int64]string{}
+	for _, sec := range e.on(s).itemChoices(t, st.ChoiceWheel) {
+		if i := slices.Index(st.ItemChoices, sec.DefID); i >= 0 {
+			options[int64(i+1)] = sec.DefID
+		}
+	}
+	return options
+}
+
+func (r *run) applyForcedChoices(t *Turn) {
+	for _, it := range r.s.Items {
+		if !it.Forced || it.Placement != PlacePocket || it.Player != t.Player {
+			continue
+		}
+		chooser, ok := r.def(it).Impl.(ItemWheelChooser)
+		if !ok {
+			continue
+		}
+		for _, st := range t.Steps {
+			if !st.Done && st.Kind == chooser.WheelStep() && r.prepareItemChoice(t, st, it) == nil {
+				it.Placement, it.TurnID = PlaceUsed, t.ID
+				break
+			}
+		}
+	}
 }

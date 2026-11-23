@@ -38,6 +38,10 @@ func Defs() []*game.Def {
 		def("group_bow", Input(field("late", "Опоздали", game.FieldPlayers, game.RoleJudge)), Confirm(),
 			Param("points", "Очки каждому опоздавшему", -5, -100, 0), Impl(eachListed{field: "late"})),
 
+		def("shared_fate", Impl(sharedFate{})),
+		def("highscore", Input(field("first", "Первое место", game.FieldBool, game.RolePlayer)), Confirm(),
+			Param("points", "Очки за рекорд", 10, 0, 100), Impl(ifTrue{field: "first"})),
+
 		// --- effects: several games ---
 		def("no_step_back", Lifetime(3), EndsOnDrop(),
 			Param("penalty", "Штраф за дроп, % базы", 100, 0, 200), Param("bonus", "Бонус за три игры, % базы", 30, 0, 100),
@@ -64,6 +68,12 @@ func Defs() []*game.Def {
 		Text("shit_seller", Input(optional(field("target", "Кого выбрал", game.FieldPlayer, game.RolePlayer)))),
 
 		// --- bonuses ---
+		def("pocket_ace", Use(game.UseAnytime), Impl(pocketAce{})),
+		def("alphabet", Use(game.UseAfterSpin), Impl(alphabet{})),
+		def("pick_debuff", Use(game.UseAnytime), Impl(pickItem{step: game.StepSpinDrop})),
+		def("pick_item", Use(game.UseAnytime), Impl(pickItem{step: game.StepSpinItems})),
+		def("deadline", Param("points", "Очки за дедлайн", 15, 0, 100), Impl(deadline{})),
+		def("vampirism", Input(opponent), Confirm(), Param("points", "Сколько очков забрать", 3, 0, 100), Impl(vampirism{})),
 		def("parachute", Impl(parachute{})),
 		def("friend_assist", Input(field("helper", "Помощник", game.FieldPlayer, game.RolePlayer)), Confirm(),
 			Param("percent", "Доля помощнику, % базы", 50, 0, 100), Impl(helperShare{})),
@@ -91,6 +101,10 @@ func Defs() []*game.Def {
 		Text("one_punch"),
 		Text("ost"),
 		Text("papich"),
+		Text("retro_vibe"),
+		Text("outcast"),
+		Text("kiosk_charged"),
+		Text("game_journalist"),
 	} {
 		if _, dup := byID[d.ID]; dup {
 			panic(fmt.Sprintf("items: %q is defined twice", d.ID))
