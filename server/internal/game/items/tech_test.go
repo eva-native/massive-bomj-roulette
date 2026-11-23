@@ -10,7 +10,7 @@ import (
 func TestTechDropCarriesItemsToTheNextGame(t *testing.T) {
 	sc := newScenario(t)
 	a, b := sc.player("Алиса"), sc.player("Боб")
-	sc.addGame("G1", 10, 80, 2015, b) // base 17
+	sc.addGame("G1", 10, 80, 2015, a) // base 17
 	sc.addGame("G2", 10, 80, 2015, b)
 	sc.addGame("G3", 10, 80, 2015, b)
 	sc.s.AddMovie(game.Movie{Title: "Шрек", AddedBy: b})

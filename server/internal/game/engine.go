@@ -305,6 +305,12 @@ func (r *run) gameWheel(t *Turn) ([]Sector, error) {
 			h.ShapeGameWheel(r.ctx(it, t), w, r.self(it, 0))
 		}
 	}
+	// An item such as borrow_game can supply its own owner for the opener.
+	if !w.ownerFiltered && !slices.ContainsFunc(r.s.Spins, func(sp *Spin) bool {
+		return sp.Player == t.Player && sp.Wheel == WheelGames && !sp.Voided
+	}) {
+		w.OnlyAddedBy(t.Player)
+	}
 	if len(w.sectors) == 0 {
 		return nil, ErrEmptyWheel
 	}
