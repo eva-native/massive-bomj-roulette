@@ -11,7 +11,7 @@ import (
 )
 
 const countGamesAddedBy = `-- name: CountGamesAddedBy :one
-SELECT count(*) FROM games WHERE event_id = $1 AND added_by = $2
+SELECT count(*) FROM games WHERE event_id = $1 AND added_by = $2 AND special_key IS NULL
 `
 
 type CountGamesAddedByParams struct {

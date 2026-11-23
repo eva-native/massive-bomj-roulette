@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/eva-native/massive-bomj-roulette/server/internal/api"
 	"github.com/eva-native/massive-bomj-roulette/server/internal/auth"
@@ -410,5 +411,89 @@ func TestInviteOnly(t *testing.T) {
 	d, err = f.svc.NewInvite(f.ctx, f.admin, "lbr")
 	if err != nil || d.Settings.InviteCode == code || d.Settings.InviteCode == "" {
 		t.Fatalf("new invite = %q, %v", d.Settings.InviteCode, err)
+	}
+}
+
+func TestGameSubmissionModes(t *testing.T) {
+	f := newFixture(t)
+	f.create("lbr")
+	f.join(f.alice, "lbr")
+	settings := api.EventSettings{StartSpins: 3, MaxGamesPerMember: 1, GameSubmissionDeadline: "2020-01-01"}
+	save := func() {
+		t.Helper()
+		if _, err := f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &settings}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save()
+	in := api.GameInput{Title: "Portal", HLTBHours: 3, Rating: 90, Year: 2007}
+	_, err := f.svc.AddGame(f.ctx, f.alice, "lbr", in)
+	expect(t, err, ErrConflict)
+	settings.JudgeGameSubmissions = true
+	save()
+	_, err = f.svc.AddGame(f.ctx, f.alice, "lbr", in)
+	expect(t, err, ErrForbidden)
+	_, err = f.svc.AddGame(f.ctx, f.admin, "lbr", in)
+	expectInvalid(t, err)
+	in.SubmittedBy = f.bob.ID
+	_, err = f.svc.AddGame(f.ctx, f.admin, "lbr", in)
+	expectInvalid(t, err)
+	in.SubmittedBy = f.alice.ID
+	g, err := f.svc.AddGame(f.ctx, f.admin, "lbr", in)
+	if err != nil || g.AddedBy != f.alice.ID || g.AddedByName != f.alice.Name {
+		t.Fatalf("attribution: %+v, %v", g, err)
+	}
+	_, err = f.svc.AddGame(f.ctx, f.admin, "lbr", in)
+	expect(t, err, ErrConflict)
+	_, err = f.svc.UpdateGame(f.ctx, f.alice, "lbr", g.ID, in)
+	expect(t, err, ErrForbidden)
+	expect(t, f.svc.DeleteGame(f.ctx, f.alice, "lbr", g.ID), ErrForbidden)
+	settings.JudgeGameSubmissions = false
+	settings.GameSubmissionDeadline = ""
+	save()
+	in.SubmittedBy = f.bob.ID
+	_, err = f.svc.AddGame(f.ctx, f.alice, "lbr", in)
+	expect(t, err, ErrForbidden)
+	settings.GameSubmissionDeadline = "2026-02-30"
+	_, err = f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &settings})
+	expectInvalid(t, err)
+}
+
+func TestGameSubmissionDeadlineIncludesLastDay(t *testing.T) {
+	midnight := time.Date(2026, 11, 24, 0, 0, 0, 0, submissionZone)
+	if submissionsClosed("2026-11-23", midnight.Add(-time.Nanosecond)) || !submissionsClosed("2026-11-23", midnight) || submissionsClosed("", midnight) {
+		t.Fatal("incorrect submission cutoff")
+	}
+}
+
+func TestConcurrentGameSubmissionsShareLastSlot(t *testing.T) {
+	f := newFixture(t)
+	f.create("lbr")
+	f.join(f.alice, "lbr")
+	settings := api.EventSettings{StartSpins: 3, MaxGamesPerMember: 1}
+	if _, err := f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &settings}); err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for _, title := range []string{"Portal", "Celeste"} {
+		go func() {
+			<-start
+			_, err := f.svc.AddGame(f.ctx, f.alice, "lbr", api.GameInput{Title: title, HLTBHours: 3, Rating: 90, Year: 2007})
+			results <- err
+		}()
+	}
+	close(start)
+	var successes int
+	for range 2 {
+		err := <-results
+		if err == nil {
+			successes++
+		} else if !errors.Is(err, ErrConflict) {
+			t.Fatal(err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("accepted %d submissions with one slot", successes)
 	}
 }

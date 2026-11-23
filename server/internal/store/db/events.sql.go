@@ -96,6 +96,27 @@ func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (Event, error
 	return i, err
 }
 
+const getEventForGameSubmission = `-- name: GetEventForGameSubmission :one
+SELECT id, slug, title, status, settings, created_by, created_at, updated_at, rules_version FROM events WHERE slug = $1 FOR UPDATE
+`
+
+func (q *Queries) GetEventForGameSubmission(ctx context.Context, slug string) (Event, error) {
+	row := q.db.QueryRow(ctx, getEventForGameSubmission, slug)
+	var i Event
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.Status,
+		&i.Settings,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RulesVersion,
+	)
+	return i, err
+}
+
 const getMember = `-- name: GetMember :one
 SELECT event_id, user_id, is_participant, is_judge, joined_at FROM event_members WHERE event_id = $1 AND user_id = $2
 `

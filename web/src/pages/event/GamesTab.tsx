@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useGameMutations, useGames, useItems } from '@/api/events'
 import { useMe } from '@/api/hooks'
-import type { Game, GameInput, SpecialGame } from '@/api/types.gen'
+import type { Game, GameInput, Member, SpecialGame } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { InlineEdit } from '@/components/InlineEdit'
 import { GameCover } from '@/components/GameCover'
@@ -20,16 +20,34 @@ export function GamesTab() {
 
   const isJudge = event.me?.isJudge ?? false
   const isMember = Boolean(event.me)
-  const canEdit = (g: Game) => isJudge || g.addedBy === me?.id
+  const judgeOnly = Boolean(event.settings.judgeGameSubmissions)
+  const deadline = event.settings.gameSubmissionDeadline
+  const [now, setNow] = useState(() => Date.now())
+  const closesAt = deadline ? Date.parse(deadline + 'T00:00:00+02:00') + 86400000 : 0
+  useEffect(() => {
+    if (!closesAt) return
+    let timer: number
+    const schedule = () => {
+      const remaining = closesAt - Date.now()
+      if (remaining <= 0) setNow(Date.now())
+      else timer = window.setTimeout(schedule, Math.min(remaining, 2147483647))
+    }
+    schedule()
+    return () => window.clearTimeout(timer)
+  }, [closesAt])
+  const closed = closesAt > 0 && now >= closesAt
+  const canEdit = (g: Game) => isJudge || (!judgeOnly && g.addedBy === me?.id)
   const specialGames: SpecialGame[] = items.data?.flatMap((it) => it.specialGames) ?? []
   const limit = event.settings.maxGamesPerMember
-  const mine = games.data?.filter((g) => g.addedBy === me?.id).length ?? 0
+  const mine = games.data?.filter((g) => g.addedBy === me?.id && !g.specialKey).length ?? 0
 
   const atLimit = !isJudge && limit > 0 && mine >= limit
 
   return (
     <div className="flex flex-col gap-4">
-      {isMember && event.status === 'active' && (
+      {event.status === 'active' && deadline && <p>Приём игр до {deadline.split('-').reverse().join('.')} включительно (UTC+2).{closed && ' Срок истёк.'}</p>}
+      {event.status === 'active' && judgeOnly && !isJudge && <p>Игры в пул вносит судья от имени участников.</p>}
+      {isMember && (isJudge || (!judgeOnly && !closed)) && event.status === 'active' && (
         <Card>
           <h2 className="mb-3 font-semibold">Добавить игру</h2>
           {limit > 0 && !isJudge && (
@@ -39,6 +57,7 @@ export function GamesTab() {
           )}
           {atLimit && <p className="mb-3 text-sm text-muted">Лимит: {mine} из {limit}. Удалите свою игру, чтобы добавить другую.</p>}
           <GameForm
+            participants={judgeOnly && isJudge ? event.members.filter((m) => m.isParticipant) : undefined}
             disabled={games.isPending || games.isError || atLimit}
             initial={emptyGame}
             specialGames={isJudge ? specialGames : []}
@@ -50,7 +69,7 @@ export function GamesTab() {
         </Card>
       )}
 
-      {!isMember && event.status === 'active' && <p className="text-muted">Вступите в ивент, чтобы добавлять игры.</p>}
+      {!isMember && !judgeOnly && !closed && event.status === 'active' && <p className="text-muted">Вступите в ивент, чтобы добавлять игры.</p>}
       {games.isPending && <Loading />}
       <ErrorText error={games.error ?? remove.error} />
       {games.data?.length === 0 && <p className="text-muted">В пуле пока нет игр.</p>}
@@ -80,7 +99,7 @@ export function GamesTab() {
                   {g.title} {isJudge && g.rating >= 1 && g.rating <= 10 && <Badge tone="amber">Проверьте шкалу рейтинга</Badge>} {g.specialKey && <Badge tone="amber">особая</Badge>}
                 </p>
                 <p className="text-sm text-muted">
-                  {g.hltbHours} ч HLTB · рейтинг {g.rating} · {g.year} · добавил {g.addedByName}
+                  {g.hltbHours} ч HLTB · рейтинг {g.rating} · {g.year} · от участника {g.addedByName}
                 </p>
                 </div>
               </div>
@@ -118,6 +137,7 @@ export function GamesTab() {
 function GameForm({
   initial,
   specialGames,
+  participants,
   submitLabel,
   pending,
   error,
@@ -127,6 +147,7 @@ function GameForm({
 }: {
   disabled?: boolean
   initial: GameInput
+  participants?: Member[]
   specialGames: SpecialGame[]
   submitLabel: string
   pending: boolean
@@ -148,12 +169,18 @@ function GameForm({
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (disabled || pending) return
-    onSubmit({ ...form, title: form.title.trim() }, () => setForm({ ...emptyGame }))
+    onSubmit({ ...form, submittedBy: participants && !form.specialKey ? form.submittedBy : undefined, title: form.title.trim() }, () => setForm({ ...emptyGame }))
   }
 
   return (
     <form onSubmit={submit}>
       <fieldset disabled={disabled || pending} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {participants && !form.specialKey && <Field label="От какого участника" className="col-span-full">
+          <Select required value={form.submittedBy ?? ''} onChange={(e) => set('submittedBy', Number(e.target.value) || undefined)}>
+            <option value="">Выберите участника</option>
+            {participants.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
+          </Select>
+        </Field>}
         <Field label="Название" className="col-span-2 sm:col-span-4">
           <Input value={form.title} maxLength={200} onChange={(e) => set('title', e.target.value)} />
         </Field>
@@ -185,7 +212,7 @@ function GameForm({
         <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
           <ErrorText error={error} />
           <div className="flex gap-2">
-            <Button type="submit" disabled={!form.title.trim() || pending}>
+            <Button type="submit" disabled={!form.title.trim() || pending || Boolean(participants && !form.specialKey && !form.submittedBy)}>
               {submitLabel}
             </Button>
             {onCancel && (

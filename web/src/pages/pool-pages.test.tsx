@@ -86,3 +86,23 @@ it('keeps focus in the newly opened game editor when switching rows', async () =
   await user.click(within(first).getByRole('button', { name: 'Изменить' }))
   expect(screen.getByDisplayValue('Первая')).toHaveFocus()
 })
+
+it('requires the judge to choose the participant when submitting an ordinary game', async () => {
+  const backend = fakeBackend({ me: alice })
+  backend.addEvent('lbr', 'ЛБР', judge)
+  await backend.fetch('/api/events/lbr/join', { method: 'POST' })
+  backend.setMe(judge)
+  const ev = await (await backend.fetch('/api/events/lbr')).json() as EventDetail
+  await backend.fetch('/api/events/lbr', { method: 'PATCH', body: JSON.stringify({ settings: { ...ev.settings, judgeGameSubmissions: true } }) })
+  const add = vi.fn()
+  backend.on('POST', /\/games$/, (body) => { add(body); return {} })
+  vi.stubGlobal('fetch', backend.fetch)
+  renderApp('/e/lbr/games')
+  const user = userEvent.setup()
+  await user.type(await screen.findByLabelText('Название'), 'Portal')
+  const button = screen.getByRole('button', { name: 'Добавить' })
+  expect(button).toBeDisabled()
+  await user.selectOptions(screen.getByLabelText('От какого участника'), String(alice.id))
+  await user.click(button)
+  expect(add).toHaveBeenCalledWith(expect.objectContaining({ submittedBy: alice.id, title: 'Portal' }))
+})
