@@ -111,9 +111,16 @@ const (
 	StepPlay         StepKind = "play"          // the game is being played
 )
 
+// GameFilter records which bonus narrowed a spin so its restriction can be undone independently.
+type GameFilter struct {
+	Item  int64
+	Games []int64
+}
+
 type Step struct {
-	ID   int64
-	Kind StepKind
+	GameFilters []GameFilter `json:",omitempty"`
+	ID          int64
+	Kind        StepKind
 	// CreatedBy is the item that added this step; 0 for steps of the turn itself.
 	CreatedBy   int64
 	CreatedSeq  int64

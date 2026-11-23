@@ -306,6 +306,7 @@ func (u *UseOps) RerollSelf() error {
 	u.turn.Steps = slices.Insert(u.turn.Steps, i, &Step{
 		ID: u.r.s.id(), Kind: StepSpinItems, CreatedBy: u.item.ID, CreatedSeq: u.r.s.seq(),
 	})
+	u.r.applyForcedChoices(u.turn)
 	return nil
 }
 
@@ -414,7 +415,8 @@ func (u *UseOps) RedoWithGames(ids []int64) error {
 	if err := u.RedoLastSpin(); err != nil {
 		return err
 	}
-	u.turn.CurrentStep().Options = ids
+	st := u.turn.CurrentStep()
+	st.GameFilters = append(st.GameFilters, GameFilter{Item: u.item.ID, Games: ids})
 	return nil
 }
 

@@ -267,7 +267,8 @@ func (c *Catalog) All() []*Def { return c.order }
 // 2: speed record +5 by default, technical drop.
 // 3: speed points never go below zero.
 // 4: selected item wheels, matching-title rerolls, shared scores and inventory awards.
-const engineRules = 4
+// 5: rewinds release alphabet filters and replacement spins honor forced choices.
+const engineRules = 5
 
 // Fingerprint identifies this version of the rules: the engine's rules, item
 // texts, flags, fields, parameters and the mechanics' type and settings. It

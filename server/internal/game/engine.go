@@ -210,8 +210,12 @@ func (r *run) wheelFor(t *Turn, st *Step) (WheelKind, []Sector, error) {
 	case StepSpinGame:
 		wheel = WheelGames
 		sectors, err = r.gameWheel(t)
-		if len(st.Options) > 0 {
-			sectors = slices.DeleteFunc(sectors, func(sec Sector) bool { return !slices.Contains(st.Options, sec.ID) })
+		allowed := st.Options // earlier saved spins kept the filtered game IDs here
+		if n := len(st.GameFilters); n > 0 {
+			allowed = st.GameFilters[n-1].Games
+		}
+		if len(allowed) > 0 {
+			sectors = slices.DeleteFunc(sectors, func(sec Sector) bool { return !slices.Contains(allowed, sec.ID) })
 		}
 	case StepSpinMovie:
 		wheel, sectors = WheelMovie, r.movieWheel(t.Player)

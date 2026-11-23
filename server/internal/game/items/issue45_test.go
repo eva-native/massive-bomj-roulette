@@ -177,3 +177,59 @@ func TestCommunicationDropRules(t *testing.T) {
 		})
 	}
 }
+
+func TestUndoAlphabetRollRestoresGameWheel(t *testing.T) {
+	sc := newScenario(t)
+	a := sc.player("Алиса")
+	for _, title := range []string{"Apple", "Ant", "Boat"} {
+		sc.addGame(title, 4, 80, 2015, a)
+	}
+	startGame(sc, a, "Apple", "reflex", "reflex", "alphabet")
+	sc.mustUse(a, "alphabet")
+	sc.roundTrip()
+	sc.expectWheel(a, "Ant")
+	if _, err := sc.e.UndoLastStep(sc.s, sc.judge, a); err != nil {
+		t.Fatal(err)
+	}
+	sc.spin(a, "reflex")
+	sc.expectWheel(a, "Apple", "Ant", "Boat")
+}
+
+func TestVeteranReplacementConsumesForcedItemChoice(t *testing.T) {
+	sc := newScenario(t)
+	a := sc.player("Алиса")
+	sc.addGame("G", 10, 80, 2015, a)
+	startGame(sc, a, "G", "veteran", "putin_vote", "pick_item")
+	sc.roundTrip()
+	sc.mustUse(a, "veteran")
+	sc.expectSteps(a, game.StepChooseItem, game.StepPlay)
+	if sc.item(a, "pick_item").Placement != game.PlaceUsed {
+		t.Fatal("forced choice still in pocket")
+	}
+	sc.choose(a, int64(1+slices.Index(sc.step(a).ItemChoices, "opaaa")))
+	sc.play(a, game.OutcomeCompleted, 10)
+	sc.expectTotal(a, 17+rec+4)
+}
+
+func TestUndoSecondAlphabetKeepsFirstFilter(t *testing.T) {
+	sc := newScenario(t)
+	a := sc.player("Алиса")
+	for _, title := range []string{"Apple", "Ant", "Apricot", "Boat"} {
+		sc.addGame(title, 4, 80, 2015, a)
+	}
+	sc.spin(a, "alphabet")
+	first := sc.item(a, "alphabet").ID
+	spinItems(sc, a, "reflex", "alphabet")
+	sc.spin(a, "Apple")
+	if err := sc.e.Use(sc.s, a, first); err != nil {
+		t.Fatal(err)
+	}
+	sc.spin(a, "Ant")
+	sc.mustUse(a, "alphabet")
+	sc.expectWheel(a, "Apricot")
+	if _, err := sc.e.UndoLastStep(sc.s, sc.judge, a); err != nil {
+		t.Fatal(err)
+	}
+	sc.spin(a, "reflex")
+	sc.expectWheel(a, "Ant", "Apricot")
+}

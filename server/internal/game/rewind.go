@@ -52,6 +52,9 @@ func (r *run) rewindTo(t *Turn, anchor *Step) error {
 	}
 
 	for _, st := range t.Steps {
+		st.GameFilters = slices.DeleteFunc(st.GameFilters, func(filter GameFilter) bool {
+			return r.s.Item(filter.Item).Placement == PlaceVoided
+		})
 		if st.ChoiceBy == 0 {
 			continue
 		}
