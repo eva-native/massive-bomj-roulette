@@ -348,12 +348,14 @@ func (ri *RolledItem) ForceActivate() {
 
 // GameWheel is the game wheel before a spin.
 type GameWheel struct {
-	r       *run
-	sectors []Sector
+	r             *run
+	sectors       []Sector
+	ownerFiltered bool
 }
 
 // OnlyAddedBy keeps only games added by the given player.
 func (w *GameWheel) OnlyAddedBy(p PlayerID) {
+	w.ownerFiltered = true
 	w.sectors = slices.DeleteFunc(w.sectors, func(s Sector) bool {
 		g := w.r.s.Game(s.ID)
 		return g == nil || g.AddedBy != p

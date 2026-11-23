@@ -53,9 +53,10 @@ func TestGeraltKeepsTheLongerGame(t *testing.T) {
 	a := sc.player("Алиса")
 	sc.addGame("Short", 5, 80, 2015, a)
 	sc.addGame("Long", 40, 80, 2015, a)
-	sc.addGame("Mid", 20, 80, 2015, a)
+	sc.addGame("Mid", 20, 80, 2015, sc.judge)
 
 	spinItems(sc, a, "geralt", "reflex", "reflex")
+	sc.expectWheel(a, "Short", "Long")
 	sc.spin(a, "Long")
 	sc.expectSteps(a, game.StepSpinGame, game.StepPlay)
 	sc.expectWheel(a, "Short", "Mid") // the second spin cannot repeat the first game
@@ -132,6 +133,9 @@ func TestBorrowGame(t *testing.T) {
 	if got := sc.currentGame(a); got != "B2" {
 		t.Fatalf("game = %q, want B2", got)
 	}
+	sc.play(a, game.OutcomeCompleted, 10)
+	sc.spin(a, "reflex")
+	sc.expectWheel(a, "A1", "B1")
 }
 
 func TestNoStepBackThreeCompletions(t *testing.T) {
@@ -285,8 +289,10 @@ func TestRerollUndoesTheLastSpin(t *testing.T) {
 
 	sc.spin(a, "reflex")
 	sc.spin(a, "reroll") // a second reroll, for the game spin
+	sc.addGame("Other", 10, 80, 2015, sc.judge)
 	sc.spin(a, "G1")
 	sc.mustUse(a, "reroll")
+	sc.expectWheel(a, "G1", "G2")
 	sc.expectSteps(a, game.StepSpinGame, game.StepPlay)
 	if sc.s.CurrentTurn(a).Playthrough != 0 {
 		t.Fatal("rerolling the game spin removes the playthrough")

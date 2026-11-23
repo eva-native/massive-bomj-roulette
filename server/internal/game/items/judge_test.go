@@ -12,6 +12,7 @@ func TestJudgeUndoesTheLastStep(t *testing.T) {
 	sc.addGame("G1", 10, 80, 2015, a)
 	sc.addGame("G2", 10, 80, 2015, a)
 
+	sc.addGame("Other", 10, 80, 2015, sc.judge)
 	_, err := sc.e.UndoLastStep(sc.s, a, a)
 	expectErr(t, err, game.ErrNotJudge)
 	_, err = sc.e.UndoLastStep(sc.s, sc.judge, a)
@@ -24,6 +25,7 @@ func TestJudgeUndoesTheLastStep(t *testing.T) {
 		t.Fatalf("undo = %+v, %v", st, err)
 	}
 	sc.expectSteps(a, game.StepSpinGame, game.StepPlay)
+	sc.expectWheel(a, "G1", "G2")
 	sc.spin(a, "G2")
 
 	// A finished game that waits for the judge can be taken back too.

@@ -53,7 +53,8 @@ func TestTurnFlowAndCoreScoring(t *testing.T) {
 	sc.expectSteps(alice, game.StepSpinItems, game.StepSpinGame, game.StepPlay)
 
 	// Bob completes the same game faster: the record moves to him.
-	spinItems(sc, bob, "reflex", "reflex", "reflex")
+	spinItems(sc, bob, "borrow_game", "reflex", "reflex")
+	sc.choose(bob, int64(alice))
 	sc.spin(bob, "GTA SA")
 	sc.play(bob, game.OutcomeCompleted, 20)
 	sc.expectTotal(bob, 39+10+rec)
@@ -67,6 +68,23 @@ func TestTurnFlowAndCoreScoring(t *testing.T) {
 	sc.play(alice, game.OutcomeDropped, 3)
 	sc.expectTotal(alice, 39+5-6) // −50% of 12
 	sc.expectSteps(alice, game.StepSpinDrop, game.StepSpinGame, game.StepPlay)
+}
+
+func TestOpeningGameWheelPerPlayer(t *testing.T) {
+	sc := newScenario(t)
+	a, b := sc.player("Алиса"), sc.player("Боб")
+	sc.addGame("A", 10, 80, 2015, a)
+	spinItems(sc, b, "reflex", "reflex", "reflex")
+	_, err := sc.e.Spin(sc.s, b, sc.step(b).ID)
+	expectErr(t, err, game.ErrEmptyWheel)
+	sc.addGame("B", 10, 80, 2015, b)
+
+	spinItems(sc, a, "reflex", "reflex", "reflex")
+	sc.expectWheel(a, "A")
+	sc.spin(a, "A")
+	sc.roundTrip()
+	sc.expectWheel(b, "B")
+	sc.spin(b, "B")
 }
 
 func TestSlowCompletionGivesNoSpeedPenalty(t *testing.T) {
