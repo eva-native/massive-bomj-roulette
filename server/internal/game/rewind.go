@@ -51,6 +51,24 @@ func (r *run) rewindTo(t *Turn, anchor *Step) error {
 		r.deletePlaythrough(t, pt)
 	}
 
+	for _, st := range t.Steps {
+		st.GameFilters = slices.DeleteFunc(st.GameFilters, func(filter GameFilter) bool {
+			return r.s.Item(filter.Item).Placement == PlaceVoided
+		})
+		if st.ChoiceBy == 0 {
+			continue
+		}
+		token := r.s.Item(st.ChoiceBy)
+		if token.Placement == PlaceVoided {
+			st.Kind = StepSpinItems
+			if st.ChoiceWheel == WheelDrops {
+				st.Kind = StepSpinDrop
+			}
+			st.ChoiceBy, st.ChoiceWheel, st.ItemChoices = 0, "", nil
+		} else if removed[st.ID] {
+			token.Placement = PlacePocket
+		}
+	}
 	t.Steps = slices.DeleteFunc(t.Steps, func(st *Step) bool { return removed[st.ID] })
 	anchor.Done, anchor.DoneSeq, anchor.Result, anchor.SpinID = false, 0, 0, 0
 

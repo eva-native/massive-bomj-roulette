@@ -97,3 +97,21 @@ func (shrek) Note(_ *game.Ctx, self *game.Self) string {
 	}
 	return ""
 }
+
+type deadline struct{}
+
+func (deadline) Score(c *game.ScoreCtx, l *game.Ledger) {
+	if c.Outcome == game.OutcomeCompleted && c.Hours < float64(c.Game.HLTB*7)/10 {
+		l.Add(c.Param("points"))
+	}
+}
+
+type vampirism struct{}
+
+func (vampirism) Score(c *game.ScoreCtx, l *game.Ledger) {
+	if other, ok := c.InputPlayer("opponent"); ok {
+		points := c.Param("points")
+		l.AddFor(other, -points)
+		l.Add(points)
+	}
+}

@@ -30,6 +30,7 @@ const stepNames: Record<string, string> = {
   spin_drop: 'Колесо дроп-дебаффов',
   choose_player: 'Выбор участника',
   spin_game: 'Колесо игр',
+  choose_item: 'Выбор предмета',
   choose_game: 'Выбор игры',
   spin_movie: 'Киноколесо',
   play: 'Игра',
@@ -387,7 +388,7 @@ function CurrentStep({
       </div>
     )
   }
-  if (step.kind === 'choose_player' || step.kind === 'choose_game') {
+  if (step.kind === 'choose_player' || step.kind === 'choose_game' || step.kind === 'choose_item') {
     return <ChoiceStep slug={event.slug} step={step} canAct={view.canAct} />
   }
   if (step.kind === 'play' && turn.playthrough) {

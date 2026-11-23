@@ -3,6 +3,7 @@ package play
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -88,5 +89,45 @@ func TestEditOwnReview(t *testing.T) {
 	}
 	if err := f.play.EditReview(f.ctx, "lbr", f.alice, id, api.EditReviewRequest{Review: "Поздно"}); !errors.Is(err, events.ErrConflict) {
 		t.Fatalf("editing frozen event: %v", err)
+	}
+}
+
+func TestJournalistMinimumReview(t *testing.T) {
+	f := newFixture(t)
+	d, err := f.events.Get(f.ctx, "lbr", f.admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := d.Settings
+	settings.Disabled = slices.DeleteFunc(settings.Disabled, func(id string) bool { return id == "game_journalist" })
+	if _, err := f.events.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &settings}); err != nil {
+		t.Fatal(err)
+	}
+	f.addGame(f.alice, "A", 10, 80, 2015)
+	f.addGame(f.bob, "B", 10, 80, 2015)
+	for range 3 {
+		f.spin(f.alice, "reflex")
+	}
+	first := f.spin(f.alice, "A").View.Turn
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, first.Current.ID, api.FinishRequest{Outcome: "dropped", Hours: 1, Review: "Кратко"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.play.ConfirmGame(f.ctx, "lbr", f.admin, first.Playthrough.ID, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	f.spin(f.alice, "game_journalist")
+	turn := f.spin(f.alice, "B").View.Turn
+	short := strings.Repeat("слово ", 299)
+	req := api.FinishRequest{Outcome: "completed", Hours: 8, Review: short}
+	var invalid *events.InvalidError
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, turn.Current.ID, req); !errors.As(err, &invalid) {
+		t.Fatalf("299 words: %v", err)
+	}
+	req.Review += "итог"
+	if _, err := f.play.Finish(f.ctx, "lbr", f.alice, turn.Current.ID, req); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.play.EditReview(f.ctx, "lbr", f.alice, turn.Playthrough.ID, api.EditReviewRequest{Review: short}); !errors.As(err, &invalid) {
+		t.Fatalf("short edit: %v", err)
 	}
 }

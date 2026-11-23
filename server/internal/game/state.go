@@ -101,8 +101,9 @@ const (
 type StepKind string
 
 const (
-	StepSpinItems    StepKind = "spin_items"    // effects-and-bonuses wheel
-	StepSpinDrop     StepKind = "spin_drop"     // drop-debuff wheel
+	StepSpinItems    StepKind = "spin_items" // effects-and-bonuses wheel
+	StepSpinDrop     StepKind = "spin_drop"  // drop-debuff wheel
+	StepChooseItem   StepKind = "choose_item"
 	StepChoosePlayer StepKind = "choose_player" // pick a participant
 	StepSpinGame     StepKind = "spin_game"     // game wheel
 	StepChooseGame   StepKind = "choose_game"   // pick a game from Options
@@ -110,17 +111,27 @@ const (
 	StepPlay         StepKind = "play"          // the game is being played
 )
 
+// GameFilter records which bonus narrowed a spin so its restriction can be undone independently.
+type GameFilter struct {
+	Item  int64
+	Games []int64
+}
+
 type Step struct {
-	ID   int64
-	Kind StepKind
+	GameFilters []GameFilter `json:",omitempty"`
+	ID          int64
+	Kind        StepKind
 	// CreatedBy is the item that added this step; 0 for steps of the turn itself.
-	CreatedBy  int64
-	CreatedSeq int64
-	Done       bool
-	DoneSeq    int64
-	Options    []int64 // choose_game: allowed game ids
-	Result     int64   // spin/choose result: item, game, movie or player id
-	SpinID     int64
+	CreatedBy   int64
+	CreatedSeq  int64
+	Done        bool
+	DoneSeq     int64
+	ChoiceBy    int64     `json:",omitempty"`
+	ItemChoices []string  `json:",omitempty"`
+	ChoiceWheel WheelKind `json:",omitempty"`
+	Options     []int64   // choose_game: allowed game ids
+	Result      int64     // spin/choose result: item, game, movie or player id
+	SpinID      int64
 }
 
 type Turn struct {
