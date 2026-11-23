@@ -81,11 +81,12 @@ func (s *Service) Choose(ctx context.Context, slug string, viewer *auth.User, st
 		if err := s.eng.Choose(ss.st, me, stepID, choice); err != nil {
 			return err
 		}
-		if cur.Kind == game.StepChooseItem {
+		switch cur.Kind {
+		case game.StepChooseItem:
 			ss.log("choose", "%s выбирает предмет: %s", ss.name(me), s.def(ss.st.Item(cur.Result).DefID).Name)
-		} else if cur.Kind == game.StepChoosePlayer {
+		case game.StepChoosePlayer:
 			ss.log("choose", "%s выбирает участника: %s", ss.name(me), ss.name(game.PlayerID(choice)))
-		} else {
+		case game.StepChooseGame:
 			ss.log("choose", "%s выбирает игру: %s", ss.name(me), s.gameTitle(ss, choice))
 		}
 		return nil
