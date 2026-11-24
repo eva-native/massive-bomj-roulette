@@ -231,13 +231,13 @@ type TurnView struct {
 
 type StepView struct {
 	ID   int64  `json:"id"`
-	Kind string `json:"kind"` // spin_items | spin_drop | choose_player | spin_game | choose_game | spin_movie | play
+	Kind string `json:"kind"` // spin_items | spin_drop | choose_player | choose_item | spin_game | choose_game | spin_movie | play
 	Done bool   `json:"done"`
 	// Result is a short label of what happened ("ОПАААА", a game title…).
 	Result string `json:"result"`
 	// AddedBy names the item that added the step, if any.
 	AddedBy string `json:"addedBy"`
-	// Options for choose_game and choose_player.
+	// Options for game, player or item choices.
 	Options []Option `json:"options"`
 }
 

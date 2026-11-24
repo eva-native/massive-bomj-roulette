@@ -144,6 +144,7 @@ func (r *run) newTurn(p PlayerID, reason TurnReason, spins int) *Turn {
 	add(StepSpinGame)
 	add(StepPlay)
 	r.s.Turns = append(r.s.Turns, t)
+	r.applyForcedChoices(t)
 	return t
 }
 
@@ -209,6 +210,13 @@ func (r *run) wheelFor(t *Turn, st *Step) (WheelKind, []Sector, error) {
 	case StepSpinGame:
 		wheel = WheelGames
 		sectors, err = r.gameWheel(t)
+		allowed := st.Options // earlier saved spins kept the filtered game IDs here
+		if n := len(st.GameFilters); n > 0 {
+			allowed = st.GameFilters[n-1].Games
+		}
+		if len(allowed) > 0 {
+			sectors = slices.DeleteFunc(sectors, func(sec Sector) bool { return !slices.Contains(allowed, sec.ID) })
+		}
 	case StepSpinMovie:
 		wheel, sectors = WheelMovie, r.movieWheel(t.Player)
 	default:
@@ -239,8 +247,13 @@ func (e *Engine) Spin(s *State, actor PlayerID, stepID int64) (*Spin, error) {
 	if idx < 0 || idx >= len(sectors) {
 		return nil, fmt.Errorf("game: picker returned %d for %d sectors", idx, len(sectors))
 	}
+	return r.recordSpin(t, st, wheel, sectors, idx), nil
+}
+
+func (r *run) recordSpin(t *Turn, st *Step, wheel WheelKind, sectors []Sector, idx int) *Spin {
+	s := r.s
 	sp := &Spin{
-		ID: s.id(), Seq: s.seq(), Player: actor, TurnID: t.ID, StepID: st.ID,
+		ID: s.id(), Seq: s.seq(), Player: t.Player, TurnID: t.ID, StepID: st.ID,
 		Wheel: wheel, Sectors: sectors, Result: idx,
 	}
 	s.Spins = append(s.Spins, sp)
@@ -259,7 +272,7 @@ func (e *Engine) Spin(s *State, actor PlayerID, stepID int64) (*Spin, error) {
 		st.Result = sp.Picked().ID
 		r.stepDone(t, st)
 	}
-	return sp, nil
+	return sp
 }
 
 // itemWheel lists enabled items of the given kinds with the event's weights.
@@ -547,6 +560,18 @@ func (e *Engine) Choose(s *State, actor PlayerID, stepID, choice int64) error {
 		return err
 	}
 	switch st.Kind {
+	case StepChooseItem:
+		if choice < 1 || choice > int64(len(st.ItemChoices)) {
+			return ErrBadInput
+		}
+		id := st.ItemChoices[choice-1]
+		for _, sec := range r.itemChoices(t, st.ChoiceWheel) {
+			if sec.DefID == id {
+				r.recordSpin(t, st, st.ChoiceWheel, []Sector{sec}, 0)
+				return nil
+			}
+		}
+		return ErrNotAllowed
 	case StepChoosePlayer:
 		if PlayerID(choice) == actor || s.Player(PlayerID(choice)) == nil {
 			return fmt.Errorf("%w: выберите другого участника", ErrBadInput)

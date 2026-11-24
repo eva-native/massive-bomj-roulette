@@ -264,6 +264,23 @@ describe('editing own reviews', () => {
 })
 
 describe('my turn', () => {
+  it('submits the selected item from the wheel choices', async () => {
+    const backend = setup(alice)
+    await joinAs(backend, alice)
+    const current = view(turn([step(11, 'choose_item', { options: [{ id: 7, label: 'Хайскор' }] })]))
+    const choose = vi.fn(() => view(turn([step(12, 'spin_game')])))
+    backend.on('GET', /\/players\/2$/, () => current)
+    backend.on('POST', /\/steps\/11\/choose$/, (body) => {
+      expect(body).toEqual({ choice: 7 })
+      return choose()
+    })
+    vi.stubGlobal('fetch', backend.fetch)
+    const user = userEvent.setup()
+    renderApp('/e/lbr/play')
+    await user.click(await screen.findByRole('button', { name: 'Хайскор' }))
+    expect(choose).toHaveBeenCalledOnce()
+  })
+
   it('spins the wheel, animates to the server result and shows the next step', async () => {
     const backend = setup(alice)
     await joinAs(backend, alice)

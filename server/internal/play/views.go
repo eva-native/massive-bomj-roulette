@@ -215,7 +215,7 @@ func (s *Service) stepView(ss *session, t *game.Turn, st *game.Step) api.StepVie
 	}
 	if st.Done {
 		switch st.Kind {
-		case game.StepSpinItems, game.StepSpinDrop:
+		case game.StepSpinItems, game.StepSpinDrop, game.StepChooseItem:
 			if it := ss.st.Item(st.Result); it != nil {
 				if d := s.def(it.DefID); d != nil {
 					sv.Result = d.Name
@@ -232,6 +232,14 @@ func (s *Service) stepView(ss *session, t *game.Turn, st *game.Step) api.StepVie
 		}
 	}
 	switch st.Kind {
+	case game.StepChooseItem:
+		available := s.eng.ItemOptions(ss.st, t, st)
+		for i, id := range st.ItemChoices {
+			if available[int64(i+1)] != id {
+				continue
+			}
+			sv.Options = append(sv.Options, api.Option{ID: int64(i + 1), Label: s.def(id).Name})
+		}
 	case game.StepChooseGame:
 		for _, id := range st.Options {
 			sv.Options = append(sv.Options, api.Option{ID: id, Label: s.gameTitle(ss, id)})

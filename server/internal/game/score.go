@@ -147,6 +147,13 @@ func (e *Engine) Score(s *State) []Entry {
 	for _, pt := range s.Playthroughs {
 		out = append(out, r.scorePlaythrough(pt, records)...)
 	}
+	for _, it := range s.Items {
+		if award, ok := r.def(it).Impl.(InventoryAward); ok && it.Placement == PlaceUsed {
+			l := Ledger{owner: it.Player, source: it.DefID, item: it.ID}
+			l.Add(award.Award(r.self(it, 0)))
+			out = append(out, l.entries...)
+		}
+	}
 	return out
 }
 
@@ -210,6 +217,17 @@ func (r *run) scorePlaythrough(pt *Playthrough, records map[int64]*Playthrough) 
 		}
 		l.item, l.source = it.ID, it.DefID
 		sc.Score(c, l)
+	}
+	if pt.Confirmed && pt.Outcome != OutcomeTech {
+		total := Totals(l.entries)[pt.Player]
+		for _, it := range group {
+			if share, ok := r.def(it).Impl.(ScorePartner); ok && !r.blocked(it, group) {
+				if partner := share.Partner(r.self(it, 0)); partner != 0 {
+					l.item, l.source = it.ID, it.DefID
+					l.AddFor(partner, total)
+				}
+			}
+		}
 	}
 	return l.entries
 }
