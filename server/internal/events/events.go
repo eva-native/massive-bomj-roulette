@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -435,9 +436,11 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 		ItemWheelSeconds: in.ItemWheelSeconds,
 		RecordPoints:     in.RecordPoints,
 
-		MaxGamesPerMember: in.MaxGamesPerMember,
-		InviteOnly:        in.InviteOnly,
-		Icons:             map[string]string{},
+		MaxGamesPerMember:      in.MaxGamesPerMember,
+		JudgeGameSubmissions:   in.JudgeGameSubmissions,
+		GameSubmissionDeadline: in.GameSubmissionDeadline,
+		InviteOnly:             in.InviteOnly,
+		Icons:                  map[string]string{},
 	}
 	for id, link := range in.Icons {
 		d := s.cat.Def(id)
@@ -450,6 +453,11 @@ func (s *Service) cleanSettings(in api.EventSettings) (api.EventSettings, error)
 		}
 		if clean != "" {
 			out.Icons[id] = clean
+		}
+	}
+	if out.GameSubmissionDeadline != "" {
+		if _, err := time.Parse(time.DateOnly, out.GameSubmissionDeadline); err != nil {
+			return out, invalid("срок приёма игр должен быть датой в формате ГГГГ-ММ-ДД")
 		}
 	}
 	if out.MaxGamesPerMember < 0 || out.MaxGamesPerMember > 1000 {

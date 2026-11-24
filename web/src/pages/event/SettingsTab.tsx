@@ -6,7 +6,7 @@ import type { EventDetail, ItemDef, SpinsRow } from '@/api/types.gen'
 import { Button } from '@/components/Button'
 import { buttonClass } from '@/components/buttonClass'
 import { ItemIcon } from '@/components/ItemIcon'
-import { Card, ErrorText, Field, Input, Loading } from '@/components/ui'
+import { Card, ErrorText, Field, Input, Loading, Select } from '@/components/ui'
 import { forgetBroken, isPictureLink, useBrokenImages } from '@/lib/brokenImages'
 import { kindLabels } from '@/lib/items'
 import { DEFAULT_WHEEL_SECONDS } from '@/lib/wheel'
@@ -86,6 +86,8 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
   const [itemWheel, setItemWheel] = useState(event.settings.itemWheelSeconds)
   const [recordPoints, setRecordPoints] = useState(event.settings.recordPoints ?? DEFAULT_RECORD_POINTS)
   const [maxGames, setMaxGames] = useState(event.settings.maxGamesPerMember)
+  const [judgeSubmissions, setJudgeSubmissions] = useState(Boolean(event.settings.judgeGameSubmissions))
+  const [deadline, setDeadline] = useState(event.settings.gameSubmissionDeadline ?? '')
   const [inviteOnly, setInviteOnly] = useState(event.settings.inviteOnly)
   const [icons, setIcons] = useState<Record<string, string>>(event.settings.icons ?? {})
   // What the preview and its warning show: a link is taken once the judge leaves its field or
@@ -103,7 +105,7 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
       items.map((it) => [it.id, { weight: it.weight, enabled: it.enabled, params: Object.fromEntries(it.params.map((p) => [p.name, p.value])) }]),
     ),
   )
-  const snapshot = JSON.stringify({ title, startSpins, rows, webhook, gameWheel, itemWheel, recordPoints, maxGames, inviteOnly, icons, itemRows })
+  const snapshot = JSON.stringify({ title, startSpins, rows, webhook, gameWheel, itemWheel, recordPoints, maxGames, judgeSubmissions, deadline, inviteOnly, icons, itemRows })
   const [savedSnapshot, setSavedSnapshot] = useState(snapshot)
   const [saved, setSaved] = useState(false)
   const dirty = snapshot !== savedSnapshot
@@ -155,6 +157,8 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
           itemWheelSeconds: itemWheel,
           recordPoints,
           maxGamesPerMember: maxGames,
+          judgeGameSubmissions: judgeSubmissions || undefined,
+          gameSubmissionDeadline: deadline || undefined,
           inviteOnly,
           icons: Object.fromEntries(Object.entries(icons).filter(([, v]) => v.trim() !== '')),
         },
@@ -177,7 +181,16 @@ function SettingsForm({ event, items }: { event: EventDetail; items: ItemDef[] }
 
       <Card id="settings-pool" className="flex flex-col gap-3">
         <h2 className="font-semibold">Пул и вступление</h2>
-        <Field label="Игр на участника" hint="Сколько игр каждый может добавить в пул. 0 — без ограничений. Судей не касается." className="max-w-56">
+        <Field label="Кто добавляет игры">
+          <Select value={judgeSubmissions ? 'judge' : 'participants'} onChange={(e) => setJudgeSubmissions(e.target.value === 'judge')}>
+            <option value="participants">Участники добавляют свои игры</option>
+            <option value="judge">Судья добавляет игры от имени участников</option>
+          </Select>
+        </Field>
+        <Field label="Последний день приёма игр" hint="Включительно, по калининградскому времени (UTC+2). Без даты срок не ограничен. Судья может добавлять игры после срока.">
+          <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+        </Field>
+        <Field label="Игр на участника" hint="Лимит действует и при добавлении от имени участника. 0 — без ограничений." className="max-w-56">
           <Input type="number" min={0} max={1000} value={maxGames} onChange={(e) => setMaxGames(num(e.target.value))} />
         </Field>
         <label className="flex min-h-6 items-center gap-2 py-1 text-sm">

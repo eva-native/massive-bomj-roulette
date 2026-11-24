@@ -66,6 +66,10 @@ type EventSettings struct {
 	// How many games one member may add to the pool; 0 means no limit.
 	// Judges are not limited.
 	MaxGamesPerMember int `json:"maxGamesPerMember"`
+	// JudgeGameSubmissions lets judges enter games on behalf of participants.
+	JudgeGameSubmissions bool `json:"judgeGameSubmissions,omitempty"`
+	// GameSubmissionDeadline is the final calendar day (UTC+2) for participant submissions.
+	GameSubmissionDeadline string `json:"gameSubmissionDeadline,omitempty"`
 	// InviteOnly lets people join only with the invite link. InviteCode is
 	// made by the server and visible to judges only.
 	InviteOnly bool   `json:"inviteOnly"`
@@ -148,10 +152,11 @@ type SpecialGame struct {
 // --- games and movies -----------------------------------------------------------
 
 type GameInput struct {
-	Title     string `json:"title"`
-	HLTBHours int    `json:"hltbHours"`
-	Rating    int    `json:"rating"`
-	Year      int    `json:"year"`
+	SubmittedBy int64  `json:"submittedBy,omitempty"`
+	Title       string `json:"title"`
+	HLTBHours   int    `json:"hltbHours"`
+	Rating      int    `json:"rating"`
+	Year        int    `json:"year"`
 	// CoverURL is an optional https link to a cover picture.
 	CoverURL string `json:"coverUrl"`
 	// SpecialKey marks a game provided by an item; judges only. Empty for
@@ -226,13 +231,13 @@ type TurnView struct {
 
 type StepView struct {
 	ID   int64  `json:"id"`
-	Kind string `json:"kind"` // spin_items | spin_drop | choose_player | spin_game | choose_game | spin_movie | play
+	Kind string `json:"kind"` // spin_items | spin_drop | choose_player | choose_item | spin_game | choose_game | spin_movie | play
 	Done bool   `json:"done"`
 	// Result is a short label of what happened ("ОПАААА", a game title…).
 	Result string `json:"result"`
 	// AddedBy names the item that added the step, if any.
 	AddedBy string `json:"addedBy"`
-	// Options for choose_game and choose_player.
+	// Options for game, player or item choices.
 	Options []Option `json:"options"`
 }
 
@@ -379,6 +384,10 @@ type EditPlaythroughRequest struct {
 	Hours  float64 `json:"hours"`
 	Proof  string  `json:"proof"`
 	Review string  `json:"review"`
+}
+
+type EditReviewRequest struct {
+	Review string `json:"review"`
 }
 
 type ConfirmRequest struct {

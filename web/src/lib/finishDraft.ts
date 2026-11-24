@@ -8,7 +8,7 @@ import { emptyHMS, type HMS } from './hours'
  * drops it once the judge confirms the game.
  */
 export type Outcome = 'completed' | 'dropped' | 'tech'
-export type FinishDraft = { outcome: Outcome; time: HMS; proof: string; review: string }
+export type FinishDraft = { outcome: Outcome; time: HMS; proof: string; review: string; reviewBase?: string }
 
 export const emptyDraft: FinishDraft = { outcome: 'completed', time: emptyHMS, proof: '', review: '' }
 
@@ -30,6 +30,7 @@ function load(key: string): FinishDraft {
       time: { h: text(t.h), m: text(t.m), s: text(t.s) },
       proof: text(v.proof),
       review: text(v.review),
+      ...(typeof v.reviewBase === 'string' ? { reviewBase: v.reviewBase } : {}),
     }
   } catch {
     return emptyDraft
@@ -57,9 +58,21 @@ export function dropFinishDraft(key: string) {
   }
 }
 
+/** A successful submission establishes the review baseline for the next rejection. */
+export function rememberSubmittedReview(key: string, review: string) {
+  store(key, { ...load(key), review, reviewBase: review })
+}
+
 /** The form's fields, restored from and saved to this browser. */
-export function useFinishDraft(key: string) {
-  const [draft, setDraft] = useState<FinishDraft>(() => load(key))
+export function useFinishDraft(key: string, reviewBase?: string) {
+  const [draft, setDraft] = useState<FinishDraft>(() => {
+    const saved = load(key)
+    // Rejection preserves the server review, which may have been edited in another browser.
+    // Apply a new baseline once, then keep any further unsent edits through reloads.
+    return reviewBase !== undefined && reviewBase !== saved.reviewBase
+      ? { ...saved, review: reviewBase, reviewBase }
+      : saved
+  })
   useEffect(() => store(key, draft), [key, draft])
   const update = (patch: Partial<FinishDraft>) => setDraft((d) => ({ ...d, ...patch }))
   return [draft, update] as const

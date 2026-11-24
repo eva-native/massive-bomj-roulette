@@ -146,3 +146,45 @@ func TestGameRejectionReasonAPI(t *testing.T) {
 		t.Fatalf("resubmission: %+v", v.Turn.Playthrough)
 	}
 }
+
+func TestEditReviewAPI(t *testing.T) {
+	srv, _ := newTestServer(t)
+	judge := newClient(t, srv.URL, "Alice")
+	bob := newClient(t, srv.URL, "Bob")
+	other := newClient(t, srv.URL, "Other")
+	anon := newClient(t, srv.URL, "")
+	var ev api.EventDetail
+	judge.do("POST", "/api/events", api.CreateEventRequest{Title: "ЛБР", Slug: "lbr"}, http.StatusCreated, &ev)
+	bob.do("POST", "/api/events/lbr/join", nil, http.StatusOK, &ev)
+	other.do("POST", "/api/events/lbr/join", nil, http.StatusOK, nil)
+	bob.do("POST", "/api/events/lbr/games", api.GameInput{Title: "G", HLTBHours: 10, Rating: 80, Year: 2015}, http.StatusCreated, nil)
+	var id int64
+	for _, m := range ev.Members {
+		if m.Name == "Bob" {
+			id = m.UserID
+		}
+	}
+	path := "/api/events/lbr/players/" + itoa(id)
+	var v api.PlayerView
+	bob.do("GET", path, nil, http.StatusOK, &v)
+	for v.Turn.Current.Kind != "play" {
+		var res api.SpinResult
+		bob.do("POST", "/api/events/lbr/steps/"+itoa(v.Turn.Current.ID)+"/spin", nil, http.StatusOK, &res)
+		v = res.View
+	}
+	bob.do("POST", "/api/events/lbr/steps/"+itoa(v.Turn.Current.ID)+"/finish", api.FinishRequest{Outcome: "completed", Hours: 8, Review: "Обзор"}, http.StatusOK, &v)
+	ptPath := "/api/events/lbr/playthroughs/" + itoa(v.Turn.Playthrough.ID)
+	judge.do("POST", ptPath+"/confirm", api.ConfirmRequest{Accept: true}, http.StatusNoContent, nil)
+	req := api.EditReviewRequest{Review: "Исправлено"}
+	anon.do("PATCH", ptPath+"/review", req, http.StatusUnauthorized, nil)
+	other.do("PATCH", ptPath+"/review", req, http.StatusForbidden, nil)
+	bob.do("PATCH", ptPath+"/review", map[string]any{"review": "Исправлено", "hours": 1}, http.StatusBadRequest, nil)
+	bob.do("PATCH", ptPath, api.EditPlaythroughRequest{Hours: 1, Review: "Исправлено"}, http.StatusForbidden, nil)
+	bob.do("PATCH", ptPath+"/review", req, http.StatusNoContent, nil)
+	bob.do("GET", path, nil, http.StatusOK, &v)
+	if got := v.History[0]; got.Review != req.Review || got.Hours != 8 || !got.Confirmed {
+		t.Fatalf("review edit changed other fields: %+v", got)
+	}
+	judge.do("POST", "/api/events/lbr/finish", nil, http.StatusNoContent, nil)
+	bob.do("PATCH", ptPath+"/review", req, http.StatusConflict, nil)
+}

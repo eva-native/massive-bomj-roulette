@@ -6,6 +6,9 @@ RETURNING *;
 -- name: GetEventBySlug :one
 SELECT * FROM events WHERE slug = $1;
 
+-- name: GetEventForGameSubmission :one
+SELECT * FROM events WHERE slug = $1 FOR UPDATE;
+
 -- name: ListEvents :many
 -- All events, newest first, with member counts and the given user's roles.
 SELECT

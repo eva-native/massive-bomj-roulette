@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { finishKey, rememberSubmittedReview } from '@/lib/finishDraft'
 import { api } from './client'
 import { eventKeys } from './events'
 import type {
   ActivityEntry,
   ConfirmRequest,
   EditPlaythroughRequest,
+  EditReviewRequest,
   FinishRequest,
   LeaderboardRow,
   PlayTime,
@@ -78,9 +80,11 @@ export function useChoose(slug: string) {
 }
 
 export function useFinish(slug: string) {
-  return usePlayerAction(slug, ({ stepId, ...req }: FinishRequest & { stepId: number }) =>
-    api<PlayerView>(`${base(slug)}/steps/${stepId}/finish`, { method: 'POST', json: req }),
-  )
+  return usePlayerAction(slug, async ({ stepId, ...req }: FinishRequest & { stepId: number }) => {
+    const view = await api<PlayerView>(`${base(slug)}/steps/${stepId}/finish`, { method: 'POST', json: req })
+    if (view.turn?.playthrough) rememberSubmittedReview(finishKey(slug, view.turn.playthrough.id), req.review.trim())
+    return view
+  })
 }
 
 export function useUseItem(slug: string) {
@@ -205,6 +209,12 @@ export function useUndoStep(slug: string) {
 export function useEditPlaythrough(slug: string) {
   return useEventAction(slug, ({ id, ...req }: EditPlaythroughRequest & { id: number }) =>
     api<void>(`${base(slug)}/playthroughs/${id}`, { method: 'PATCH', json: req }),
+  )
+}
+
+export function useEditReview(slug: string) {
+  return useEventAction(slug, ({ id, ...req }: EditReviewRequest & { id: number }) =>
+    api<void>(`${base(slug)}/playthroughs/${id}/review`, { method: 'PATCH', json: req }),
   )
 }
 

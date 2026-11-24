@@ -169,6 +169,8 @@ func act(t *testing.T, e *game.Engine, s *game.State, rnd *rand.Rand, p, judge g
 			}
 		}
 		ok(e.Choose(s, p, st.ID, int64(others[rnd.IntN(len(others))])))
+	case game.StepChooseItem:
+		ok(e.Choose(s, p, st.ID, int64(1+rnd.IntN(len(st.ItemChoices)))))
 	case game.StepChooseGame:
 		ok(e.Choose(s, p, st.ID, st.Options[rnd.IntN(len(st.Options))]))
 	case game.StepPlay:

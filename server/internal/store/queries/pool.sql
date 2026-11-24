@@ -14,7 +14,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: CountGamesAddedBy :one
-SELECT count(*) FROM games WHERE event_id = $1 AND added_by = $2;
+SELECT count(*) FROM games WHERE event_id = $1 AND added_by = $2 AND special_key IS NULL;
 
 -- name: UpdateGame :one
 UPDATE games

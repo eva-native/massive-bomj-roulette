@@ -92,6 +92,14 @@ export interface EventSettings {
    */
   maxGamesPerMember: number /* int */;
   /**
+   * JudgeGameSubmissions lets judges enter games on behalf of participants.
+   */
+  judgeGameSubmissions?: boolean;
+  /**
+   * GameSubmissionDeadline is the final calendar day (UTC+2) for participant submissions.
+   */
+  gameSubmissionDeadline?: string;
+  /**
    * InviteOnly lets people join only with the invite link. InviteCode is
    * made by the server and visible to judges only.
    */
@@ -177,6 +185,7 @@ export interface SpecialGame {
   title: string;
 }
 export interface GameInput {
+  submittedBy?: number /* int64 */;
   title: string;
   hltbHours: number /* int */;
   rating: number /* int */;
@@ -264,7 +273,7 @@ export interface TurnView {
 }
 export interface StepView {
   id: number /* int64 */;
-  kind: string; // spin_items | spin_drop | choose_player | spin_game | choose_game | spin_movie | play
+  kind: string; // spin_items | spin_drop | choose_player | choose_item | spin_game | choose_game | spin_movie | play
   done: boolean;
   /**
    * Result is a short label of what happened ("ОПАААА", a game title…).
@@ -275,7 +284,7 @@ export interface StepView {
    */
   addedBy: string;
   /**
-   * Options for choose_game and choose_player.
+   * Options for game, player or item choices.
    */
   options: Option[];
 }
@@ -436,6 +445,9 @@ export const MaxReview = 10000;
 export interface EditPlaythroughRequest {
   hours: number /* float64 */;
   proof: string;
+  review: string;
+}
+export interface EditReviewRequest {
   review: string;
 }
 export interface ConfirmRequest {

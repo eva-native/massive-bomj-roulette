@@ -85,9 +85,6 @@ export function EventLayout() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold">{ev.title}</h1>
-          <a href={RULES_URL} target="_blank" rel="noreferrer" className="text-sm text-link underline">
-            Правила ивента ↗
-          </a>
           {ev.status === 'finished' && <Badge>Завершён</Badge>}
           {isJudge && <Badge tone="amber">Судья</Badge>}
           {ev.me?.isParticipant && <Badge tone="green">Участник</Badge>}
@@ -127,6 +124,11 @@ export function EventLayout() {
       <EventTabs base={base} tabs={tabs} active={active} />
 
       <Outlet context={{ event: ev } satisfies EventContext} />
+      <footer aria-label="Информация об ивенте" className="border-t border-stone-200 pt-4 text-sm dark:border-stone-800">
+        <a href={RULES_URL} target="_blank" rel="noreferrer" className="text-link underline">
+          Правила ивента ↗
+        </a>
+      </footer>
     </main>
   )
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -80,9 +81,12 @@ func (s *Service) Choose(ctx context.Context, slug string, viewer *auth.User, st
 		if err := s.eng.Choose(ss.st, me, stepID, choice); err != nil {
 			return err
 		}
-		if cur.Kind == game.StepChoosePlayer {
+		switch cur.Kind {
+		case game.StepChooseItem:
+			ss.log("choose", "%s выбирает предмет: %s", ss.name(me), s.def(ss.st.Item(cur.Result).DefID).Name)
+		case game.StepChoosePlayer:
 			ss.log("choose", "%s выбирает участника: %s", ss.name(me), ss.name(game.PlayerID(choice)))
-		} else {
+		case game.StepChooseGame:
 			ss.log("choose", "%s выбирает игру: %s", ss.name(me), s.gameTitle(ss, choice))
 		}
 		return nil
@@ -107,6 +111,9 @@ func (s *Service) Finish(ctx context.Context, slug string, viewer *auth.User, st
 			return err
 		}
 		pt := ss.st.Playthrough(ss.st.CurrentTurn(me).Playthrough)
+		if err := s.checkReviewMinimum(ss.st, pt, review); err != nil {
+			return err
+		}
 		pt.Review = review
 		title := s.gameTitle(ss, pt.Game)
 		switch game.Outcome(req.Outcome) {
@@ -136,6 +143,18 @@ func formatHours(h float64) string {
 		parts = append(parts, fmt.Sprintf("%d с", ss))
 	}
 	return strings.Join(parts, " ")
+}
+
+func (s *Service) checkReviewMinimum(st *game.State, pt *game.Playthrough, review string) error {
+	if pt.Outcome == game.OutcomeTech || len(strings.Fields(review)) >= 300 {
+		return nil
+	}
+	for _, it := range st.Items {
+		if it.DefID == "game_journalist" && it.Placement != game.PlaceVoided && slices.Contains(it.Chain, pt.ID) && !s.eng.Blocked(st, it.ID) {
+			return &events.InvalidError{Msg: "для «Игрожура» нужен обзор минимум на 300 слов"}
+		}
+	}
+	return nil
 }
 
 func cleanReview(s string) (string, error) {
@@ -373,6 +392,7 @@ var stepNames = map[game.StepKind]string{
 	game.StepSpinDrop:     "колесо дроп-дебаффов",
 	game.StepChoosePlayer: "выбор участника",
 	game.StepSpinGame:     "колесо игр",
+	game.StepChooseItem:   "выбор предмета",
 	game.StepChooseGame:   "выбор игры",
 	game.StepSpinMovie:    "киноколесо",
 	game.StepPlay:         "итог игры",
@@ -397,6 +417,38 @@ func (s *Service) UndoStep(ctx context.Context, slug string, viewer *auth.User, 
 	})
 }
 
+// EditReview changes only the owner's review, including after judge confirmation.
+func (s *Service) EditReview(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, req api.EditReviewRequest) error {
+	review, err := cleanReview(req.Review)
+	if err != nil {
+		return err
+	}
+	return s.write(ctx, slug, viewer, func(ss *session) error {
+		if err := requirePlayer(ss); err != nil {
+			return err
+		}
+		pt := ss.st.Playthrough(playthroughID)
+		if pt == nil {
+			return events.ErrNotFound
+		}
+		if pt.Player != ss.viewerID() {
+			return events.ErrForbidden
+		}
+		if pt.Outcome == game.OutcomeNone {
+			return fmt.Errorf("%w: игра ещё не завершена", events.ErrConflict)
+		}
+		if review == "" && pt.Outcome != game.OutcomeTech {
+			return &events.InvalidError{Msg: "напишите обзор игры"}
+		}
+		if err := s.checkReviewMinimum(ss.st, pt, review); err != nil {
+			return err
+		}
+		pt.Review = review
+		ss.log("review", "%s исправляет обзор «%s»", ss.viewer.Name, s.gameTitle(ss, pt.Game))
+		return nil
+	})
+}
+
 // EditPlaythrough lets a judge correct the hours, proof and review of a finished game.
 // The review may be left empty here: games finished before reviews were required have none.
 func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth.User, playthroughID int64, req api.EditPlaythroughRequest) error {
@@ -417,6 +469,9 @@ func (s *Service) EditPlaythrough(ctx context.Context, slug string, viewer *auth
 			return events.ErrNotFound
 		}
 		if err := s.eng.EditPlaythrough(ss.st, ss.viewerID(), playthroughID, req.Hours, proof); err != nil {
+			return err
+		}
+		if err := s.checkReviewMinimum(ss.st, pt, review); err != nil {
 			return err
 		}
 		pt.Review = review

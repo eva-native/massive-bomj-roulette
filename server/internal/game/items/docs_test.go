@@ -47,13 +47,13 @@ func TestCatalogMatchesDocs(t *testing.T) {
 			t.Errorf("%s is in the catalog but not in docs/rules", id)
 		}
 	}
-	if len(want) != 48 {
+	if len(want) != 60 {
 		ids := make([]string, 0, len(want))
 		for id := range want {
 			ids = append(ids, id)
 		}
 		sort.Strings(ids)
-		t.Errorf("docs/rules lists %d items, expected 48: %v", len(want), ids)
+		t.Errorf("docs/rules lists %d items, expected 60: %v", len(want), ids)
 	}
 }
 

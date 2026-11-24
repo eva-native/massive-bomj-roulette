@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import { ScrollToBottom } from './ScrollToBottom'
+import { ScrollToBottom, ScrollToTop } from './ScrollToBottom'
 
 // jsdom has no layout: give the page a height by hand.
 function setPageHeight(px: number) {
@@ -56,4 +56,35 @@ it('hides on a phone and while an input is focused', async () => {
   fireEvent(window, new Event('resize'))
   expect(button()).toHaveAttribute('data-shown', 'false')
   expect(button()).toHaveAttribute('tabindex', '-1')
+})
+
+it('returns to the top on mobile, respects reduced motion and keeps keyboard focus', () => {
+  vi.stubGlobal('innerWidth', 390)
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  const scroll = vi.fn()
+  vi.stubGlobal('scrollTo', scroll)
+  setPageHeight(window.innerHeight * 5)
+  render(<ScrollToTop />)
+  const top = screen.getByRole('button', { name: 'Вверх страницы' })
+  expect(top).toHaveAttribute('data-shown', 'false')
+  scrollPageTo(window.innerHeight * 2)
+  expect(top).toHaveAttribute('data-shown', 'true')
+  top.focus()
+  fireEvent.click(top)
+  expect(scroll).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
+  scrollPageTo(0)
+  expect(top).toHaveAttribute('tabindex', '-1')
+  expect(top).toHaveFocus()
+})
+
+it('stacks the two controls and hides the top control while typing', () => {
+  setPageHeight(window.innerHeight * 6)
+  scrollPageTo(window.innerHeight * 2)
+  render(<><input aria-label="Поле" /><ScrollToTop /><ScrollToBottom /></>)
+  const top = screen.getByRole('button', { name: 'Вверх страницы' })
+  expect(top).toHaveClass('bottom-18')
+  expect(top).toHaveAttribute('data-shown', 'true')
+  expect(button()).toHaveAttribute('data-shown', 'true')
+  act(() => screen.getByRole('textbox').focus())
+  expect(top).toHaveAttribute('data-shown', 'false')
 })

@@ -78,7 +78,7 @@ describe('events', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Участвовать' }))
     await user.click(await screen.findByRole('link', { name: 'Участники' }))
-    expect(await screen.findByRole('link', { name: 'Алиса' })).toHaveAttribute('href', '/e/lbr/players/2')
+    expect(await within(screen.getByRole('main')).findByRole('link', { name: 'Алиса' })).toHaveAttribute('href', '/e/lbr/players/2')
     // A judge only, with no board: the name is plain text.
     expect(screen.getByText('Админ')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Админ' })).not.toBeInTheDocument()

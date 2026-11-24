@@ -187,6 +187,18 @@ type Scorer interface {
 	Score(c *ScoreCtx, l *Ledger)
 }
 
+// InventoryAward awards points on activation, independently of a playthrough.
+type InventoryAward interface {
+	Award(self *Self) int
+	Activate(self *Self)
+}
+
+// ItemWheelChooser converts its next matching wheel into a choice when forced.
+type ItemWheelChooser interface{ WheelStep() StepKind }
+
+// ScorePartner receives a copy of the final owner score after all modifiers.
+type ScorePartner interface{ Partner(self *Self) PlayerID }
+
 // Noter adds a short note to the item's card («Часть 2», the rolled movie).
 type Noter interface {
 	Note(c *Ctx, self *Self) string
@@ -254,7 +266,9 @@ func (c *Catalog) All() []*Def { return c.order }
 // scoring). Bump it when they change so running events note the change.
 // 2: speed record +5 by default, technical drop.
 // 3: speed points never go below zero.
-const engineRules = 3
+// 4: selected item wheels, matching-title rerolls, shared scores and inventory awards.
+// 5: rewinds release alphabet filters and replacement spins honor forced choices.
+const engineRules = 5
 
 // Fingerprint identifies this version of the rules: the engine's rules, item
 // texts, flags, fields, parameters and the mechanics' type and settings. It

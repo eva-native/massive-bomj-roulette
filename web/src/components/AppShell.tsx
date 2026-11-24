@@ -5,7 +5,7 @@ import { useLogout, useMe } from '@/api/hooks'
 import { cn } from '@/lib/cn'
 import { Button } from './Button'
 import { buttonClass } from './buttonClass'
-import { ScrollToBottom } from './ScrollToBottom'
+import { ScrollToBottom, ScrollToTop } from './ScrollToBottom'
 import { Avatar } from './ui'
 
 /** The page frame: header with the user and logout, or a login link. */
@@ -45,6 +45,7 @@ export function AppShell() {
       </header>
       <Outlet />
       <ScrollToBottom />
+      <ScrollToTop />
     </div>
   )
 }
