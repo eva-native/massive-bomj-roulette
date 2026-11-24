@@ -36,7 +36,8 @@ export function GamesTab() {
     return () => window.clearTimeout(timer)
   }, [closesAt])
   const closed = closesAt > 0 && now >= closesAt
-  const canEdit = (g: Game) => isJudge || (!judgeOnly && g.addedBy === me?.id)
+  const canManage = (g: Game) => isJudge || (!judgeOnly && g.addedBy === me?.id)
+  const canEdit = (g: Game) => event.status === 'active' && canManage(g) && (isJudge || !closed)
   const specialGames: SpecialGame[] = items.data?.flatMap((it) => it.specialGames) ?? []
   const limit = event.settings.maxGamesPerMember
   const mine = games.data?.filter((g) => g.addedBy === me?.id && !g.specialKey).length ?? 0
@@ -77,11 +78,12 @@ export function GamesTab() {
       <ul className="flex flex-col gap-2">
         {games.data?.map((g) => (
           <li key={g.id}>
-            <InlineEdit active={editing === g.id} onCancel={() => { if (!update.isPending) setEditing(null) }} className={editing === g.id ? 'contents' : 'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900'}>
-          {editing === g.id ? (
+            <InlineEdit active={editing === g.id && canEdit(g)} onCancel={() => { if (!update.isPending) setEditing(null) }} className={editing === g.id && canEdit(g) ? 'contents' : 'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900'}>
+          {editing === g.id && canEdit(g) ? (
               <Card>
                 <GameForm
                   initial={g}
+                  keepSpecial={judgeOnly && Boolean(g.specialKey)}
                   specialGames={isJudge ? specialGames : []}
                   submitLabel="Сохранить"
                   pending={update.isPending}
@@ -107,11 +109,11 @@ export function GamesTab() {
                 <span className="text-lg font-semibold" title="Базовые очки">
                   база {g.basePoints}
                 </span>
-                {canEdit(g) && event.status === 'active' && (
+                {canManage(g) && event.status === 'active' && (
                   <>
-                    <button data-edit-trigger type="button" className="min-h-6 py-1 text-sm text-link hover:underline" onClick={() => setEditing(g.id)}>
+                    {canEdit(g) && <button data-edit-trigger type="button" className="min-h-6 py-1 text-sm text-link hover:underline" onClick={() => setEditing(g.id)}>
                       Изменить
-                    </button>
+                    </button>}
                     <button
                       type="button"
                       className="min-h-6 py-1 text-sm text-danger hover:underline"
@@ -138,6 +140,7 @@ function GameForm({
   initial,
   specialGames,
   participants,
+  keepSpecial = false,
   submitLabel,
   pending,
   error,
@@ -147,6 +150,7 @@ function GameForm({
 }: {
   disabled?: boolean
   initial: GameInput
+  keepSpecial?: boolean
   participants?: Member[]
   specialGames: SpecialGame[]
   submitLabel: string
@@ -200,7 +204,7 @@ function GameForm({
         {specialGames.length > 0 && (
           <Field label="Особая игра" hint="Не выпадает на колесе, её подставляет предмет">
             <Select value={form.specialKey} onChange={(e) => set('specialKey', e.target.value)}>
-              <option value="">Обычная игра</option>
+              {!keepSpecial && <option value="">Обычная игра</option>}
               {specialGames.map((sg) => (
                 <option key={sg.key} value={sg.key}>
                   {sg.title}

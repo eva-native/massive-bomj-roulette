@@ -158,7 +158,7 @@ func (s *Service) knownSpecialKey(key string) bool {
 	return false
 }
 
-func (s *Service) AddGame(ctx context.Context, u *auth.User, slug string, in api.GameInput) (api.Game, error) {
+func (s *Service) writeGame(ctx context.Context, u *auth.User, slug string, write func(*db.Queries, db.Event, db.EventMember, api.EventSettings) (db.Game, error)) (api.Game, error) {
 	if u == nil {
 		return api.Game{}, ErrUnauthenticated
 	}
@@ -190,54 +190,21 @@ func (s *Service) AddGame(ctx context.Context, u *auth.User, slug string, in api
 			return err
 		}
 		if !m.IsJudge {
-			if settings.JudgeGameSubmissions || in.SubmittedBy != 0 {
+			if settings.JudgeGameSubmissions {
 				return ErrForbidden
 			}
 			if submissionsClosed(settings.GameSubmissionDeadline, time.Now()) {
 				return fmt.Errorf("%w: срок приёма игр истёк", ErrConflict)
 			}
 		}
-		g, err := s.cleanGame(in, m, nil)
-		if err != nil {
-			return err
-		}
-		owner := u.ID
-		limited := !m.IsJudge
-		if settings.JudgeGameSubmissions && g.specialKey == nil {
-			if in.SubmittedBy == 0 {
-				return invalid("выберите участника, предложившего игру")
-			}
-			target, err := q.GetMember(ctx, db.GetMemberParams{EventID: ev.ID, UserID: in.SubmittedBy})
-			if errors.Is(err, pgx.ErrNoRows) {
-				return invalid("выберите участника этого ивента")
-			}
-			if err != nil {
-				return err
-			}
-			if !target.IsParticipant {
-				return invalid("выберите участника этого ивента")
-			}
-			owner, limited = target.UserID, true
-		} else if in.SubmittedBy != 0 {
-			return invalid("выбор участника доступен для обычной игры в судейском режиме")
-		}
-		if limited && settings.MaxGamesPerMember > 0 {
-			n, err := q.CountGamesAddedBy(ctx, db.CountGamesAddedByParams{EventID: ev.ID, AddedBy: owner})
-			if err != nil {
-				return err
-			}
-			if n >= int64(settings.MaxGamesPerMember) {
-				return fmt.Errorf("%w: можно добавить не больше %d игр на участника", ErrConflict, settings.MaxGamesPerMember)
-			}
-		}
-		row, err := q.CreateGame(ctx, db.CreateGameParams{EventID: ev.ID, AddedBy: owner, Title: g.title, HltbHours: g.hltb, Rating: g.rating, Year: g.year, SpecialKey: g.specialKey, CoverUrl: g.cover})
+		row, err := write(q, ev, m, settings)
 		if isUniqueViolation(err) {
 			return fmt.Errorf("%w: эта особая игра уже есть в пуле", ErrConflict)
 		}
 		if err != nil {
 			return err
 		}
-		author, err := q.GetUser(ctx, owner)
+		author, err := q.GetUser(ctx, row.AddedBy)
 		if err != nil {
 			return err
 		}
@@ -247,43 +214,72 @@ func (s *Service) AddGame(ctx context.Context, u *auth.User, slug string, in api
 	return result, err
 }
 
-func (s *Service) UpdateGame(ctx context.Context, u *auth.User, slug string, id int64, in api.GameInput) (api.Game, error) {
-	ev, m, err := s.poolEvent(ctx, slug, u)
-	if err != nil {
-		return api.Game{}, err
-	}
-	settings, err := decodeSettings(ev.Settings)
-	if err != nil {
-		return api.Game{}, err
-	}
-	if settings.JudgeGameSubmissions && !m.IsJudge {
-		return api.Game{}, ErrForbidden
-	}
-	cur, err := s.st.GetGame(ctx, db.GetGameParams{ID: id, EventID: ev.ID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return api.Game{}, ErrNotFound
-	}
-	if err != nil {
-		return api.Game{}, err
-	}
-	if err := canEdit(u, m, cur.AddedBy); err != nil {
-		return api.Game{}, err
-	}
-	g, err := s.cleanGame(in, m, cur.SpecialKey)
-	if err != nil {
-		return api.Game{}, err
-	}
-	row, err := s.st.UpdateGame(ctx, db.UpdateGameParams{
-		ID: id, EventID: ev.ID, Title: g.title, HltbHours: g.hltb, Rating: g.rating, Year: g.year, SpecialKey: g.specialKey,
-		CoverUrl: g.cover,
+func (s *Service) AddGame(ctx context.Context, u *auth.User, slug string, in api.GameInput) (api.Game, error) {
+	return s.writeGame(ctx, u, slug, func(q *db.Queries, ev db.Event, m db.EventMember, settings api.EventSettings) (db.Game, error) {
+		if !m.IsJudge && in.SubmittedBy != 0 {
+			return db.Game{}, ErrForbidden
+		}
+		g, err := s.cleanGame(in, m, nil)
+		if err != nil {
+			return db.Game{}, err
+		}
+		owner := u.ID
+		limited := !m.IsJudge
+		if settings.JudgeGameSubmissions && g.specialKey == nil {
+			if in.SubmittedBy == 0 {
+				return db.Game{}, invalid("выберите участника, предложившего игру")
+			}
+			target, err := q.GetMember(ctx, db.GetMemberParams{EventID: ev.ID, UserID: in.SubmittedBy})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return db.Game{}, invalid("выберите участника этого ивента")
+			}
+			if err != nil {
+				return db.Game{}, err
+			}
+			if !target.IsParticipant {
+				return db.Game{}, invalid("выберите участника этого ивента")
+			}
+			owner, limited = target.UserID, true
+		} else if in.SubmittedBy != 0 {
+			return db.Game{}, invalid("выбор участника доступен для обычной игры в судейском режиме")
+		}
+		if limited && settings.MaxGamesPerMember > 0 {
+			n, err := q.CountGamesAddedBy(ctx, db.CountGamesAddedByParams{EventID: ev.ID, AddedBy: owner})
+			if err != nil {
+				return db.Game{}, err
+			}
+			if n >= int64(settings.MaxGamesPerMember) {
+				return db.Game{}, fmt.Errorf("%w: можно добавить не больше %d игр на участника", ErrConflict, settings.MaxGamesPerMember)
+			}
+		}
+		return q.CreateGame(ctx, db.CreateGameParams{EventID: ev.ID, AddedBy: owner, Title: g.title, HltbHours: g.hltb, Rating: g.rating, Year: g.year, SpecialKey: g.specialKey, CoverUrl: g.cover})
 	})
-	if isUniqueViolation(err) {
-		return api.Game{}, fmt.Errorf("%w: эта особая игра уже есть в пуле", ErrConflict)
-	}
-	if err != nil {
-		return api.Game{}, err
-	}
-	return toGame(row, s.userName(ctx, row.AddedBy)), nil
+}
+
+func (s *Service) UpdateGame(ctx context.Context, u *auth.User, slug string, id int64, in api.GameInput) (api.Game, error) {
+	return s.writeGame(ctx, u, slug, func(q *db.Queries, ev db.Event, m db.EventMember, settings api.EventSettings) (db.Game, error) {
+		cur, err := q.GetGame(ctx, db.GetGameParams{ID: id, EventID: ev.ID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Game{}, ErrNotFound
+		}
+		if err != nil {
+			return db.Game{}, err
+		}
+		if err := canEdit(u, m, cur.AddedBy); err != nil {
+			return db.Game{}, err
+		}
+		g, err := s.cleanGame(in, m, cur.SpecialKey)
+		if err != nil {
+			return db.Game{}, err
+		}
+		if settings.JudgeGameSubmissions && cur.SpecialKey != nil && g.specialKey == nil {
+			return db.Game{}, invalid("чтобы добавить обычную игру, создайте запись и выберите участника")
+		}
+		return q.UpdateGame(ctx, db.UpdateGameParams{
+			ID: id, EventID: ev.ID, Title: g.title, HltbHours: g.hltb, Rating: g.rating, Year: g.year, SpecialKey: g.specialKey,
+			CoverUrl: g.cover,
+		})
+	})
 }
 
 func (s *Service) DeleteGame(ctx context.Context, u *auth.User, slug string, id int64) error {

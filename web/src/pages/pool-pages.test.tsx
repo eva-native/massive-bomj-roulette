@@ -106,3 +106,31 @@ it('requires the judge to choose the participant when submitting an ordinary gam
   await user.click(button)
   expect(add).toHaveBeenCalledWith(expect.objectContaining({ submittedBy: alice.id, title: 'Portal' }))
 })
+
+it('hides the author edit button after submissions close', async () => {
+  const backend = fakeBackend({ me: alice })
+  backend.addEvent('lbr', 'ЛБР', judge, { games: [{ id: 7, title: 'Portal', hltbHours: 3, rating: 90, year: 2007, specialKey: '', basePoints: 6, addedBy: alice.id, addedByName: alice.name, coverUrl: '' }] })
+  await backend.fetch('/api/events/lbr/join', { method: 'POST' })
+  const event = await (await backend.fetch('/api/events/lbr')).json() as EventDetail
+  await backend.fetch('/api/events/lbr', { method: 'PATCH', body: JSON.stringify({ settings: { ...event.settings, gameSubmissionDeadline: '2020-01-01' } }) })
+  vi.stubGlobal('fetch', backend.fetch)
+  renderApp('/e/lbr/games')
+  await screen.findByText('Portal')
+  expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Удалить' })).toBeEnabled()
+})
+
+it('keeps special games outside the ordinary pool when edited in judge mode', async () => {
+  const effect = { ...item('smuta', 'effect', 1), specialGames: [{ key: 'smuta', title: 'Смута' }] }
+  const backend = fakeBackend({ me: judge, items: [effect] })
+  backend.addEvent('lbr', 'ЛБР', judge, { games: [{ id: 7, title: 'Смута', hltbHours: 12, rating: 40, year: 2024, specialKey: 'smuta', basePoints: 12, addedBy: judge.id, addedByName: judge.name, coverUrl: '' }] })
+  const event = await (await backend.fetch('/api/events/lbr')).json() as EventDetail
+  await backend.fetch('/api/events/lbr', { method: 'PATCH', body: JSON.stringify({ settings: { ...event.settings, judgeGameSubmissions: true } }) })
+  vi.stubGlobal('fetch', backend.fetch)
+  const user = userEvent.setup()
+  renderApp('/e/lbr/games')
+  await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+  const form = screen.getByRole('button', { name: 'Сохранить' }).closest('form')!
+  expect(await within(form).findByLabelText('Особая игра', { exact: false })).toHaveValue('smuta')
+  expect(within(form).queryByRole('option', { name: 'Обычная игра' })).not.toBeInTheDocument()
+})

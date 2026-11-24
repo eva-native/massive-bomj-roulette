@@ -497,3 +497,46 @@ func TestConcurrentGameSubmissionsShareLastSlot(t *testing.T) {
 		t.Fatalf("accepted %d submissions with one slot", successes)
 	}
 }
+
+func TestSubmissionDeadlineBlocksAuthorEditButAllowsJudgeCorrection(t *testing.T) {
+	f := newFixture(t)
+	f.create("lbr")
+	f.join(f.alice, "lbr")
+	in := api.GameInput{Title: "Portal", HLTBHours: 3, Rating: 90, Year: 2007}
+	g, err := f.svc.AddGame(f.ctx, f.alice, "lbr", in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := api.EventSettings{StartSpins: 3, GameSubmissionDeadline: "2020-01-01"}
+	if _, err := f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &settings}); err != nil {
+		t.Fatal(err)
+	}
+	in.Title = "Portal 2"
+	_, err = f.svc.UpdateGame(f.ctx, f.alice, "lbr", g.ID, in)
+	expect(t, err, ErrConflict)
+	updated, err := f.svc.UpdateGame(f.ctx, f.admin, "lbr", g.ID, in)
+	if err != nil || updated.Title != in.Title || updated.AddedBy != f.alice.ID {
+		t.Fatalf("judge correction: %+v, %v", updated, err)
+	}
+}
+
+func TestJudgeCannotConvertSpecialGameToOrdinaryInJudgeMode(t *testing.T) {
+	f := newFixture(t)
+	f.create("lbr")
+	settings := api.EventSettings{StartSpins: 3, JudgeGameSubmissions: true}
+	if _, err := f.svc.Update(f.ctx, f.admin, "lbr", api.UpdateEventRequest{Settings: &settings}); err != nil {
+		t.Fatal(err)
+	}
+	in := api.GameInput{Title: "Смута", Year: 2024, SpecialKey: "smuta"}
+	g, err := f.svc.AddGame(f.ctx, f.admin, "lbr", in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.SpecialKey = ""
+	_, err = f.svc.UpdateGame(f.ctx, f.admin, "lbr", g.ID, in)
+	expectInvalid(t, err)
+	games, err := f.svc.Games(f.ctx, "lbr")
+	if err != nil || len(games) != 1 || games[0].SpecialKey != "smuta" {
+		t.Fatalf("special game after rejected edit: %+v, %v", games, err)
+	}
+}
